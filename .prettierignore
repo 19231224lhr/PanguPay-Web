@@ -1,0 +1,6 @@
+.codebase-memory/
+coverage/
+dist/
+node_modules/
+playwright-report/
+test-results/

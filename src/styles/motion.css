@@ -1,0 +1,52 @@
+@layer base {
+  @keyframes page-enter {
+    from {
+      transform: translateY(8px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes orbit-clockwise {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  @keyframes orbit-counterclockwise {
+    to {
+      transform: rotate(-1turn);
+    }
+  }
+
+  @keyframes status-breathe {
+    50% {
+      opacity: 0.54;
+      transform: scale(0.86);
+    }
+  }
+
+  @keyframes spinner {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --overlay: var(--surface);
+    }
+  }
+}
