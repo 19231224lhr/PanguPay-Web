@@ -6,10 +6,11 @@ import BrandMark from '@/components/BrandMark.vue'
 import FormField from '@/components/FormField.vue'
 
 describe('foundation components', () => {
-  it('renders the four-loop brand mark as labelled scalable SVG', () => {
-    const wrapper = mount(BrandMark, { props: { label: 'PanguPay' } })
-    expect(wrapper.find('svg').attributes('viewBox')).toBe('0 0 64 64')
-    expect(wrapper.findAll('path')).toHaveLength(4)
+  it('renders the original PanguPay silhouette as a current-color mask', () => {
+    const wrapper = mount(BrandMark, { props: { label: 'PanguPay', size: 48 } })
+    expect(wrapper.find('.brand-mark__shape').exists()).toBe(true)
+    expect(wrapper.find('svg').exists()).toBe(false)
+    expect(wrapper.attributes('style')).toContain('--brand-size: 48px')
     expect(wrapper.attributes('aria-label')).toBe('PanguPay')
   })
 

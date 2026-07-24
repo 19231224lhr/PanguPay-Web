@@ -8,6 +8,8 @@
     --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
     --accent: #0066cc;
     --accent-strong: #005bb8;
+    --action-primary: #0066cc;
+    --action-primary-hover: #005bb8;
     --success: #248a57;
     --warning: #b96f19;
     --danger: #cc3d4a;
@@ -35,6 +37,23 @@
     --border: rgb(29 29 31 / 0.1);
     --border-strong: rgb(29 29 31 / 0.18);
     --overlay: rgb(255 255 255 / 0.72);
+    --action-frosted:
+      radial-gradient(circle at 18% 0%, rgb(255 255 255 / 0.84), transparent 42%),
+      linear-gradient(
+        135deg,
+        rgb(0 113 227 / 0.19),
+        rgb(0 113 227 / 0.08) 58%,
+        rgb(255 255 255 / 0.48)
+      );
+    --action-frosted-hover:
+      radial-gradient(circle at 18% 0%, rgb(255 255 255 / 0.92), transparent 44%),
+      linear-gradient(
+        135deg,
+        rgb(0 113 227 / 0.24),
+        rgb(0 113 227 / 0.11) 58%,
+        rgb(255 255 255 / 0.58)
+      );
+    --action-frosted-shadow: 0 20px 48px rgb(0 74 173 / 0.12);
     --hero-halo: rgb(0 113 227 / 0.11);
     --orbit: rgb(29 29 31 / 0.14);
     --focus: rgb(0 113 227 / 0.36);
@@ -51,8 +70,27 @@
     --border: rgb(245 245 247 / 0.1);
     --border-strong: rgb(245 245 247 / 0.18);
     --overlay: rgb(16 16 19 / 0.72);
+    --action-frosted:
+      radial-gradient(circle at 18% 0%, rgb(91 173 255 / 0.27), transparent 46%),
+      linear-gradient(
+        135deg,
+        rgb(41 151 255 / 0.21),
+        rgb(41 151 255 / 0.08) 56%,
+        rgb(245 245 247 / 0.035)
+      );
+    --action-frosted-hover:
+      radial-gradient(circle at 18% 0%, rgb(91 173 255 / 0.34), transparent 48%),
+      linear-gradient(
+        135deg,
+        rgb(41 151 255 / 0.27),
+        rgb(41 151 255 / 0.12) 56%,
+        rgb(245 245 247 / 0.05)
+      );
+    --action-frosted-shadow: 0 20px 58px rgb(0 113 227 / 0.16);
     --accent: #2997ff;
     --accent-strong: #5badff;
+    --action-primary: #0071e3;
+    --action-primary-hover: #0066cc;
     --success: #45c985;
     --warning: #ef9b43;
     --danger: #ff6673;

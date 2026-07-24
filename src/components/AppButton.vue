@@ -86,12 +86,12 @@ withDefaults(
 }
 
 .app-button--primary {
-  background: var(--accent);
+  background: var(--action-primary);
   color: white;
 }
 
 .app-button--primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: var(--action-primary-hover);
 }
 
 .app-button--secondary {
