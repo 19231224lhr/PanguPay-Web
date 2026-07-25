@@ -50,3 +50,49 @@
     }
   }
 }
+
+::view-transition-old(root) {
+  animation: wallet-exit 280ms var(--ease-standard) both;
+}
+
+::view-transition-new(root) {
+  animation: wallet-reveal 620ms var(--ease-standard) both;
+}
+
+@keyframes wallet-exit {
+  to {
+    opacity: 0;
+    filter: blur(3px);
+    transform: scale(1.012);
+  }
+}
+
+@keyframes wallet-reveal {
+  from {
+    opacity: 0;
+    clip-path: circle(4% at 73% 50%);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: circle(150% at 73% 50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 120ms;
+    animation-name: simple-crossfade;
+  }
+
+  @keyframes simple-crossfade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
+import { PhLockKey as LockKey } from '@phosphor-icons/vue'
 
 import BrandMark from './BrandMark.vue'
 import PreferenceControls from './PreferenceControls.vue'
@@ -10,10 +11,17 @@ export interface AppShellItem {
   to: string
 }
 
-defineProps<{
-  items: AppShellItem[]
-  navigationLabel: string
-}>()
+withDefaults(
+  defineProps<{
+    items: AppShellItem[]
+    navigationLabel: string
+    accountName?: string
+    accountId?: string
+  }>(),
+  { accountName: 'Wallet', accountId: '' },
+)
+
+defineEmits<{ lock: [] }>()
 </script>
 
 <template>
@@ -24,10 +32,15 @@ defineProps<{
         <span>PanguPay</span>
       </RouterLink>
 
-      <div class="app-shell__account">
-        <span class="app-shell__avatar">A</span>
-        <span><strong>Alice</strong><small>9231 9817</small></span>
-      </div>
+      <button class="app-shell__account" type="button" @click="$emit('lock')">
+        <span class="app-shell__avatar">{{ accountName.slice(0, 1).toUpperCase() }}</span>
+        <span
+          ><strong>{{ accountName }}</strong
+          ><small>{{ accountId }}</small></span
+        >
+        <LockKey :size="17" weight="regular" aria-hidden="true" />
+        <span class="sr-only">锁定钱包</span>
+      </button>
 
       <nav :aria-label="navigationLabel">
         <RouterLink
@@ -96,10 +109,22 @@ defineProps<{
 
 .app-shell__account {
   display: flex;
+  width: 100%;
+  min-height: 58px;
   align-items: center;
   gap: 0.72rem;
   margin: 1.5rem 0 1.7rem;
   padding: 0.7rem;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-state) var(--ease-standard);
+}
+
+.app-shell__account:hover {
+  background: var(--surface-subtle);
 }
 
 .app-shell__avatar {
@@ -115,9 +140,14 @@ defineProps<{
   place-items: center;
 }
 
-.app-shell__account > span:last-child {
+.app-shell__account > span:nth-child(2) {
   display: grid;
   gap: 0.1rem;
+}
+
+.app-shell__account > svg {
+  margin-left: auto;
+  color: var(--text-faint);
 }
 
 .app-shell__account strong {

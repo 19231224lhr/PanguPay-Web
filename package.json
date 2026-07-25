@@ -14,6 +14,7 @@
     "capture:visual": "node scripts/capture-phase0.mjs",
     "check:backend-contract": "node scripts/check-backend-contract.mjs",
     "build-only": "vite build",
+    "typecheck": "npm run type-check",
     "type-check": "vue-tsc --build",
     "lint": "npm run lint:oxlint && npm run lint:eslint",
     "lint:oxlint": "oxlint .",
@@ -22,6 +23,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
     "@phosphor-icons/vue": "^2.2.1",
     "elliptic": "^6.6.1",
     "js-sha256": "^0.11.1",
@@ -34,8 +36,8 @@
     "@axe-core/playwright": "^4.11.0",
     "@playwright/test": "^1.61.1",
     "@tsconfig/node24": "^24.0.4",
-    "@types/jsdom": "^28.0.3",
     "@types/elliptic": "^6.4.18",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^24.13.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/eslint-plugin": "^1.6.23",

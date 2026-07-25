@@ -7,7 +7,7 @@ test.describe('Phase 0 visual baseline', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText(
       '计算，为了无法计算的价值。',
     )
-    await expect(page.getByRole('link', { name: '进入钱包' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '进入钱包' })).toBeVisible()
     await expect(page.getByRole('link', { name: '创建钱包' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: '导入钱包' })).toHaveCount(0)
     await expect(page.locator('.landing__actions .app-button')).toHaveCount(1)
@@ -35,7 +35,7 @@ test.describe('Phase 0 visual baseline', () => {
     )
 
     const viewport = page.viewportSize()
-    const box = await page.getByRole('link', { name: '进入钱包' }).boundingBox()
+    const box = await page.getByRole('button', { name: '进入钱包' }).boundingBox()
     const fieldBox = await page.locator('[data-value-fold-field]').boundingBox()
     expect(box && viewport && box.y + box.height <= viewport.height).toBe(true)
     expect(fieldBox && fieldBox.width).toBeGreaterThanOrEqual(480)
@@ -65,7 +65,7 @@ test.describe('Phase 0 visual baseline', () => {
     const bridge = page.locator('[data-signal-bridge]')
     await expect(field).toHaveAttribute('data-active', 'false')
     await expect(bridge).toHaveAttribute('data-active', 'false')
-    await page.getByRole('link', { name: '进入钱包' }).hover()
+    await page.getByRole('button', { name: '进入钱包' }).hover()
     await expect(field).toHaveAttribute('data-active', 'true')
     await expect(bridge).toHaveAttribute('data-active', 'true')
     await page.locator('header').hover()
@@ -174,7 +174,7 @@ test.describe('Phase 0 visual baseline', () => {
     expect(lineMetrics[2]!.fontSize).toBeLessThanOrEqual(90)
     expect(lineMetrics[2]!.letterSpacing / lineMetrics[2]!.fontSize).toBeGreaterThanOrEqual(-0.041)
 
-    const button = await page.getByRole('link', { name: '进入钱包' }).boundingBox()
+    const button = await page.getByRole('button', { name: '进入钱包' }).boundingBox()
     expect(button).not.toBeNull()
     expect(button!.width).toBeGreaterThanOrEqual(170)
     expect(button!.width).toBeLessThanOrEqual(210)
@@ -183,7 +183,7 @@ test.describe('Phase 0 visual baseline', () => {
     expect(Math.abs(button!.x - lineMetrics[0]!.x)).toBeLessThanOrEqual(1)
 
     const buttonMaterial = await page
-      .getByRole('link', { name: '进入钱包' })
+      .getByRole('button', { name: '进入钱包' })
       .evaluate((element) => {
         const style = getComputedStyle(element)
         return {
@@ -200,36 +200,38 @@ test.describe('Phase 0 visual baseline', () => {
     expect(buttonMaterial.borderTopWidth).toBe('0px')
     expect(buttonMaterial.boxShadow).not.toContain('inset')
 
-    const contrastRatio = await page.getByRole('link', { name: '进入钱包' }).evaluate((element) => {
-      const parseColor = (value: string): { alpha: number; rgb: number[] } => {
-        const channels = value.match(/[\d.]+/g)!.map(Number)
-        return { alpha: channels[3] ?? 1, rgb: channels.slice(0, 3) }
-      }
-      const composite = (
-        foreground: { alpha: number; rgb: number[] },
-        background: number[],
-      ): number[] =>
-        foreground.rgb.map(
-          (channel, index) =>
-            channel * foreground.alpha + background[index]! * (1 - foreground.alpha),
-        )
-      const luminance = (rgb: number[]): number => {
-        const channels = rgb.map((channel) => {
-          const value = channel! / 255
-          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-        })
-        return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
-      }
-      const style = getComputedStyle(element)
-      const canvas = parseColor(getComputedStyle(document.body).backgroundColor).rgb
-      const backgroundRgb = composite(parseColor(style.backgroundColor), canvas)
-      const foregroundRgb = composite(parseColor(style.color), backgroundRgb)
-      const foreground = luminance(foregroundRgb)
-      const background = luminance(backgroundRgb)
-      const lighter = Math.max(foreground, background)
-      const darker = Math.min(foreground, background)
-      return (lighter + 0.05) / (darker + 0.05)
-    })
+    const contrastRatio = await page
+      .getByRole('button', { name: '进入钱包' })
+      .evaluate((element) => {
+        const parseColor = (value: string): { alpha: number; rgb: number[] } => {
+          const channels = value.match(/[\d.]+/g)!.map(Number)
+          return { alpha: channels[3] ?? 1, rgb: channels.slice(0, 3) }
+        }
+        const composite = (
+          foreground: { alpha: number; rgb: number[] },
+          background: number[],
+        ): number[] =>
+          foreground.rgb.map(
+            (channel, index) =>
+              channel * foreground.alpha + background[index]! * (1 - foreground.alpha),
+          )
+        const luminance = (rgb: number[]): number => {
+          const channels = rgb.map((channel) => {
+            const value = channel! / 255
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+          })
+          return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
+        }
+        const style = getComputedStyle(element)
+        const canvas = parseColor(getComputedStyle(document.body).backgroundColor).rgb
+        const backgroundRgb = composite(parseColor(style.backgroundColor), canvas)
+        const foregroundRgb = composite(parseColor(style.color), backgroundRgb)
+        const foreground = luminance(foregroundRgb)
+        const background = luminance(backgroundRgb)
+        const lighter = Math.max(foreground, background)
+        const darker = Math.min(foreground, background)
+        return (lighter + 0.05) / (darker + 0.05)
+      })
     expect(contrastRatio).toBeGreaterThanOrEqual(4.5)
   })
 

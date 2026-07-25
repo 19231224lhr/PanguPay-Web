@@ -53,6 +53,17 @@ const messages = {
       spendReady: '可支付',
       pendingAudit: '审计中',
     },
+    wallet: {
+      nav: {
+        label: '钱包导航',
+        overview: '总览',
+        send: '发送',
+        activity: '活动',
+        security: '凭证与安全',
+        organization: '担保组织',
+        settings: '设置',
+      },
+    },
     foundation: {
       eyebrow: 'Phase 0',
       title: '设计基座',
@@ -123,6 +134,17 @@ const messages = {
       certified: 'Locally certified',
       spendReady: 'Spend-ready',
       pendingAudit: 'Auditing',
+    },
+    wallet: {
+      nav: {
+        label: 'Wallet navigation',
+        overview: 'Overview',
+        send: 'Send',
+        activity: 'Activity',
+        security: 'Credentials',
+        organization: 'Organization',
+        settings: 'Settings',
+      },
     },
     foundation: {
       eyebrow: 'Phase 0',

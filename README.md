@@ -1,6 +1,8 @@
 # PanguPay Web
 
-PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前仓库处于 Phase 0，只包含设计基座、高保真页面切片和 protocol-v2 客户端核心，不连接真实业务后端。
+PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前已完成 Phase 1：
+设计基座、protocol-v2、正式浏览器 keystore、真实只读账户同步和“流动账本”钱包框架。
+真实交易签名与提交将在 Phase 2 接入。
 
 ## 技术栈
 
@@ -48,12 +50,25 @@ npm run dev
 - `/__ledger-preview`：响应式流动账本钱包框架
 - `/__foundation`：设计系统陈列页
 
-Phase 0 页面中的钱包数据均明确标记为演示数据。
+正式钱包路由：
+
+- `/wallet/setup`：创建或导入钱包
+- `/wallet/unlock`：解锁
+- `/wallet`：真实只读账户总览
+- `/wallet/send`：Phase 2 前的安全发送预览
+- `/wallet/receive`：真实地址选择与复制
+- `/wallet/activity`：账户活动
+- `/wallet/security`：TXCer 凭证与安全
+- `/wallet/organization`：担保组织
+- `/wallet/settings`：备份与锁定
+
+Gateway 地址通过 `.env` 的 `VITE_GATEWAY_URL` 配置；后端离线时，页面明确显示缓存时间，
+不会把旧快照伪装成最新数据。
 
 ## 质量门禁
 
 ```powershell
-npm run type-check
+npm run typecheck
 npm run lint
 npm run format:check
 npm run test:unit
@@ -72,10 +87,12 @@ npm run capture:visual
 
 设计原则见 [DESIGN.md](./DESIGN.md)，产品范围见 [PRODUCT.md](./PRODUCT.md)。
 
-## Phase 0 边界
+## Phase 1 边界
 
 - 不发送真实交易。
-- 不创建或导入真实钱包。
-- 不写正式钱包存储。
 - 不展示未经实验支持的实时指标。
-- `VITE_GATEWAY_URL` 只在 `.env.example` 中预留，Phase 1 才开始接入。
+- 不调用 `/committee/gqnc/*` 等运维接口。
+- 加密秘密不写入 LocalStorage；未确认备份前，新钱包不会持久化。
+
+真实 UI 操作流程见
+[Phase 1 操作图谱](./docs/testing/phase1-wallet-ui-operation-atlas.md)。

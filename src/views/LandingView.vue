@@ -2,14 +2,40 @@
 import { PhArrowRight as ArrowRight } from '@phosphor-icons/vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import PreferenceControls from '@/components/PreferenceControls.vue'
 import ValueFoldField from '@/components/ValueFoldField.vue'
+import { useWalletStore } from '@/stores/wallet'
+import { resolveWalletEntry } from '@/wallet/navigation'
 
 const { t } = useI18n()
+const router = useRouter()
+const wallet = useWalletStore()
 const walletEntryActive = ref(false)
+const entering = ref(false)
+
+async function enterWallet(): Promise<void> {
+  if (entering.value) return
+  entering.value = true
+  walletEntryActive.value = true
+  await wallet.initialize()
+  const destination = resolveWalletEntry(wallet.lifecycle)
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!reduced) await new Promise((resolve) => setTimeout(resolve, 110))
+  const transitionDocument = document as Document & {
+    startViewTransition?: (callback: () => Promise<unknown>) => { finished: Promise<void> }
+  }
+  if (!reduced && transitionDocument.startViewTransition) {
+    await transitionDocument.startViewTransition(() => router.push(destination)).finished
+  } else {
+    await router.push(destination)
+  }
+  walletEntryActive.value = false
+  entering.value = false
+}
 </script>
 
 <template>
@@ -55,7 +81,7 @@ const walletEntryActive = ref(false)
           @focusin="walletEntryActive = true"
           @focusout="walletEntryActive = false"
         >
-          <AppButton to="/__ledger-preview" size="large">
+          <AppButton size="large" :loading="entering" @click="enterWallet">
             {{ t('landing.enter') }}
             <template #icon><ArrowRight :size="18" weight="bold" /></template>
           </AppButton>
