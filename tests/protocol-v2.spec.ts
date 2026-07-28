@@ -11,10 +11,13 @@ import {
   computeTransactionHashV2,
   computeTransactionIDV2,
   formatAmount,
+  normalizeTransactionForGoStructJSON,
   parseAmount,
   parseRatio,
+  sha256Bytes,
   verifySignatureEnvelopeV2,
 } from '../src/protocol-v2'
+import { canonicalizeUserNewTXSignatureMaterial } from '../src/transfer/core'
 
 const fixturePath = path.resolve('tests/fixtures/protocol-v2-golden.json')
 
@@ -109,6 +112,21 @@ describe('Go protocol-v2 golden vectors', () => {
       )
       variant.NewValueDiv = Object.fromEntries(Object.entries(variant.NewValueDiv || {}).reverse())
       expect(computeTransactionIDV2(variant)).toBe(vector.txID)
+    }
+  })
+
+  it('matches the legacy Go UserNewTX outer-signature material', () => {
+    for (const vector of golden.transactions) {
+      expect(canonicalJSONStringify(normalizeTransactionForGoStructJSON(vector.transaction))).toBe(
+        vector.structJSON,
+      )
+      const material = canonicalizeUserNewTXSignatureMaterial({
+        TX: vector.transaction,
+        UserID: '92319817',
+      })
+      const encoded = canonicalJSONStringify(material)
+      expect(encoded).toBe(vector.userNewTXSigningJSON)
+      expect(bytesToHex(sha256Bytes(encoded))).toBe(vector.userNewTXHashHex)
     }
   })
 })

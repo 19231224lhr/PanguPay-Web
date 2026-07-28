@@ -8,7 +8,7 @@ withDefaults(
     size?: 'regular' | 'large'
     to?: string
     type?: 'button' | 'submit' | 'reset'
-    variant?: 'primary' | 'secondary' | 'ghost'
+    variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   }>(),
   {
     disabled: false,
@@ -66,10 +66,6 @@ withDefaults(
     transform var(--duration-press) var(--ease-press);
 }
 
-.app-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
 .app-button:active:not(:disabled) {
   transform: scale(0.975);
 }
@@ -90,18 +86,10 @@ withDefaults(
   color: white;
 }
 
-.app-button--primary:hover:not(:disabled) {
-  background: var(--action-primary-hover);
-}
-
 .app-button--secondary {
   border-color: var(--border-strong);
   background: var(--surface-raised);
   color: var(--text);
-}
-
-.app-button--secondary:hover:not(:disabled) {
-  border-color: var(--accent);
 }
 
 .app-button--ghost {
@@ -109,9 +97,32 @@ withDefaults(
   color: var(--text-muted);
 }
 
-.app-button--ghost:hover:not(:disabled) {
-  background: var(--surface-subtle);
-  color: var(--text);
+.app-button--danger {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .app-button--primary:hover:not(:disabled) {
+    background: var(--action-primary-hover);
+  }
+
+  .app-button--secondary:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+
+  .app-button--ghost:hover:not(:disabled) {
+    background: var(--surface-subtle);
+    color: var(--text);
+  }
+
+  .app-button--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 17%, var(--surface));
+  }
 }
 
 .app-button__spinner {

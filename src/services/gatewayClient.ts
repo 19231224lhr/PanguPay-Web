@@ -1,6 +1,31 @@
+import { canonicalJSONStringify } from '@/protocol-v2/canonical'
+
 export interface GatewayClientOptions {
   baseURL?: string
   fetcher?: typeof fetch
+}
+
+export class GatewayRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: unknown,
+  ) {
+    const detail =
+      body && typeof body === 'object' && !Array.isArray(body)
+        ? String(
+            (body as Record<string, unknown>).error ??
+              (body as Record<string, unknown>).message ??
+              '',
+          )
+        : String(body ?? '')
+    super(detail || `Gateway request failed with status ${status}`)
+    this.name = 'GatewayRequestError'
+  }
+}
+
+/** Go's legacy ECDSA fields are JSON integers and cannot pass through JSON.stringify(BigInt). */
+export function stringifyGatewayJSON(value: unknown): string {
+  return canonicalJSONStringify(value)
 }
 
 function defaultGatewayURL(): string {
@@ -59,10 +84,18 @@ export class GatewayClient {
       },
       signal: AbortSignal.timeout(6_000),
     })
-    if (!response.ok) throw new Error(`Gateway ${response.status}: ${await response.text()}`)
     const contentType = response.headers.get('content-type') ?? ''
-    const body = await response.text()
-    return contentType.includes('json') ? parseGatewayJSON(body) : body
+    const text = await response.text()
+    let body: unknown = text
+    if (contentType.includes('json')) {
+      try {
+        body = parseGatewayJSON(text)
+      } catch {
+        body = text
+      }
+    }
+    if (!response.ok) throw new GatewayRequestError(response.status, body)
+    return body
   }
 
   health(): Promise<unknown> {
@@ -73,17 +106,46 @@ export class GatewayClient {
     return this.request('/api/v1/committee/endpoint')
   }
 
+  groups(): Promise<unknown> {
+    return this.request('/api/v1/groups')
+  }
+
+  group(groupID: string): Promise<unknown> {
+    return this.request(`/api/v1/groups/${encodeURIComponent(groupID)}`)
+  }
+
+  reOnline(message: unknown): Promise<unknown> {
+    return this.request('/api/v1/re-online', {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  registerNoGroupAddress(message: unknown): Promise<unknown> {
+    return this.request('/api/v1/com/register-address', {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  joinGroup(groupID: string, message: unknown): Promise<unknown> {
+    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/flow-apply`, {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
   queryAddresses(addresses: string[]): Promise<unknown> {
     return this.request('/api/v1/com/query-address', {
       method: 'POST',
-      body: JSON.stringify({ address: addresses }),
+      body: stringifyGatewayJSON({ address: addresses }),
     })
   }
 
   queryAddressGroups(addresses: string[]): Promise<unknown> {
     return this.request('/api/v1/com/query-address-group', {
       method: 'POST',
-      body: JSON.stringify({ address: addresses }),
+      body: stringifyGatewayJSON({ address: addresses }),
     })
   }
 
@@ -110,5 +172,42 @@ export class GatewayClient {
 
   certifiers(groupID: string): Promise<unknown> {
     return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/certifiers`)
+  }
+
+  submitAssignTransaction(groupID: string, message: unknown): Promise<unknown> {
+    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/submit-tx`, {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  assignTransactionStatus(groupID: string, txID: string): Promise<unknown> {
+    return this.request(
+      `/api/v1/${encodeURIComponent(groupID)}/assign/tx-status/${encodeURIComponent(txID)}`,
+    )
+  }
+
+  gqncStatus(): Promise<unknown> {
+    return this.request('/api/v1/committee/gqnc/status')
+  }
+
+  gqncCertifiedBlock(height: number): Promise<unknown> {
+    return this.request(
+      `/api/v1/committee/gqnc/certified-block/${encodeURIComponent(String(height))}`,
+    )
+  }
+
+  submitNoGroupTransaction(message: unknown): Promise<unknown> {
+    return this.request('/api/v1/com/submit-noguargroup-tx', {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  pollCrossOrganizationTXCers(groupID: string, userID: string): Promise<unknown> {
+    const query = new URLSearchParams({ userID, consume: 'false' })
+    return this.request(
+      `/api/v1/${encodeURIComponent(groupID)}/assign/poll-cross-org-txcers?${query}`,
+    )
   }
 }

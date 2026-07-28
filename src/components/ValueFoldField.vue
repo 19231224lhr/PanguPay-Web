@@ -15,10 +15,14 @@ import {
 withDefaults(
   defineProps<{
     active?: boolean
+    intro?: boolean
     label: string
+    transitionName?: string
   }>(),
   {
     active: false,
+    intro: true,
+    transitionName: '',
   },
 )
 
@@ -176,7 +180,8 @@ onBeforeUnmount(() => {
   <div
     ref="field"
     class="value-fold-field"
-    :class="{ 'is-activated': active }"
+    :class="{ 'is-activated': active, 'value-fold-field--no-intro': !intro }"
+    :style="transitionName ? { viewTransitionName: transitionName } : undefined"
     data-value-fold-field
     data-motion-engine="native-svg"
     data-pointer-effect="local-lens"
@@ -363,6 +368,12 @@ onBeforeUnmount(() => {
 
 .value-fold-field__grid-layer--horizontal {
   animation: value-fold-grid-enter 1.25s var(--ease-standard) 80ms both;
+}
+
+.value-fold-field--no-intro .value-fold-field__depth,
+.value-fold-field--no-intro .value-fold-field__grid-layer,
+.value-fold-field--no-intro .value-fold-field__logo {
+  animation: none;
 }
 
 .value-fold-field__grid-line {

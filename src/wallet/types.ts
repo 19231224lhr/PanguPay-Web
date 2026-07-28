@@ -12,6 +12,12 @@ export interface WalletRecord {
   addresses: WalletAddressRecord[]
 }
 
+export interface WalletRecoveryKit {
+  version: 1
+  kind: 'pangu-wallet-recovery'
+  wallet: WalletRecord
+}
+
 export interface WalletKeystoreEnvelope {
   version: 1
   kind: 'wallet'
@@ -58,6 +64,8 @@ export interface WalletActivity {
   id: string
   title: string
   amount: string
+  coinType?: number
+  asset?: string
   direction: 'in' | 'out'
   status: string
   timestamp: number
@@ -103,6 +111,8 @@ export interface WalletDashboardSnapshot {
   security: WalletSecuritySummary
   credentials: WalletCredentialSummary[]
   activities: WalletActivity[]
+  /** Full Assign delivery envelopes retained locally for restart-safe TXCer spending. */
+  receivedTXCers?: unknown[]
   updatedAt: number
   source: 'live' | 'cache' | 'empty'
 }

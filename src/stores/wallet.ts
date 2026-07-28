@@ -2,6 +2,8 @@ import { computed, markRaw, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
 import { bytesToHex, hexToBytes } from '@/protocol-v2/canonical'
+import { clearTransferJournal } from '@/transfer/journal'
+import { clearTransferReservations } from '@/transfer/reservations'
 import {
   decryptWalletEnvelope,
   encryptWalletRecord,
@@ -14,7 +16,13 @@ import {
   deriveAddressFromRootSeed,
 } from '@/wallet/identity'
 import { IndexedDBWalletRepository, type WalletRepository } from '@/wallet/repository'
-import type { WalletKeystoreEnvelope, WalletLifecycle, WalletRecord } from '@/wallet/types'
+import { buildWalletRecoveryKit, parseWalletRecoveryKit } from '@/wallet/recovery'
+import type {
+  WalletKeystoreEnvelope,
+  WalletLifecycle,
+  WalletRecord,
+  WalletRecoveryKit,
+} from '@/wallet/types'
 
 const AUTO_LOCK_MS = 15 * 60 * 1000
 
@@ -39,6 +47,10 @@ export const useWalletStore = defineStore('wallet', () => {
   function clearTimer(): void {
     if (autoLockTimer) clearTimeout(autoLockTimer)
     autoLockTimer = undefined
+  }
+
+  function clearError(): void {
+    error.value = ''
   }
 
   function lock(): void {
@@ -169,6 +181,53 @@ export const useWalletStore = defineStore('wallet', () => {
     return structuredClone(nextEnvelope)
   }
 
+  async function recoverFromKit(value: unknown, password: string): Promise<void> {
+    busy.value = true
+    error.value = ''
+    try {
+      const kit = parseWalletRecoveryKit(value)
+      if (envelope.value && kit.wallet.account_id !== envelope.value.public.account_id)
+        throw new Error('恢复材料不属于当前钱包。若要使用其他账户，请先清除本地钱包。')
+      const nextEnvelope = await encryptWalletRecord(kit.wallet, password)
+      await repository.value.saveEnvelope(nextEnvelope)
+      pendingEnvelope.value = undefined
+      pendingRecord.value = undefined
+      envelope.value = nextEnvelope
+      unlockedRecord.value = kit.wallet
+      lifecycle.value = 'unlocked'
+      touch()
+    } finally {
+      busy.value = false
+    }
+  }
+
+  function exportRecoveryKit(): WalletRecoveryKit {
+    const record = pendingRecord.value ?? unlockedRecord.value
+    if (!record) throw new Error('wallet must be unlocked before exporting recovery material')
+    return buildWalletRecoveryKit(record)
+  }
+
+  async function clearLocalWallet(): Promise<void> {
+    busy.value = true
+    error.value = ''
+    try {
+      const previousAccountID = accountId.value
+      clearTimer()
+      await repository.value.clear()
+      if (previousAccountID) {
+        clearTransferJournal(previousAccountID)
+        clearTransferReservations(previousAccountID)
+      }
+      envelope.value = undefined
+      unlockedRecord.value = undefined
+      pendingEnvelope.value = undefined
+      pendingRecord.value = undefined
+      lifecycle.value = 'absent'
+    } finally {
+      busy.value = false
+    }
+  }
+
   function exportEnvelope(): WalletKeystoreEnvelope {
     if (!envelope.value) throw new Error('wallet is not configured')
     return structuredClone(envelope.value)
@@ -200,9 +259,13 @@ export const useWalletStore = defineStore('wallet', () => {
     confirmCreatedWallet,
     importEnvelope,
     importLegacy,
+    recoverFromKit,
+    exportRecoveryKit,
+    clearLocalWallet,
     exportEnvelope,
     lock,
     touch,
+    clearError,
     setRepositoryForTests,
   }
 })

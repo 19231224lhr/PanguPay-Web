@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
-import { PhLockKey as LockKey } from '@phosphor-icons/vue'
+import { PhCaretUpDown as CaretUpDown } from '@phosphor-icons/vue'
+import { ref } from 'vue'
 
 import BrandMark from './BrandMark.vue'
-import PreferenceControls from './PreferenceControls.vue'
+import WalletAccountMenu from './WalletAccountMenu.vue'
+import WalletMobileNavigation from './WalletMobileNavigation.vue'
 
 export interface AppShellItem {
   label: string
@@ -14,14 +16,29 @@ export interface AppShellItem {
 withDefaults(
   defineProps<{
     items: AppShellItem[]
+    accountItems?: AppShellItem[]
+    utilityItems?: AppShellItem[]
+    accountMenuLabel?: string
+    lockLabel?: string
+    moreLabel?: string
     navigationLabel: string
     accountName?: string
     accountId?: string
   }>(),
-  { accountName: 'Wallet', accountId: '' },
+  {
+    accountItems: () => [],
+    utilityItems: () => [],
+    accountMenuLabel: '打开账户菜单',
+    accountName: 'Wallet',
+    accountId: '',
+    lockLabel: '锁定钱包',
+    moreLabel: '我的',
+  },
 )
 
 defineEmits<{ lock: [] }>()
+
+const accountMenuOpen = ref(false)
 </script>
 
 <template>
@@ -32,14 +49,20 @@ defineEmits<{ lock: [] }>()
         <span>PanguPay</span>
       </RouterLink>
 
-      <button class="app-shell__account" type="button" @click="$emit('lock')">
+      <button
+        class="app-shell__account"
+        type="button"
+        data-account-trigger
+        :aria-label="accountMenuLabel"
+        :aria-expanded="accountMenuOpen"
+        @click="accountMenuOpen = !accountMenuOpen"
+      >
         <span class="app-shell__avatar">{{ accountName.slice(0, 1).toUpperCase() }}</span>
         <span
           ><strong>{{ accountName }}</strong
           ><small>{{ accountId }}</small></span
         >
-        <LockKey :size="17" weight="regular" aria-hidden="true" />
-        <span class="sr-only">锁定钱包</span>
+        <CaretUpDown :size="16" weight="regular" aria-hidden="true" />
       </button>
 
       <nav :aria-label="navigationLabel">
@@ -54,7 +77,22 @@ defineEmits<{ lock: [] }>()
         </RouterLink>
       </nav>
 
-      <PreferenceControls class="app-shell__preferences" />
+      <nav
+        v-if="utilityItems.length"
+        class="app-shell__utilities"
+        data-sidebar-utilities
+        aria-label="钱包设置"
+      >
+        <RouterLink
+          v-for="item in utilityItems"
+          :key="item.to"
+          :to="item.to"
+          class="app-shell__nav-item"
+        >
+          <component :is="item.icon" :size="20" weight="regular" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
+      </nav>
     </aside>
 
     <div class="app-shell__body">
@@ -63,17 +101,38 @@ defineEmits<{ lock: [] }>()
           <BrandMark :size="27" />
           <span>PanguPay</span>
         </RouterLink>
-        <PreferenceControls />
+        <button
+          class="app-shell__mobile-account"
+          type="button"
+          data-account-trigger
+          :aria-label="accountMenuLabel"
+          :aria-expanded="accountMenuOpen"
+          @click="accountMenuOpen = !accountMenuOpen"
+        >
+          {{ accountName.slice(0, 1).toUpperCase() }}
+        </button>
       </header>
       <main class="app-shell__main"><slot /></main>
     </div>
 
-    <nav class="app-shell__bottom-nav" :aria-label="navigationLabel">
-      <RouterLink v-for="item in items.slice(0, 4)" :key="item.label" :to="item.to">
-        <component :is="item.icon" :size="21" weight="regular" />
-        <span>{{ item.label }}</span>
-      </RouterLink>
-    </nav>
+    <WalletMobileNavigation
+      class="app-shell__bottom-nav"
+      :items="items"
+      :label="navigationLabel"
+      :more-label="moreLabel"
+      @more="accountMenuOpen = true"
+    />
+
+    <WalletAccountMenu
+      :open="accountMenuOpen"
+      :account-name="accountName"
+      :account-id="accountId"
+      :items="accountItems"
+      :utility-items="utilityItems"
+      :lock-label="lockLabel"
+      @close="accountMenuOpen = false"
+      @lock="$emit('lock')"
+    />
   </div>
 </template>
 
@@ -81,7 +140,7 @@ defineEmits<{ lock: [] }>()
 .app-shell {
   display: grid;
   min-height: 100dvh;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: var(--wallet-sidebar-width) minmax(0, 1fr);
   background: var(--background);
 }
 
@@ -91,9 +150,9 @@ defineEmits<{ lock: [] }>()
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  padding: 1.35rem 1rem;
-  border-right: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 88%, var(--background));
+  padding: 1.35rem 0.8rem;
+  border-right: 1px solid var(--hairline);
+  background: var(--navigation-surface);
 }
 
 .app-shell__brand,
@@ -113,9 +172,9 @@ defineEmits<{ lock: [] }>()
   min-height: 58px;
   align-items: center;
   gap: 0.72rem;
-  margin: 1.5rem 0 1.7rem;
-  padding: 0.7rem;
-  border-radius: 14px;
+  margin: 1.4rem 0 1.55rem;
+  padding: 0.62rem;
+  border-radius: 12px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
@@ -124,7 +183,7 @@ defineEmits<{ lock: [] }>()
 }
 
 .app-shell__account:hover {
-  background: var(--surface-subtle);
+  background: var(--surface-hover);
 }
 
 .app-shell__avatar {
@@ -162,7 +221,13 @@ defineEmits<{ lock: [] }>()
 
 .app-shell__sidebar nav {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.18rem;
+}
+
+.app-shell__utilities {
+  margin-top: auto;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--hairline);
 }
 
 .app-shell__nav-item {
@@ -171,7 +236,7 @@ defineEmits<{ lock: [] }>()
   align-items: center;
   gap: 0.72rem;
   padding: 0.65rem 0.75rem;
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--text-muted);
   font-size: 0.84rem;
   font-weight: 570;
@@ -182,13 +247,12 @@ defineEmits<{ lock: [] }>()
 
 .app-shell__nav-item:hover,
 .app-shell__nav-item.router-link-exact-active {
-  background: var(--surface-subtle);
+  background: var(--surface-hover);
   color: var(--text);
 }
 
-.app-shell__preferences {
-  margin-top: auto;
-  padding: 0.55rem;
+.app-shell__nav-item.router-link-exact-active {
+  box-shadow: inset 2px 0 var(--accent);
 }
 
 .app-shell__body {
@@ -200,13 +264,22 @@ defineEmits<{ lock: [] }>()
 }
 
 .app-shell__main {
-  width: min(1180px, 100%);
+  width: min(var(--wallet-content-max), 100%);
   margin-inline: auto;
-  padding: clamp(1.5rem, 4vw, 3.5rem);
+  padding: clamp(1.5rem, 3.4vw, 3rem);
 }
 
-.app-shell__bottom-nav {
-  display: none;
+.app-shell__mobile-account {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--background);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 730;
+  place-items: center;
 }
 
 @media (max-width: 767px) {
@@ -225,41 +298,12 @@ defineEmits<{ lock: [] }>()
     align-items: center;
     justify-content: space-between;
     padding: max(0.6rem, env(safe-area-inset-top)) 1rem 0.6rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--navigation-surface);
   }
 
   .app-shell__main {
     padding: 1.25rem 1rem 2rem;
-  }
-
-  .app-shell__bottom-nav {
-    position: fixed;
-    z-index: 30;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    display: grid;
-    min-height: 68px;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 0.38rem 0.45rem max(0.38rem, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--border);
-    background: var(--overlay);
-    backdrop-filter: blur(18px);
-  }
-
-  .app-shell__bottom-nav a {
-    display: grid;
-    min-height: 52px;
-    align-content: center;
-    justify-items: center;
-    gap: 0.2rem;
-    border-radius: 12px;
-    color: var(--text-muted);
-    font-size: 0.64rem;
-  }
-
-  .app-shell__bottom-nav a.router-link-exact-active {
-    color: var(--accent);
   }
 }
 </style>

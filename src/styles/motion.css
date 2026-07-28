@@ -51,12 +51,44 @@
   }
 }
 
-::view-transition-old(root) {
+:root.wallet-entry-transition::view-transition-old(root) {
   animation: wallet-exit 280ms var(--ease-standard) both;
 }
 
-::view-transition-new(root) {
+:root.wallet-entry-transition::view-transition-new(root) {
   animation: wallet-reveal 620ms var(--ease-standard) both;
+}
+
+:root.wallet-entry-transition::view-transition-group(pangu-value-fold) {
+  z-index: 12;
+  animation-duration: 620ms;
+  animation-timing-function: var(--ease-standard);
+}
+
+:root.wallet-access-transition::view-transition-old(root) {
+  animation: access-page-exit 220ms var(--ease-standard) both;
+}
+
+:root.wallet-access-transition::view-transition-new(root) {
+  animation: access-page-enter 460ms 120ms var(--ease-standard) both;
+}
+
+:root.wallet-access-transition::view-transition-group(pangu-value-fold) {
+  z-index: 4;
+  animation-duration: 620ms;
+  animation-timing-function: var(--ease-standard);
+}
+
+:root.wallet-access-transition::view-transition-group(pangu-mobile-brand) {
+  z-index: 6;
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-standard);
+}
+
+:root.wallet-access-transition::view-transition-old(pangu-value-fold),
+:root.wallet-access-transition::view-transition-new(pangu-value-fold) {
+  height: 100%;
+  mix-blend-mode: normal;
 }
 
 @keyframes wallet-exit {
@@ -79,11 +111,34 @@
   }
 }
 
+@keyframes access-page-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes access-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
+  :root.wallet-entry-transition::view-transition-old(root),
+  :root.wallet-entry-transition::view-transition-new(root),
+  :root.wallet-access-transition::view-transition-old(root),
+  :root.wallet-access-transition::view-transition-new(root),
+  :root.wallet-access-transition::view-transition-group(pangu-value-fold),
+  :root.wallet-access-transition::view-transition-group(pangu-mobile-brand) {
     animation-duration: 120ms;
     animation-name: simple-crossfade;
+    animation-delay: 0ms;
   }
 
   @keyframes simple-crossfade {

@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 defineOptions({ inheritAttrs: false })
 
 withDefaults(
   defineProps<{
+    describedBy?: string
     id: string
+    invalid?: boolean
     label: string
     modelValue: string
     error?: string
@@ -11,8 +15,10 @@ withDefaults(
     type?: string
   }>(),
   {
+    describedBy: '',
     error: '',
     help: '',
+    invalid: false,
     type: 'text',
   },
 )
@@ -20,21 +26,31 @@ withDefaults(
 defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const input = ref<HTMLInputElement>()
+
+function focus(): void {
+  input.value?.focus()
+}
+
+defineExpose({ focus })
 </script>
 
 <template>
-  <div class="form-field" :class="{ 'form-field--error': error }">
+  <div class="form-field" :class="{ 'form-field--error': error || invalid }">
     <label :for="id">{{ label }}</label>
     <div class="form-field__control">
       <input
+        ref="input"
         :id="id"
         v-bind="$attrs"
         :type="type"
         :value="modelValue"
-        :aria-invalid="error ? 'true' : undefined"
+        :aria-invalid="error || invalid ? 'true' : undefined"
         :aria-describedby="
-          [help ? `${id}-help` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') ||
-          undefined
+          [help ? `${id}-help` : '', error ? `${id}-error` : '', describedBy]
+            .filter(Boolean)
+            .join(' ') || undefined
         "
         @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
       />
@@ -73,11 +89,13 @@ label {
 
 .form-field__control:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
 }
 
 .form-field--error .form-field__control {
-  border-color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border-strong));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 46%, transparent);
+  animation: field-correction 220ms var(--ease-standard);
 }
 
 input {
@@ -107,5 +125,26 @@ input::placeholder {
 
 .form-field__error {
   color: var(--danger);
+}
+
+@keyframes field-correction {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  38% {
+    transform: translateX(-3px);
+  }
+
+  72% {
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-field--error .form-field__control {
+    animation: none;
+  }
 }
 </style>

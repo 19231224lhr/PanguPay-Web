@@ -8,6 +8,8 @@ import {
   buildCredentialAuthorities,
   credentialGroupIDs,
   extractIssuanceRecords,
+  mergeTXCerDeliveryEnvelopes,
+  mergeTXCerIssuanceResponses,
   normalizeCredentialSummaries,
 } from '@/wallet/credentials'
 import {
@@ -81,14 +83,25 @@ export const useDashboardStore = defineStore('dashboard', () => {
         client.queryAddressGroups(addressRecords.map((address) => address.address)),
       ])
       const organization = normalizeOrganization(groupResponse)
-      const [statusResponse, updateResponse, issuanceResponse] = organization
+      const [statusResponse, updateResponse, issuanceResponse, deliveryResponse] = organization
         ? await Promise.all([
             optional(client.txCerStatuses(organization.id, wallet.accountId)),
             optional(client.accountUpdates(organization.id, wallet.accountId)),
             optional(client.issuanceRecords(organization.id, wallet.accountId)),
+            optional(client.pollCrossOrganizationTXCers(organization.id, wallet.accountId)),
           ])
-        : [undefined, undefined, undefined]
-      const records = extractIssuanceRecords(issuanceResponse)
+        : [undefined, undefined, undefined, undefined]
+      const receivedTXCers = organization
+        ? mergeTXCerDeliveryEnvelopes(
+            snapshot.value?.receivedTXCers ?? [],
+            deliveryResponse,
+            addressRecords.map((item) => item.address),
+          )
+        : []
+      const mergedIssuanceResponse = mergeTXCerIssuanceResponses(issuanceResponse, {
+        txcers: receivedTXCers,
+      })
+      const records = extractIssuanceRecords(mergedIssuanceResponse)
       const groupIDs = credentialGroupIDs(records)
       const groupResponses = Object.fromEntries(
         await Promise.all(
@@ -120,6 +133,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         updatedAt: Date.now(),
       })
       next.organization = organization
+      next.receivedTXCers = receivedTXCers
       next.credentials = credentials
       next.security.pendingAudits = credentials.filter((item) =>
         ['Pending', 'Unavailable'].includes(item.cfaaAuditStatus),

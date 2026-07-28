@@ -102,11 +102,66 @@ function txCertificate(value: TXCerV2 | null | undefined, clearSettlement: boole
   }
 }
 
+function goBytes(value: unknown): string | null {
+  return value == null ? null : bytesToBase64(value as never)
+}
+
+function goSignatureEnvelope(value: any) {
+  return {
+    Algorithm: String(value?.Algorithm || ''),
+    Signature: goBytes(value?.Signature),
+  }
+}
+
+function goPublicKeyEnvelope(value: any) {
+  return {
+    Algorithm: String(value?.Algorithm || ''),
+    PublicKey: goBytes(value?.PublicKey),
+  }
+}
+
+function goSettlementAuth(value: SettlementAuthV2 | null | undefined) {
+  return {
+    Version: Number(value?.Version || 0),
+    TXCerID: String(value?.TXCerID || ''),
+    SourceTXID: String(value?.SourceTXID || ''),
+    SourcePosition: txCerPosition(value?.SourcePosition),
+    Value: canonicalAmount(value?.Value),
+    FromGuarGroupID: String(value?.FromGuarGroupID || ''),
+    ToGuarGroupID: String(value?.ToGuarGroupID || ''),
+    PledgeAddress: String(value?.PledgeAddress || ''),
+    ConsumeIntentHash: goBytes(value?.ConsumeIntentHash),
+    AuthTime: Number(value?.AuthTime || 0),
+    UserSignatureV2: goSignatureEnvelope(value?.UserSignatureV2),
+  }
+}
+
+function goTXCertificate(value: TXCerV2 | null | undefined) {
+  return {
+    TXCerID: String(value?.TXCerID || ''),
+    ToAddress: String(value?.ToAddress || ''),
+    Value: canonicalAmount(value?.Value),
+    ToInterest: canonicalAmount(value?.ToInterest),
+    FromGuarGroupID: String(value?.FromGuarGroupID || ''),
+    ToGuarGroupID: String(value?.ToGuarGroupID || ''),
+    SourcePledgeAddress: String(value?.SourcePledgeAddress || ''),
+    ConstructionTime: Number(value?.ConstructionTime || 0),
+    Size: Number(value?.Size || 0),
+    ExposureShares: value?.ExposureShares == null ? null : value.ExposureShares.map(exposureShare),
+    TXID: String(value?.TXID || ''),
+    TxCerPosition: txCerPosition(value?.TxCerPosition),
+    GuarGroupSignature: ecdsaSignature(value?.GuarGroupSignature),
+    UserSignature: ecdsaSignature(value?.UserSignature),
+    UserSignatureV2: goSignatureEnvelope(value?.UserSignatureV2),
+    SettlementAuth: goSettlementAuth(value?.SettlementAuth),
+  }
+}
+
 // UserNewTX still uses the legacy Go struct-JSON signature. Persisted client
 // records may have alphabetically sorted keys, so rebuild every nested TXCer
 // in the exact Go declaration order before computing that outer signature.
 export function normalizeTXCerForGoStructJSON(value: TXCerV2 | null | undefined) {
-  return txCertificate(value, false)
+  return goTXCertificate(value)
 }
 
 function normalInput(value: any) {
@@ -144,6 +199,78 @@ function output(value: any) {
     SeedAnchor: bytesToBase64(value?.SeedAnchor),
     SeedChainStep: Number(value?.SeedChainStep || 0),
     DefaultSpendAlgorithm: String(value?.DefaultSpendAlgorithm || ''),
+  }
+}
+
+function goNormalInput(value: any) {
+  return {
+    FromTXID: String(value?.FromTXID || ''),
+    FromTxPosition: position(value?.FromTxPosition),
+    FromAddress: String(value?.FromAddress || ''),
+    IsGuarMake: Boolean(value?.IsGuarMake),
+    IsCommitteeMake: Boolean(value?.IsCommitteeMake),
+    IsCrossChain: Boolean(value?.IsCrossChain),
+    InputSignature: ecdsaSignature(value?.InputSignature),
+    TXOutputHash: goBytes(value?.TXOutputHash),
+    InputSignatureV2: goSignatureEnvelope(value?.InputSignatureV2),
+    SeedReveal: goBytes(value?.SeedReveal),
+    SeedPublicKeyV2: goPublicKeyEnvelope(value?.SeedPublicKeyV2),
+    SeedChainStep: Number(value?.SeedChainStep || 0),
+  }
+}
+
+function goOutput(value: any) {
+  return {
+    ToAddress: String(value?.ToAddress || ''),
+    ToValue: canonicalAmount(value?.ToValue),
+    ToGuarGroupID: String(value?.ToGuarGroupID || ''),
+    ToPublicKey: publicKey(value?.ToPublicKey),
+    ToInterest: canonicalAmount(value?.ToInterest),
+    Type: Number(value?.Type || 0),
+    ToPeerID: String(value?.ToPeerID || ''),
+    IsPayForGas: Boolean(value?.IsPayForGas),
+    IsCrossChain: Boolean(value?.IsCrossChain),
+    IsGuarMake: Boolean(value?.IsGuarMake),
+    SeedAnchor: goBytes(value?.SeedAnchor),
+    SeedChainStep: Number(value?.SeedChainStep || 0),
+    DefaultSpendAlgorithm: String(value?.DefaultSpendAlgorithm || ''),
+  }
+}
+
+/** Exact encoding/json shape produced after Go decodes a Transaction request. */
+export function normalizeTransactionForGoStructJSON(tx: TransactionV2) {
+  const interest: any = tx.InterestAssign || {}
+  return {
+    TXID: String(tx.TXID || ''),
+    Size: Number(tx.Size || 0),
+    Version: Number(tx.Version || 0),
+    GuarantorGroup: String(tx.GuarantorGroup || ''),
+    TXType: Number(tx.TXType || 0),
+    Value: canonicalAmount(tx.Value),
+    ValueDivision:
+      tx.ValueDivision == null
+        ? null
+        : sortRecord(tx.ValueDivision as Record<string, any>, canonicalAmount),
+    NewValue: canonicalAmount(tx.NewValue),
+    NewValueDiv:
+      tx.NewValueDiv == null
+        ? null
+        : sortRecord(tx.NewValueDiv as Record<string, any>, canonicalAmount),
+    InterestAssign: {
+      Gas: canonicalAmount(interest.Gas),
+      Output: canonicalAmount(interest.Output),
+      BackAssign:
+        interest.BackAssign == null
+          ? null
+          : sortRecord(interest.BackAssign as Record<string, any>, canonicalRatio),
+    },
+    UserSignature: ecdsaSignature(tx.UserSignature),
+    UserSignatureV2: goSignatureEnvelope(tx.UserSignatureV2),
+    TXInputsNormal: tx.TXInputsNormal == null ? null : tx.TXInputsNormal.map(goNormalInput),
+    TXInputsCertificate:
+      tx.TXInputsCertificate == null ? null : tx.TXInputsCertificate.map(goTXCertificate),
+    TXOutputs: tx.TXOutputs == null ? null : tx.TXOutputs.map(goOutput),
+    Data: goBytes(tx.Data),
   }
 }
 

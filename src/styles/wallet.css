@@ -1,12 +1,41 @@
 @layer components {
   .wallet-page {
     display: grid;
-    gap: 1.35rem;
+    gap: var(--wallet-page-gap);
   }
 
   .wallet-surface {
-    padding: clamp(1.1rem, 2.6vw, 1.65rem);
+    padding: clamp(1.15rem, 2.4vw, 1.5rem);
     border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+
+  .wallet-section {
+    min-width: 0;
+    padding-block: 0.15rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .wallet-section__heading {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .wallet-section__heading h2 {
+    margin: 0;
+    font-size: 1.18rem;
+    font-weight: 610;
+    letter-spacing: -0.025em;
+  }
+
+  .wallet-form-plane {
+    width: min(700px, 100%);
+    padding: clamp(1rem, 2.5vw, 1.5rem);
     border-radius: var(--radius-lg);
     background: var(--surface);
   }
@@ -76,6 +105,10 @@
   }
 
   @media (max-width: 599px) {
+    .wallet-page {
+      gap: 1.35rem;
+    }
+
     .wallet-detail-list > div {
       align-items: start;
       grid-template-columns: 1fr;

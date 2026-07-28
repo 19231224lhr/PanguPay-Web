@@ -34,7 +34,10 @@ function publicKey(value: unknown): PublicKeyV2 | undefined {
 
 function normalizeRecord(value: unknown): TXCerIssuanceRecordV2 {
   const wrapper = record(value)
-  const source = { ...record(first(wrapper, 'Record', 'record')), ...wrapper }
+  const source = {
+    ...record(first(wrapper, 'Record', 'record', 'IssuanceRecord', 'issuanceRecord')),
+    ...wrapper,
+  }
   return {
     ...source,
     RecordID: text(first(source, 'RecordID', 'recordID')),
@@ -51,7 +54,7 @@ function normalizeRecord(value: unknown): TXCerIssuanceRecordV2 {
     GuarTXIndex: Number(first(source, 'GuarTXIndex', 'guarTXIndex') ?? 0),
     CertifierID: text(first(source, 'CertifierID', 'certifierID')),
     BatchID: text(first(source, 'BatchID', 'batchID')),
-    Proof: (first(wrapper, 'proof', 'Proof') ??
+    Proof: (first(wrapper, 'proof', 'Proof', 'IssuanceProof', 'issuanceProof') ??
       first(source, 'Proof', 'proof')) as TXCerIssuanceRecordV2['Proof'],
     Ack: (first(wrapper, 'ack', 'Ack') ??
       first(source, 'Ack', 'ack')) as TXCerIssuanceRecordV2['Ack'],
@@ -72,9 +75,64 @@ function normalizeRecord(value: unknown): TXCerIssuanceRecordV2 {
 }
 
 export function extractIssuanceRecords(response: unknown): TXCerIssuanceRecordV2[] {
-  return list(response, 'records', 'Records', 'items', 'data')
+  const records = list(response, 'records', 'Records', 'items', 'data')
     .map(normalizeRecord)
     .filter((item) => Boolean(item.RecordID || item.TXCerID))
+  const best = new Map<string, TXCerIssuanceRecordV2>()
+  const score = (item: TXCerIssuanceRecordV2) =>
+    [item.TXCer, item.FastEvidence, item.Ack, item.LiabilityReceipt, item.Proof].filter(Boolean)
+      .length
+  for (const item of records) {
+    const key = text(item.TXCerID || item.RecordID)
+    const current = best.get(key)
+    if (!current || score(item) >= score(current)) best.set(key, item)
+  }
+  return [...best.values()].sort((left, right) =>
+    text(left.RecordID || left.TXCerID).localeCompare(text(right.RecordID || right.TXCerID)),
+  )
+}
+
+function deliveryID(value: unknown): string {
+  const wrapper = record(value)
+  const txCer = record(first(wrapper, 'TXCer', 'txCer'))
+  return text(first(txCer, 'TXCerID', 'txCerID') ?? first(wrapper, 'TXCerID', 'txCerID'))
+}
+
+function deliveryAddress(value: unknown): string {
+  const wrapper = record(value)
+  const txCer = record(first(wrapper, 'TXCer', 'txCer'))
+  return text(first(wrapper, 'ToAddress', 'toAddress') ?? first(txCer, 'ToAddress', 'toAddress'))
+}
+
+export function mergeTXCerDeliveryEnvelopes(
+  existing: unknown[],
+  response: unknown,
+  walletAddresses: string[],
+): unknown[] {
+  const addresses = new Set(
+    walletAddresses.map((item) => item.trim().toLowerCase()).filter(Boolean),
+  )
+  const result = new Map<string, unknown>()
+  for (const item of [...existing, ...list(response, 'txcers', 'TXCers')]) {
+    const address = deliveryAddress(item).trim().toLowerCase()
+    if (!addresses.has(address)) continue
+    const id = deliveryID(item)
+    if (!/^[0-9a-f]{64}$/i.test(id)) throw new Error('received TXCer identity is invalid')
+    result.set(id.toLowerCase(), structuredClone(item))
+  }
+  return [...result.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, value]) => value)
+}
+
+export function mergeTXCerIssuanceResponses(...responses: unknown[]): { records: unknown[] } {
+  const records: unknown[] = []
+  for (const response of responses) {
+    records.push(...list(response, 'records', 'Records', 'items', 'data'))
+    records.push(...list(response, 'txcers', 'TXCers'))
+    if (Array.isArray(response)) records.push(...response)
+  }
+  return { records: extractIssuanceRecords({ records }) }
 }
 
 export function credentialGroupIDs(records: TXCerIssuanceRecordV2[]): string[] {

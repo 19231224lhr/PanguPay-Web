@@ -6,8 +6,8 @@ import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
 import BrandMark from '@/components/BrandMark.vue'
-import PreferenceControls from '@/components/PreferenceControls.vue'
 import ValueFoldField from '@/components/ValueFoldField.vue'
+import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveWalletEntry } from '@/wallet/navigation'
 
@@ -23,16 +23,8 @@ async function enterWallet(): Promise<void> {
   walletEntryActive.value = true
   await wallet.initialize()
   const destination = resolveWalletEntry(wallet.lifecycle)
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!reduced) await new Promise((resolve) => setTimeout(resolve, 110))
-  const transitionDocument = document as Document & {
-    startViewTransition?: (callback: () => Promise<unknown>) => { finished: Promise<void> }
-  }
-  if (!reduced && transitionDocument.startViewTransition) {
-    await transitionDocument.startViewTransition(() => router.push(destination)).finished
-  } else {
-    await router.push(destination)
-  }
+  const mode = destination === '/wallet' ? 'wallet' : 'access'
+  await navigateWithSpatialTransition(router, destination, mode)
   walletEntryActive.value = false
   entering.value = false
 }
@@ -42,10 +34,9 @@ async function enterWallet(): Promise<void> {
   <main class="landing">
     <header class="landing__header">
       <RouterLink to="/" class="landing__brand" aria-label="PanguPay home">
-        <BrandMark :size="34" />
+        <BrandMark :size="34" transition-name="pangu-mobile-brand" />
         <span>PanguPay</span>
       </RouterLink>
-      <PreferenceControls />
     </header>
 
     <section class="landing__hero">
@@ -89,7 +80,11 @@ async function enterWallet(): Promise<void> {
       </div>
 
       <div class="value-fold-field-stage">
-        <ValueFoldField :active="walletEntryActive" :label="t('landing.orbitLabel')" />
+        <ValueFoldField
+          :active="walletEntryActive"
+          :label="t('landing.orbitLabel')"
+          transition-name="pangu-value-fold"
+        />
       </div>
     </section>
 

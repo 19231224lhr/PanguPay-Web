@@ -105,14 +105,18 @@ test.describe('Phase 0 visual baseline', () => {
       return getComputedStyle(element, '::before').backgroundImage
     })
     expect(darkFieldMaterial).toContain('rgba(7, 19, 31, 0.46)')
-    await page.getByRole('button', { name: '切换到浅色主题' }).click()
+    await page.evaluate(() => {
+      localStorage.setItem('pangupay.theme', 'light')
+      localStorage.setItem('pangupay.locale', 'en-US')
+    })
+    await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
     const lightFieldMaterial = await page.locator('[data-value-fold-field]').evaluate((element) => {
       return getComputedStyle(element, '::before').backgroundImage
     })
     expect(lightFieldMaterial).not.toContain('rgba(7, 19, 31, 0.46)')
     await page.goto('/__foundation')
-    await page.getByRole('button', { name: 'Switch to English' }).click()
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Foundation')
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
@@ -134,7 +138,10 @@ test.describe('Phase 0 visual baseline', () => {
     })
     expect(darkColors.background).toBe(darkColors.color)
 
-    await page.getByRole('button', { name: '切换到浅色主题' }).click()
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'light'
+      document.documentElement.style.colorScheme = 'light'
+    })
     const lightColors = await mark.evaluate((element) => {
       const style = getComputedStyle(element)
       return { background: style.backgroundColor, color: style.color }
@@ -235,11 +242,10 @@ test.describe('Phase 0 visual baseline', () => {
     expect(contrastRatio).toBeGreaterThanOrEqual(4.5)
   })
 
-  test('wallet shell adapts to mobile without horizontal overflow', async ({ page }) => {
+  test('wallet setup adapts to mobile without horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/__ledger-preview')
-    await expect(page.getByText('演示数据')).toBeVisible()
-    await expect(page.getByRole('navigation', { name: '主要导航' })).toBeVisible()
+    await page.goto('/wallet/setup')
+    await expect(page.getByRole('heading', { name: '建立你的钱包' })).toBeVisible()
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
@@ -258,7 +264,7 @@ test.describe('Phase 0 visual baseline', () => {
   })
 
   test('visible controls keep a minimum 44px hit target', async ({ page }) => {
-    for (const route of ['/', '/__ledger-preview', '/__foundation']) {
+    for (const route of ['/', '/wallet/setup', '/__foundation']) {
       await page.goto(route)
       const undersized = await page
         .locator('a[href], button, input, select, textarea')
@@ -285,7 +291,7 @@ test.describe('Phase 0 visual baseline', () => {
   })
 
   test('pages have no serious accessibility violations', async ({ page }) => {
-    for (const route of ['/', '/__ledger-preview', '/__foundation']) {
+    for (const route of ['/', '/wallet/setup', '/__foundation']) {
       await page.goto(route)
       const result = await new AxeBuilder({ page }).analyze()
       expect(

@@ -85,7 +85,7 @@ function walletAAD(envelope: WalletKeystoreEnvelope): Uint8Array {
   )
 }
 
-function validateWalletRecord(record: WalletRecord): WalletRecord {
+export function validateWalletRecord(record: WalletRecord): WalletRecord {
   exactKeys(
     record as unknown as Record<string, unknown>,
     ['account_id', 'account_private_scalar', 'addresses'],

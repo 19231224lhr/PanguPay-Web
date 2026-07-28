@@ -63,6 +63,21 @@ const messages = {
         organization: '担保组织',
         settings: '设置',
       },
+      account: {
+        openMenu: '打开账户菜单',
+        lock: '锁定钱包',
+        my: '我的',
+        preferences: '外观与语言',
+      },
+      settings: {
+        title: '设置与备份',
+        description: '管理钱包外观、语言和本机加密备份。',
+        preferences: '外观与语言',
+        appearance: '外观',
+        appearanceDescription: '跟随系统，或为 PanguPay 固定一种主题。',
+        language: '语言',
+        languageDescription: '选择界面使用的语言。',
+      },
     },
     foundation: {
       eyebrow: 'Phase 0',
@@ -144,6 +159,21 @@ const messages = {
         security: 'Credentials',
         organization: 'Organization',
         settings: 'Settings',
+      },
+      account: {
+        openMenu: 'Open account menu',
+        lock: 'Lock wallet',
+        my: 'Me',
+        preferences: 'Appearance & language',
+      },
+      settings: {
+        title: 'Settings & backup',
+        description: 'Manage appearance, language, and encrypted local backups.',
+        preferences: 'Appearance & language',
+        appearance: 'Appearance',
+        appearanceDescription: 'Follow the system or keep PanguPay in one theme.',
+        language: 'Language',
+        languageDescription: 'Choose the language used by the interface.',
       },
     },
     foundation: {

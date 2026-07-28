@@ -1,5 +1,6 @@
 import { canonicalAmount } from '@/protocol-v2/amount'
 import type { RawDashboardAddress } from '@/wallet/dashboard'
+import { blockedTXCerSourceOutputs, utxoSourceOutputKey } from '@/wallet/txcerLifecycle'
 import type { OrganizationSummary, WalletActivity } from '@/wallet/types'
 
 type UnknownRecord = Record<string, unknown>
@@ -42,10 +43,25 @@ export function normalizeAddressState(
   const root = record(response)
   const addressData = record(first(root, 'AddressData', 'addressData', 'addresses', 'data'))
   const statuses = array(txCerResponse)
+  const blockedSources = blockedTXCerSourceOutputs(txCerResponse)
 
   return addresses.map((source) => {
     const state = record(addressData[source.address])
     const value = first(state, 'Value', 'value', 'UTXOValue', 'utxoValue')
+    const rawUTXOs = record(first(state, 'UTXO', 'utxos'))
+    const exactUTXOs = Object.values(rawUTXOs)
+      .map(record)
+      .filter((utxo) => {
+        const transaction = record(first(utxo, 'UTXO', 'utxo'))
+        const position = record(first(utxo, 'Position', 'position'))
+        return !blockedSources.has(
+          utxoSourceOutputKey(
+            first(transaction, 'TXID', 'txID', 'txId'),
+            first(position, 'IndexZ', 'indexZ'),
+          ),
+        )
+      })
+      .map((utxo) => ({ value: amount(first(utxo, 'Value', 'value')) }))
     const txCers = statuses
       .map(record)
       .filter(
@@ -65,7 +81,12 @@ export function normalizeAddressState(
     return {
       address: source.address,
       type: source.type,
-      utxos: value == null ? [] : [{ value: amount(value) }],
+      utxos:
+        Object.keys(rawUTXOs).length > 0
+          ? exactUTXOs
+          : value == null
+            ? []
+            : [{ value: amount(value) }],
       txCers,
     }
   })
@@ -73,15 +94,17 @@ export function normalizeAddressState(
 
 export function normalizeOrganization(response: unknown): OrganizationSummary | undefined {
   const root = record(response)
+  const routing = record(first(root, 'Addresstogroup', 'addressToGroup'))
   const candidates = [
     root,
     record(first(root, 'AddressGroup', 'addressGroup', 'AddressData', 'data', 'result')),
+    ...Object.values(routing).map(record),
   ]
   for (const candidate of candidates) {
     const id = String(
       first(candidate, 'GuarGroupID', 'guarGroupID', 'GroupID', 'groupID', 'id') ?? '',
     )
-    if (id)
+    if (id && !['0', '1', 'nogroup'].includes(id.toLowerCase()))
       return {
         id,
         name: String(first(candidate, 'GroupName', 'groupName', 'Name', 'name') ?? id),
@@ -92,7 +115,8 @@ export function normalizeOrganization(response: unknown): OrganizationSummary | 
       const nestedID = String(
         first(nested, 'GuarGroupID', 'guarGroupID', 'GroupID', 'groupID') ?? '',
       )
-      if (nestedID) return { id: nestedID, name: nestedID, role: 'member' }
+      if (nestedID && !['0', '1', 'nogroup'].includes(nestedID.toLowerCase()))
+        return { id: nestedID, name: nestedID, role: 'member' }
     }
   }
   return undefined
@@ -107,6 +131,8 @@ export function normalizeActivities(response: unknown): WalletActivity[] {
         id: String(first(value, 'TXID', 'txID', 'ID', 'id') ?? `activity-${index}`),
         title: String(first(value, 'Title', 'title', 'Type', 'type') ?? '账户更新'),
         amount: amount(first(value, 'Value', 'value', 'Amount', 'amount')),
+        coinType: Number(first(value, 'CoinType', 'coinType', 'AssetType', 'assetType') ?? 0),
+        asset: String(first(value, 'Symbol', 'symbol', 'Asset', 'asset') ?? ''),
         direction:
           String(first(value, 'Direction', 'direction') ?? '').toLowerCase() === 'out'
             ? 'out'

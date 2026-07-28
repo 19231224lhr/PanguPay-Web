@@ -1,9 +1,17 @@
 <script setup lang="ts">
-defineProps<{ eyebrow?: string; title: string; description?: string }>()
+withDefaults(
+  defineProps<{
+    description?: string
+    eyebrow?: string
+    title: string
+    variant?: 'default' | 'compact'
+  }>(),
+  { description: undefined, eyebrow: undefined, variant: 'default' },
+)
 </script>
 
 <template>
-  <header class="wallet-page-header">
+  <header class="wallet-page-header" :class="`wallet-page-header--${variant}`">
     <div>
       <p v-if="eyebrow" class="page-eyebrow">{{ eyebrow }}</p>
       <h1>{{ title }}</h1>
@@ -16,7 +24,7 @@ defineProps<{ eyebrow?: string; title: string; description?: string }>()
 <style scoped>
 .wallet-page-header {
   display: flex;
-  min-height: 96px;
+  min-height: 78px;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem;
@@ -24,10 +32,19 @@ defineProps<{ eyebrow?: string; title: string; description?: string }>()
 
 h1 {
   margin: 0;
-  font-size: clamp(2.1rem, 4.8vw, 3.6rem);
-  font-weight: 650;
-  letter-spacing: -0.06em;
-  line-height: 1;
+  font-size: clamp(1.9rem, 3vw, 2.25rem);
+  font-weight: 610;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.wallet-page-header--compact {
+  min-height: 54px;
+}
+
+.wallet-page-header--compact h1 {
+  font-size: clamp(1.75rem, 2.5vw, 2.05rem);
+  font-weight: 570;
 }
 
 .page-eyebrow + h1 {
@@ -44,7 +61,7 @@ p:not(.page-eyebrow) {
 
 @media (max-width: 599px) {
   .wallet-page-header {
-    min-height: 76px;
+    min-height: 64px;
     align-items: flex-start;
     flex-direction: column;
   }

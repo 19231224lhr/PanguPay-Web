@@ -3,16 +3,26 @@ withDefaults(
   defineProps<{
     label?: string
     size?: number
+    transitionName?: string
   }>(),
   {
     label: 'PanguPay',
     size: 32,
+    transitionName: '',
   },
 )
 </script>
 
 <template>
-  <span class="brand-mark" role="img" :aria-label="label" :style="{ '--brand-size': `${size}px` }">
+  <span
+    class="brand-mark"
+    role="img"
+    :aria-label="label"
+    :style="{
+      '--brand-size': `${size}px`,
+      viewTransitionName: transitionName || undefined,
+    }"
+  >
     <span class="brand-mark__shape" aria-hidden="true" />
   </span>
 </template>

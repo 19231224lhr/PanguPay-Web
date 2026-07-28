@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 
 import AmountField from '@/components/AmountField.vue'
 import AppButton from '@/components/AppButton.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import IconButton from '@/components/IconButton.vue'
 import PreferenceControls from '@/components/PreferenceControls.vue'
@@ -23,6 +24,7 @@ const { t } = useI18n()
 const preferences = usePreferences()
 const recipient = ref('')
 const amount = ref('12.00000000')
+const sourceAddress = ref('pgc-primary')
 const themeModel = ref<ThemePreference>(preferences.themePreference.value)
 
 watch(themeModel, (value) => preferences.setTheme(value))
@@ -96,6 +98,25 @@ const timeline = computed(() => [
             :placeholder="t('foundation.recipientHelp')"
           />
         </div>
+        <AppSelect
+          id="source-address-demo"
+          v-model="sourceAddress"
+          label="Source address"
+          :options="[
+            {
+              label: 'PGC · Primary address',
+              description: '8f42…ab90',
+              value: 'pgc-primary',
+              monospace: true,
+            },
+            {
+              label: 'PGC · Reserve address',
+              description: 'a712…3c41',
+              value: 'pgc-reserve',
+              monospace: true,
+            },
+          ]"
+        />
         <AmountField
           id="amount-demo"
           v-model="amount"
@@ -126,7 +147,7 @@ const timeline = computed(() => [
         <ArrowLeft :size="17" weight="bold" />
         {{ t('foundation.back') }}
       </AppButton>
-      <AppButton to="/__ledger-preview" variant="secondary">{{ t('foundation.shell') }}</AppButton>
+      <AppButton to="/wallet/setup" variant="secondary">{{ t('foundation.shell') }}</AppButton>
     </footer>
   </main>
 </template>
