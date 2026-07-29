@@ -22,6 +22,20 @@ function jsonResponse(value: unknown): Response {
 }
 
 describe('Gateway Phase 2 contracts', () => {
+  it('uses the current local Gateway port by default', async () => {
+    const calls: string[] = []
+    const client = new GatewayClient({
+      fetcher: async (input) => {
+        calls.push(String(input))
+        return jsonResponse([])
+      },
+    })
+
+    await client.groups()
+
+    expect(calls).toEqual(['http://127.0.0.1:3001/api/v1/groups'])
+  })
+
   it('preserves an HTTP rejection as a structured response error', async () => {
     const client = new GatewayClient({
       baseURL: 'http://gateway.test',
@@ -128,6 +142,47 @@ describe('Gateway Phase 2 contracts', () => {
       {
         method: 'GET',
         url: 'http://gateway.test/api/v1/committee/gqnc/certified-block/7',
+      },
+    ])
+  })
+
+  it('uses the existing capsule generation and authority routes', async () => {
+    const calls: Array<{ body?: string; method: string; url: string }> = []
+    const client = new GatewayClient({
+      baseURL: 'http://gateway.test',
+      fetcher: async (input, init) => {
+        calls.push({
+          body: typeof init?.body === 'string' ? init.body : undefined,
+          method: init?.method ?? 'GET',
+          url: String(input),
+        })
+        return jsonResponse({ Success: true })
+      },
+    })
+
+    await client.generateGroupCapsule('g 1', { Address: 'abc' })
+    await client.generateRetailCapsule({ Address: 'def' })
+    await client.getOrganizationPublicKey('g 1')
+    await client.getCommitteePublicKey()
+
+    expect(calls).toEqual([
+      {
+        body: JSON.stringify({ Address: 'abc' }),
+        method: 'POST',
+        url: 'http://gateway.test/api/v1/g%201/assign/capsule/generate',
+      },
+      {
+        body: JSON.stringify({ Address: 'def' }),
+        method: 'POST',
+        url: 'http://gateway.test/api/v1/com/capsule/generate',
+      },
+      {
+        method: 'GET',
+        url: 'http://gateway.test/api/v1/org/publickey?org_id=g+1',
+      },
+      {
+        method: 'GET',
+        url: 'http://gateway.test/api/v1/com/public-key',
       },
     ])
   })

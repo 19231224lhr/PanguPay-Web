@@ -10,13 +10,17 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
+import ValueFoldField from '@/components/ValueFoldField.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
+import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
+import { resolveWalletArrival } from '@/wallet/entryService'
 
 const router = useRouter()
 const wallet = useWalletStore()
 const password = ref('')
 const unlockFailed = ref(false)
+const transitioning = ref(false)
 const passwordField = ref<{ focus: () => void }>()
 
 watch(password, () => {
@@ -26,11 +30,21 @@ watch(password, () => {
 
 async function unlock(): Promise<void> {
   unlockFailed.value = false
+  transitioning.value = true
+  await nextTick()
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   try {
     await wallet.unlock(password.value)
     password.value = ''
-    await router.replace('/wallet/entry')
+    const destination = await resolveWalletArrival(wallet.accountId)
+    await navigateWithSpatialTransition(
+      router,
+      destination,
+      destination === '/wallet' ? 'wallet' : 'access',
+      'replace',
+    )
   } catch {
+    transitioning.value = false
     password.value = ''
     await nextTick()
     unlockFailed.value = true
@@ -76,6 +90,14 @@ async function unlock(): Promise<void> {
         {{ wallet.error }}
       </InlineNotice>
     </section>
+    <Teleport to="body">
+      <Transition name="unlock-transition">
+        <div v-if="transitioning" class="unlock-transition" aria-live="polite">
+          <ValueFoldField :intro="false" active label="正在解锁 PanguPay 钱包" />
+          <p>正在解锁钱包</p>
+        </div>
+      </Transition>
+    </Teleport>
   </WalletAccessFrame>
 </template>
 
@@ -126,9 +148,47 @@ async function unlock(): Promise<void> {
   transform: translateY(3px);
 }
 
+.unlock-transition {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  overflow: hidden;
+  background: var(--background);
+  place-items: center;
+}
+
+.unlock-transition :deep(.value-fold-field) {
+  width: min(720px, 78vw, 74dvh);
+}
+
+.unlock-transition p {
+  position: absolute;
+  bottom: max(2rem, 7vh);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+
+.unlock-transition-enter-active,
+.unlock-transition-leave-active {
+  transition: opacity 220ms var(--ease-standard);
+}
+
+.unlock-transition-enter-from,
+.unlock-transition-leave-to {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .unlock-error-enter-active {
     transition: none;
+  }
+
+  .unlock-transition-enter-active,
+  .unlock-transition-leave-active {
+    transition-duration: 120ms;
   }
 }
 </style>

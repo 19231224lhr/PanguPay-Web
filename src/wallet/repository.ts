@@ -1,11 +1,17 @@
 import { parseWalletEnvelope } from '@/wallet/keystore'
-import type { WalletDashboardSnapshot, WalletKeystoreEnvelope } from '@/wallet/types'
+import type {
+  WalletDashboardSnapshot,
+  WalletKeystoreEnvelope,
+  WalletPublicMetadata,
+} from '@/wallet/types'
 
 export interface WalletRepository {
   loadEnvelope(): Promise<WalletKeystoreEnvelope | undefined>
   saveEnvelope(envelope: unknown): Promise<void>
   loadDashboard(): Promise<WalletDashboardSnapshot | undefined>
   saveDashboard(snapshot: WalletDashboardSnapshot): Promise<void>
+  loadMetadata(accountId: string): Promise<WalletPublicMetadata | undefined>
+  saveMetadata(metadata: WalletPublicMetadata): Promise<void>
   clear(): Promise<void>
 }
 
@@ -14,6 +20,10 @@ const DATABASE_VERSION = 1
 const ENVELOPE_STORE = 'keystore'
 const PUBLIC_STORE = 'public'
 const PRIMARY_KEY = 'primary'
+
+function metadataKey(accountId: string): string {
+  return `metadata:${accountId}`
+}
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -76,10 +86,24 @@ export class IndexedDBWalletRepository implements WalletRepository {
     )
   }
 
+  async loadMetadata(accountId: string): Promise<WalletPublicMetadata | undefined> {
+    if (!accountId.trim()) return undefined
+    return requestValue<WalletPublicMetadata | undefined>(PUBLIC_STORE, 'readonly', (store) =>
+      store.get(metadataKey(accountId)),
+    )
+  }
+
+  async saveMetadata(metadata: WalletPublicMetadata): Promise<void> {
+    if (!metadata.accountId.trim()) throw new Error('wallet metadata requires an account ID')
+    await requestValue<IDBValidKey>(PUBLIC_STORE, 'readwrite', (store) =>
+      store.put(structuredClone(metadata), metadataKey(metadata.accountId)),
+    )
+  }
+
   async clear(): Promise<void> {
     await Promise.all([
       requestValue<undefined>(ENVELOPE_STORE, 'readwrite', (store) => store.delete(PRIMARY_KEY)),
-      requestValue<undefined>(PUBLIC_STORE, 'readwrite', (store) => store.delete(PRIMARY_KEY)),
+      requestValue<undefined>(PUBLIC_STORE, 'readwrite', (store) => store.clear()),
     ])
   }
 }
@@ -87,6 +111,7 @@ export class IndexedDBWalletRepository implements WalletRepository {
 export class MemoryWalletRepository implements WalletRepository {
   private envelope?: WalletKeystoreEnvelope
   private dashboard?: WalletDashboardSnapshot
+  private metadata?: WalletPublicMetadata
 
   async loadEnvelope(): Promise<WalletKeystoreEnvelope | undefined> {
     return this.envelope && structuredClone(this.envelope)
@@ -104,8 +129,19 @@ export class MemoryWalletRepository implements WalletRepository {
     this.dashboard = structuredClone(snapshot)
   }
 
+  async loadMetadata(accountId: string): Promise<WalletPublicMetadata | undefined> {
+    if (this.metadata?.accountId !== accountId) return undefined
+    return structuredClone(this.metadata)
+  }
+
+  async saveMetadata(metadata: WalletPublicMetadata): Promise<void> {
+    if (!metadata.accountId.trim()) throw new Error('wallet metadata requires an account ID')
+    this.metadata = structuredClone(metadata)
+  }
+
   async clear(): Promise<void> {
     this.envelope = undefined
     this.dashboard = undefined
+    this.metadata = undefined
   }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   PhClockCounterClockwise as ClockCounterClockwise,
+  PhCube as Cube,
   PhGear as Gear,
   PhHouse as House,
   PhPaperPlaneTilt as PaperPlaneTilt,
@@ -28,10 +29,15 @@ const navItems = computed(() => [
   { label: t('wallet.nav.send'), icon: PaperPlaneTilt, to: '/wallet/send' },
   { label: t('wallet.nav.activity'), icon: ClockCounterClockwise, to: '/wallet/activity' },
   { label: t('wallet.nav.security'), icon: ShieldCheck, to: '/wallet/security' },
+  { label: t('wallet.nav.organization'), icon: UsersThree, to: '/wallet/organization' },
+  { label: t('wallet.nav.blockchain'), icon: Cube, to: '/wallet/blockchain' },
 ])
+
+const mobileItems = computed(() => navItems.value.slice(0, 4))
 
 const accountItems = computed(() => [
   { label: t('wallet.nav.organization'), icon: UsersThree, to: '/wallet/organization' },
+  { label: t('wallet.nav.blockchain'), icon: Cube, to: '/wallet/blockchain' },
 ])
 
 const utilityItems = computed(() => [
@@ -48,7 +54,7 @@ onMounted(async () => {
   if (sessionStorage.getItem('pangupay-wallet-entry-arrival') === '1') {
     sessionStorage.removeItem('pangupay-wallet-entry-arrival')
     entryArrival.value = true
-    arrivalTimer = setTimeout(() => (entryArrival.value = false), 720)
+    arrivalTimer = setTimeout(() => (entryArrival.value = false), 940)
   }
   await dashboard.loadCache()
   void dashboard.sync()
@@ -62,12 +68,14 @@ onBeforeUnmount(() => {
 <template>
   <AppShell
     :items="navItems"
+    :mobile-items="mobileItems"
     :account-items="accountItems"
     :utility-items="utilityItems"
     :navigation-label="t('wallet.nav.label')"
     :account-menu-label="t('wallet.account.openMenu')"
     :account-name="dashboard.current.displayName"
     :account-id="wallet.accountId"
+    :account-avatar="wallet.profile.avatarDataUrl"
     :lock-label="t('wallet.account.lock')"
     :more-label="t('wallet.account.my')"
     @lock="lockWallet"
@@ -121,10 +129,10 @@ onBeforeUnmount(() => {
   inset: 0;
   display: grid;
   overflow: hidden;
-  background: color-mix(in srgb, var(--background) 36%, transparent);
+  background: var(--background);
   pointer-events: none;
   place-items: center;
-  animation: wallet-entry-arrival 720ms var(--ease-standard) both;
+  animation: wallet-entry-arrival 920ms var(--ease-standard) both;
 }
 
 .wallet-entry-arrival :deep(.value-fold-field) {
@@ -133,18 +141,18 @@ onBeforeUnmount(() => {
 
 @keyframes wallet-entry-arrival {
   0%,
-  48% {
+  62% {
     opacity: 1;
     filter: brightness(1);
   }
-  68% {
+  78% {
     opacity: 0.94;
-    filter: brightness(1.35);
+    filter: brightness(1.28);
   }
   100% {
     opacity: 0;
-    filter: brightness(1.7);
-    transform: scale(0.965);
+    filter: brightness(1.55);
+    transform: scale(0.975);
   }
 }
 

@@ -29,7 +29,7 @@ async function createWallet(page: Page, password: string): Promise<void> {
     downloads.push(download)
   }
   page.on('download', collect)
-  await page.getByRole('button', { name: '创建钱包并下载两份备份' }).click()
+  await page.getByRole('button', { name: '创建钱包并下载备份', exact: true }).click()
   await expect.poll(() => downloads.length).toBe(2)
   page.off('download', collect)
   await page.getByText('我已分别安全保存').click()
@@ -81,6 +81,7 @@ for (const visualCase of cases) {
           ...shellMasks,
           page.locator('.wallet-page-header h1'),
           page.locator('.wallet-balance-field__sync'),
+          page.locator('.address-identifier code'),
         ],
         maskColor: visualCase.theme === 'dark' ? '#20242a' : '#dfe3e8',
         maxDiffPixels: 12,

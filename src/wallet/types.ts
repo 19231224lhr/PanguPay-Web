@@ -53,6 +53,27 @@ export interface WalletAddressSummary {
   txCerBalance: string
 }
 
+export type WalletAddressRegistration = 'active' | 'pending' | 'failed'
+
+export interface WalletAddressMetadata {
+  label: string
+  archived: boolean
+  registration: WalletAddressRegistration
+  error?: string
+}
+
+export interface WalletProfile {
+  displayName: string
+  avatarDataUrl?: string
+}
+
+export interface WalletPublicMetadata {
+  version: 1
+  accountId: string
+  profile: WalletProfile
+  addresses: Record<string, WalletAddressMetadata>
+}
+
 export interface WalletSecuritySummary {
   spendReady: string
   credentialStatus: 'normal' | 'warning'

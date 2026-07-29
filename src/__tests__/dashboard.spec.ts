@@ -30,6 +30,64 @@ describe('wallet dashboard normalization', () => {
     expect(snapshot.security.isolatedCount).toBe(1)
   })
 
+  it('keeps PGC, BTC and ETH balances in separate asset ledgers', () => {
+    const snapshot = buildDashboardSnapshot({
+      accountId: '68740417',
+      displayName: '6874 0417',
+      addresses: [
+        {
+          address: 'pgc-address',
+          type: '0',
+          utxos: [{ value: '12.5' }],
+          txCers: [
+            { id: 'pgc-txcer', value: '1.25', lifecycle: 'Active', fastEvidence: 'Verified' },
+          ],
+        },
+        {
+          address: 'btc-address',
+          type: '1',
+          utxos: [{ value: '0.0042' }],
+          txCers: [],
+        },
+        {
+          address: 'eth-address',
+          type: '2',
+          utxos: [{ value: '2.75' }],
+          txCers: [],
+        },
+      ],
+      updatedAt: 10,
+    })
+
+    expect(snapshot.assets).toEqual([
+      {
+        symbol: 'PGC',
+        name: 'Pangu Coin',
+        total: '13.75',
+        utxoAvailable: '12.5',
+        txCerSpendable: '1.25',
+        network: 'Transfer Area',
+      },
+      {
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        total: '0.0042',
+        utxoAvailable: '0.0042',
+        txCerSpendable: '0',
+        network: 'Transfer Area',
+      },
+      {
+        symbol: 'ETH',
+        name: 'Ethereum',
+        total: '2.75',
+        utxoAvailable: '2.75',
+        txCerSpendable: '0',
+        network: 'Transfer Area',
+      },
+    ])
+    expect(snapshot.security.spendReady).toBe('1.25')
+  })
+
   it('animates only the first live snapshot, manual refresh or an actual balance change', () => {
     const make = (value: string, updatedAt: number) =>
       buildDashboardSnapshot({

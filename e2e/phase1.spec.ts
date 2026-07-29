@@ -9,8 +9,9 @@ async function createAndCollectBackups(page: Page): Promise<Download[]> {
   }
   page.on('download', collect)
   try {
-    await page.getByRole('button', { name: '创建钱包并下载两份备份' }).click()
+    await page.getByRole('button', { name: '创建钱包并下载备份', exact: true }).click()
     await expect.poll(() => downloads.length).toBe(2)
+    await expect(page.getByText('用途不同，请分别保存。')).toHaveCount(0)
     return downloads
   } finally {
     page.off('download', collect)
@@ -42,7 +43,7 @@ test.describe('Phase 1 wallet foundation', () => {
   test('keeps every setup title on the same top anchor while long forms scroll below it', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.setViewportSize({ width: 1440, height: 768 })
     await page.goto('/wallet/setup')
 
     const createTop = await page
@@ -52,8 +53,18 @@ test.describe('Phase 1 wallet foundation', () => {
     const createModeControlTop = await setupModeControl.evaluate(
       (element) => element.getBoundingClientRect().top,
     )
+    const createDescriptionBottom = await page
+      .locator('.setup-copy__description')
+      .evaluate((element) => element.getBoundingClientRect().bottom)
 
-    await page.getByRole('radio', { name: '导入' }).click()
+    expect(createModeControlTop - createDescriptionBottom).toBeGreaterThanOrEqual(12)
+    expect(createModeControlTop - createDescriptionBottom).toBeLessThanOrEqual(24)
+
+    const switchToImport = page.getByRole('radio', { name: '导入' }).click()
+    await expect(page.locator('.setup-panel-leave-active')).toHaveCount(1)
+    await switchToImport
+    await expect(page.getByRole('heading', { name: '导入加密备份' })).toBeVisible()
+    await expect(page.locator('.setup-copy-enter-active')).toHaveCount(0)
     const backupTop = await page
       .getByRole('heading', { name: '导入加密备份' })
       .evaluate((element) => element.getBoundingClientRect().top)
@@ -63,6 +74,10 @@ test.describe('Phase 1 wallet foundation', () => {
 
     await page.getByRole('radio', { name: '私钥与 RootSeed' }).click()
     const keyHeading = page.getByRole('heading', { name: '使用密钥恢复' })
+    await expect(keyHeading).toBeVisible()
+    await expect(page.locator('.setup-copy-enter-active')).toHaveCount(0)
+    await expect(page.locator('#legacy-scalar')).toBeVisible()
+    await expect(page.locator('.setup-subpanel-enter-active')).toHaveCount(0)
     const keyTop = await keyHeading.evaluate((element) => element.getBoundingClientRect().top)
     const keyModeControlTop = await setupModeControl.evaluate(
       (element) => element.getBoundingClientRect().top,
@@ -72,7 +87,6 @@ test.describe('Phase 1 wallet foundation', () => {
     expect(Math.abs(createTop - keyTop)).toBeLessThanOrEqual(1)
     expect(Math.abs(createModeControlTop - backupModeControlTop)).toBeLessThanOrEqual(1)
     expect(Math.abs(createModeControlTop - keyModeControlTop)).toBeLessThanOrEqual(1)
-    await expect(keyHeading).toBeVisible()
     const accessForm = page.locator('.wallet-access__form')
     await expect(accessForm).toHaveCSS('scrollbar-width', 'none')
     const scrollState = await accessForm.evaluate((element) => {

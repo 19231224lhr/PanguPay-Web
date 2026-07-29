@@ -4,11 +4,14 @@ import { computed } from 'vue'
 
 const props = withDefaults(
   defineProps<{
+    actionLabel?: string
     title: string
     tone?: 'info' | 'warning' | 'danger'
   }>(),
   { tone: 'info' },
 )
+
+const emit = defineEmits<{ action: [] }>()
 
 const role = computed(() => (props.tone === 'danger' ? 'alert' : 'status'))
 const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
@@ -21,6 +24,9 @@ const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
       <strong class="inline-notice__title">{{ title }}</strong>
       <div class="inline-notice__body"><slot /></div>
     </div>
+    <button v-if="actionLabel" class="inline-notice__action" type="button" @click="emit('action')">
+      {{ actionLabel }}
+    </button>
   </aside>
 </template>
 
@@ -29,27 +35,33 @@ const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
   --notice-color: var(--accent);
   --notice-mix: 8%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 0.86rem 0.95rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+  min-height: 68px;
+  padding: 0.72rem 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--notice-color) 13%, var(--hairline));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--notice-color) var(--notice-mix), var(--surface-subtle));
+  background: color-mix(in srgb, var(--notice-color) var(--notice-mix), var(--surface));
   color: var(--text-muted);
   animation: inline-notice-enter var(--duration-state) var(--ease-standard) both;
 }
 
 .inline-notice--warning {
   --notice-color: var(--warning);
-  --notice-mix: 9%;
+  --notice-mix: 4%;
 }
 
 .inline-notice--danger {
   --notice-color: var(--danger);
-  --notice-mix: 9%;
+  --notice-mix: 4%;
 }
 
 .inline-notice__icon {
-  margin-top: 0.08rem;
+  box-sizing: content-box;
+  padding: 0.42rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--notice-color) 10%, transparent);
   color: var(--notice-color);
 }
 
@@ -70,6 +82,36 @@ const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
   line-height: 1.55;
 }
 
+.inline-notice__action {
+  min-height: 44px;
+  padding-inline: 0.78rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--notice-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    background var(--duration-state) var(--ease-standard),
+    transform var(--duration-press) var(--ease-press);
+}
+
+.inline-notice__action:hover {
+  background: color-mix(in srgb, var(--notice-color) 9%, transparent);
+}
+
+.inline-notice__action:active {
+  transform: scale(0.98);
+}
+
+.inline-notice__action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 @keyframes inline-notice-enter {
   from {
     opacity: 0;
@@ -80,6 +122,18 @@ const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
 @media (prefers-reduced-motion: reduce) {
   .inline-notice {
     animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .inline-notice {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .inline-notice__action {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: -0.78rem;
   }
 }
 </style>

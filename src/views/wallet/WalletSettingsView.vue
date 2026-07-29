@@ -3,8 +3,9 @@ import {
   PhDownloadSimple as DownloadSimple,
   PhKey as Key,
   PhLockKey as LockKey,
+  PhUserCircle as UserCircle,
 } from '@phosphor-icons/vue'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -24,6 +25,19 @@ const dashboard = useDashboardStore()
 const router = useRouter()
 const preferences = usePreferences()
 const { locale: i18nLocale, t } = useI18n()
+const displayName = ref(wallet.profile.displayName)
+const avatar = ref(wallet.profile.avatarDataUrl ?? '')
+const profileBusy = ref(false)
+const profileMessage = ref('')
+const profileError = ref('')
+
+watch(
+  () => wallet.profile,
+  (profile) => {
+    displayName.value = profile.displayName
+    avatar.value = profile.avatarDataUrl ?? ''
+  },
+)
 
 const themeOptions = computed(() => [
   { label: t('common.system'), value: 'system' },
@@ -75,6 +89,61 @@ function lock(): void {
   dashboard.reset()
   void router.replace('/wallet/unlock')
 }
+
+async function cropAvatar(file: File): Promise<string> {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
+    throw new Error('请选择 PNG、JPEG 或 WebP 图片。')
+  if (file.size > 5 * 1024 * 1024) throw new Error('头像文件不能超过 5 MB。')
+  const bitmap = await createImageBitmap(file)
+  const side = Math.min(bitmap.width, bitmap.height)
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('当前浏览器无法处理头像。')
+  context.drawImage(
+    bitmap,
+    (bitmap.width - side) / 2,
+    (bitmap.height - side) / 2,
+    side,
+    side,
+    0,
+    0,
+    256,
+    256,
+  )
+  bitmap.close()
+  return canvas.toDataURL('image/webp', 0.86)
+}
+
+async function chooseAvatar(event: Event): Promise<void> {
+  const input = event.currentTarget as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  profileError.value = ''
+  try {
+    avatar.value = await cropAvatar(file)
+  } catch (cause) {
+    profileError.value = cause instanceof Error ? cause.message : '无法读取头像。'
+  } finally {
+    input.value = ''
+  }
+}
+
+async function saveProfile(): Promise<void> {
+  profileBusy.value = true
+  profileError.value = ''
+  profileMessage.value = ''
+  try {
+    await wallet.saveProfile(displayName.value, avatar.value || undefined)
+    profileMessage.value = '个人资料已保存在本机。'
+    await dashboard.sync(true)
+  } catch (cause) {
+    profileError.value = cause instanceof Error ? cause.message : '无法保存个人资料。'
+  } finally {
+    profileBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -83,6 +152,36 @@ function lock(): void {
       :title="t('wallet.settings.title')"
       :description="t('wallet.settings.description')"
     />
+    <section class="wallet-section profile-settings" aria-labelledby="profile-settings-heading">
+      <div class="wallet-section__heading"><h2 id="profile-settings-heading">个人资料</h2></div>
+      <div class="profile-editor">
+        <label class="profile-avatar">
+          <img v-if="avatar" :src="avatar" alt="当前头像" />
+          <UserCircle v-else :size="42" weight="light" />
+          <span>更换头像</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" @change="chooseAvatar" />
+        </label>
+        <div class="profile-name">
+          <label for="wallet-display-name">用户名</label>
+          <input
+            id="wallet-display-name"
+            v-model="displayName"
+            maxlength="24"
+            autocomplete="nickname"
+          />
+          <small>仅保存在本机，不会改变账户 ID 或链上身份。</small>
+        </div>
+        <AppButton :loading="profileBusy" :disabled="!displayName.trim()" @click="saveProfile">
+          保存资料
+        </AppButton>
+      </div>
+      <p v-if="profileError" class="settings-feedback settings-feedback--error" role="alert">
+        {{ profileError }}
+      </p>
+      <p v-else-if="profileMessage" class="settings-feedback" role="status">
+        {{ profileMessage }}
+      </p>
+    </section>
     <section class="wallet-section settings-preferences" aria-labelledby="preferences-heading">
       <div class="wallet-section__heading">
         <h2 id="preferences-heading">{{ t('wallet.settings.preferences') }}</h2>
@@ -178,6 +277,75 @@ function lock(): void {
   color: var(--text-muted);
 }
 
+.settings-actions :deep(.app-button) {
+  min-width: 112px;
+}
+
+.profile-editor {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.profile-avatar {
+  display: grid;
+  width: 86px;
+  height: 86px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.profile-avatar span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.profile-avatar input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.profile-name {
+  display: grid;
+  gap: 0.35rem;
+}
+.profile-name label {
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.profile-name input {
+  min-height: 48px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--field);
+  color: var(--text);
+}
+.profile-name small,
+.settings-feedback {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.settings-feedback {
+  margin: 0;
+}
+.settings-feedback--error {
+  color: var(--danger);
+}
+
 @media (max-width: 599px) {
   .settings-row,
   .settings-actions > div {
@@ -188,6 +356,14 @@ function lock(): void {
 
   .settings-preferences :deep(.segmented-control),
   .settings-actions :deep(.app-button) {
+    width: 100%;
+  }
+
+  .profile-editor {
+    grid-template-columns: auto 1fr;
+  }
+  .profile-editor :deep(.app-button) {
+    grid-column: 1 / -1;
     width: 100%;
   }
 }

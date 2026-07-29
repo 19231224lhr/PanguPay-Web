@@ -113,9 +113,15 @@ async function clearLocalWallet(): Promise<void> {
         <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
 
         <div class="recovery-divider"><span>没有恢复材料</span></div>
-        <button type="button" class="text-action" @click="revealClear = true">
+        <AppButton
+          class="clear-wallet-entry"
+          size="large"
+          variant="secondary"
+          @click="revealClear = true"
+        >
+          <template #icon><Trash :size="17" /></template>
           清除本地钱包并重新开始
-        </button>
+        </AppButton>
         <RouterLink class="back-link" to="/wallet/unlock">
           <ArrowLeft :size="16" />
           返回解锁
@@ -204,19 +210,8 @@ async function clearLocalWallet(): Promise<void> {
   content: '';
 }
 
-.text-action {
-  width: fit-content;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.text-action:hover {
-  color: var(--danger);
+.clear-wallet-entry {
+  width: 100%;
 }
 
 .clear-actions {

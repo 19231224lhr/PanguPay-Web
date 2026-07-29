@@ -29,6 +29,7 @@ import {
   type TransferProgress,
 } from '@/transfer'
 import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
+import { resolveTransferRecipient } from '@/transfer/capsuleRecipient'
 
 export type TransferStage = 'compose' | 'review' | 'result'
 
@@ -45,6 +46,9 @@ export interface TransferReview {
   mode: TransferMode
   source: string
   recipient: string
+  recipientInput: string
+  capsule?: string
+  capsuleOrgID?: string
   amount: string
   coinType: number
   membership: 'retail' | 'member'
@@ -68,7 +72,7 @@ function crossRecipient(address: string): RecipientSpendMetadata {
 function humanize(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause)
   const known: Array<[RegExp, string]> = [
-    [/insufficient spendable balance/i, '可用余额不足，或已有输入正在等待上一笔交易完成。'],
+    [/insufficient spendable balance/i, '当前可用余额不足。'],
     [/quick transfer requires/i, '快速转账需要先加入担保组织。'],
     [/cross-chain transfer requires a guarantor/i, '跨链转账需要先加入担保组织。'],
     [/requires whole PGC/i, '跨链转账仅支持整数 PGC。'],
@@ -120,19 +124,25 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   async function prepare(form: TransferFormInput): Promise<void> {
-    if (!wallet.unlockedRecord) throw new Error('钱包尚未解锁。')
+    const record = wallet.activeRecord
+    if (!record) throw new Error('钱包尚未解锁。')
     busy.value = true
     error.value = ''
     try {
+      const source = form.source.trim().toLowerCase()
+      if (!wallet.activeAddresses.some((address) => address.address.toLowerCase() === source))
+        throw new Error('请选择当前钱包中的来源地址。')
+      const resolvedRecipient = await resolveTransferRecipient(
+        form.recipient,
+        form.mode,
+        gateway.value,
+      )
       if (review.value && stage.value === 'review')
         clearTransferReservation(wallet.accountId, review.value.draftID)
-      const source = form.source.trim().toLowerCase()
-      if (!wallet.addresses.some((address) => address.address.toLowerCase() === source))
-        throw new Error('请选择当前钱包中的来源地址。')
       const snapshot = await loadWalletSpendableSnapshot(gateway.value, {
         userID: wallet.accountId,
-        addresses: wallet.addresses.map((address) => address.address),
-        reOnlineMessage: buildWalletReOnlineMessage(wallet.unlockedRecord),
+        addresses: wallet.activeAddresses.map((address) => address.address),
+        reOnlineMessage: buildWalletReOnlineMessage(record),
         receivedTXCers: dashboard.current.receivedTXCers,
       })
       if (snapshot.membership === 'retail') {
@@ -153,12 +163,12 @@ export const useTransferStore = defineStore('transfer', () => {
         reservedIDs: reservedTransferInputIDs(wallet.accountId),
       })
       const addressLookup = await gateway.value.queryAddressGroups([
-        ...new Set([source, ...(form.mode === 'cross' ? [] : [form.recipient.trim()])]),
+        ...new Set([source, ...(form.mode === 'cross' ? [] : [resolvedRecipient.address])]),
       ])
       const recipient =
         form.mode === 'cross'
-          ? crossRecipient(form.recipient)
-          : resolveRecipientSpendMetadata(form.recipient, addressLookup)
+          ? crossRecipient(resolvedRecipient.address)
+          : resolveRecipientSpendMetadata(resolvedRecipient.address, addressLookup)
       const change = resolveRecipientSpendMetadata(source, addressLookup)
       const draft = {
         mode: form.mode,
@@ -169,7 +179,7 @@ export const useTransferStore = defineStore('transfer', () => {
         usesTXCer: selection.txCers.length > 0,
       } as const
       const built = buildTransferTransaction({
-        wallet: wallet.unlockedRecord,
+        wallet: record,
         draft,
         selection,
         recipient,
@@ -182,7 +192,10 @@ export const useTransferStore = defineStore('transfer', () => {
         draftID,
         mode: form.mode,
         source,
-        recipient: form.recipient.trim(),
+        recipient: recipient.address,
+        recipientInput: form.recipient.trim(),
+        capsule: resolvedRecipient.capsule,
+        capsuleOrgID: resolvedRecipient.orgID,
         amount: form.amount,
         coinType,
         membership: snapshot.membership,
@@ -195,7 +208,7 @@ export const useTransferStore = defineStore('transfer', () => {
         txID: built.txID,
         mode: form.mode,
         amount: form.amount,
-        recipient: form.recipient.trim(),
+        recipient: recipient.address,
         inputIDs: built.inputIDs,
         groupID: snapshot.guarantorGroupID,
         submissionKind: built.submission.kind,
@@ -222,28 +235,69 @@ export const useTransferStore = defineStore('transfer', () => {
     )
       return
     monitoring.add(value.draftID)
+    let progress = value
     let lastCertifiedHeight = 0
+    const monitorStartedAt = Date.now()
+    let nextSettlementCheckAt = 0
+    let firstPass = true
     try {
-      for (let attempt = 0; attempt < 45; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2_000))
+      while (Date.now() - monitorStartedAt < 90_000) {
+        if (!firstPass) {
+          const elapsed = Date.now() - monitorStartedAt
+          const waitingForSpendReady =
+            progress.submissionKind === 'assign' && !progress.spendReadyAt
+          const delay = !waitingForSpendReady
+            ? 2_000
+            : elapsed < 1_000
+              ? 80
+              : elapsed < 5_000
+                ? 250
+                : 2_000
+          await new Promise((resolve) => setTimeout(resolve, delay))
+        }
+        firstPass = false
         try {
-          if (value.submissionKind === 'assign') {
+          if (progress.submissionKind === 'assign' && !progress.spendReadyAt) {
             const state = classifyAssignTransactionStatus(
-              await gateway.value.assignTransactionStatus(value.groupID ?? '', value.txID),
+              await gateway.value.assignTransactionStatus(progress.groupID ?? '', progress.txID),
             )
             if (typeof state === 'object') {
               const failed = recordTransferProgress(wallet.accountId, {
-                draftID: value.draftID,
+                draftID: progress.draftID,
                 phase: 'failed',
                 error: state.failed,
                 updatedAt: Date.now(),
               })
-              if (currentProgress.value?.draftID === value.draftID) currentProgress.value = failed
-              clearTransferReservation(wallet.accountId, value.draftID)
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = failed
+              clearTransferReservation(wallet.accountId, progress.draftID)
               refreshHistory()
               return
             }
+            if (state === 'accepted' && !progress.acceptedAt) {
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'accepted',
+                updatedAt: Date.now(),
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              refreshHistory()
+            }
+            if (state === 'spend-ready') {
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'spend-ready',
+                updatedAt: Date.now(),
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              refreshHistory()
+            }
           }
+
+          if (Date.now() < nextSettlementCheckAt) continue
+          nextSettlementCheckAt = Date.now() + 2_000
           const certifiedHeight = gqncCertifiedHeight(await gateway.value.gqncStatus())
           const fromHeight = lastCertifiedHeight
             ? lastCertifiedHeight + 1
@@ -252,7 +306,7 @@ export const useTransferStore = defineStore('transfer', () => {
           for (let height = fromHeight; height <= certifiedHeight; height += 1) {
             if (
               hasObservedGQNCCertification(
-                value.txID,
+                progress.txID,
                 await gateway.value.gqncCertifiedBlock(height),
               )
             ) {
@@ -263,12 +317,12 @@ export const useTransferStore = defineStore('transfer', () => {
           lastCertifiedHeight = Math.max(lastCertifiedHeight, certifiedHeight)
           if (certified) {
             const settled = recordTransferProgress(wallet.accountId, {
-              draftID: value.draftID,
+              draftID: progress.draftID,
               phase: 'settled',
               updatedAt: Date.now(),
             })
-            if (currentProgress.value?.draftID === value.draftID) currentProgress.value = settled
-            clearTransferReservation(wallet.accountId, value.draftID)
+            if (currentProgress.value?.draftID === progress.draftID) currentProgress.value = settled
+            clearTransferReservation(wallet.accountId, progress.draftID)
             refreshHistory()
             await dashboard.sync()
             return
@@ -362,6 +416,10 @@ export const useTransferStore = defineStore('transfer', () => {
     stage.value = 'compose'
   }
 
+  function dismissError(): void {
+    error.value = ''
+  }
+
   function setGatewayForTests(next: GatewayClient): void {
     gateway.value = markRaw(next)
   }
@@ -379,6 +437,7 @@ export const useTransferStore = defineStore('transfer', () => {
     submit,
     cancelReview,
     startAnother,
+    dismissError,
     setGatewayForTests,
   }
 })

@@ -52,16 +52,16 @@
 }
 
 :root.wallet-entry-transition::view-transition-old(root) {
-  animation: wallet-exit 280ms var(--ease-standard) both;
+  animation: wallet-exit 320ms var(--ease-standard) both;
 }
 
 :root.wallet-entry-transition::view-transition-new(root) {
-  animation: wallet-reveal 620ms var(--ease-standard) both;
+  animation: wallet-reveal 780ms var(--ease-standard) both;
 }
 
 :root.wallet-entry-transition::view-transition-group(pangu-value-fold) {
   z-index: 12;
-  animation-duration: 620ms;
+  animation-duration: 780ms;
   animation-timing-function: var(--ease-standard);
 }
 

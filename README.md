@@ -1,8 +1,9 @@
 # PanguPay Web
 
-PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前已完成 Phase 1：
-设计基座、protocol-v2、正式浏览器 keystore、真实只读账户同步和“流动账本”钱包框架。
-真实交易签名与提交将在 Phase 2 接入。
+PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前已完成 Phase 2：
+设计基座、protocol-v2、正式浏览器 keystore、组织接入，以及普通、快速、混合和跨链交易的真实构造、签名与提交。
+
+最新一轮视觉与契约收口进一步补齐了收款二维码、不同转账模式的真实路径说明、活动阶段、TXCer 凭证链、ExposureShares 责任份额和担保组织详情。
 
 ## 技术栈
 
@@ -47,19 +48,20 @@ npm run dev
 内部评审页面：
 
 - `/`：无导航沉浸式首页
-- `/__ledger-preview`：响应式流动账本钱包框架
-- `/__foundation`：设计系统陈列页
+- `/__foundation`：开发模式下的设计系统陈列页
 
 正式钱包路由：
 
 - `/wallet/setup`：创建或导入钱包
 - `/wallet/unlock`：解锁
-- `/wallet`：真实只读账户总览
-- `/wallet/send`：Phase 2 前的安全发送预览
-- `/wallet/receive`：真实地址选择与复制
-- `/wallet/activity`：账户活动
-- `/wallet/security`：TXCer 凭证与安全
-- `/wallet/organization`：担保组织
+- `/wallet/recover`：使用独立恢复材料重建本地 keystore
+- `/wallet/entry`：恢复组织身份或选择独立/组织使用方式
+- `/wallet`：真实账户总览
+- `/wallet/send`：普通、快速、混合与跨链交易
+- `/wallet/receive`：真实地址、二维码与复制
+- `/wallet/activity`：入口、快速可用和后台结算阶段
+- `/wallet/security`：TXCer 凭证链与责任份额
+- `/wallet/organization`：组织选择与权威详情
 - `/wallet/settings`：备份与锁定
 
 Gateway 地址通过 `.env` 的 `VITE_GATEWAY_URL` 配置；后端离线时，页面明确显示缓存时间，
@@ -87,12 +89,14 @@ npm run capture:visual
 
 设计原则见 [DESIGN.md](./DESIGN.md)，产品范围见 [PRODUCT.md](./PRODUCT.md)。
 
-## Phase 1 边界
+## 当前安全边界
 
-- 不发送真实交易。
 - 不展示未经实验支持的实时指标。
 - 不调用 `/committee/gqnc/*` 等运维接口。
 - 加密秘密不写入 LocalStorage；未确认备份前，新钱包不会持久化。
+- CFAA 审计状态不阻塞 TXCer 快速可用；FastEvidence、Ack 或责任收据明确失败时隔离 TXCer。
+- 页面分别展示“入口已接收”“TXCer 可支付”“后台已结算”，不把它们合并成含糊的成功状态。
 
 真实 UI 操作流程见
-[Phase 1 操作图谱](./docs/testing/phase1-wallet-ui-operation-atlas.md)。
+[钱包操作图谱](./docs/testing/phase1-wallet-ui-operation-atlas.md)，真实转账结果见
+[Phase 2 验证记录](./docs/testing/phase2-real-transfer-validation.md)。

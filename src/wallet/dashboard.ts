@@ -20,6 +20,27 @@ export interface RawDashboardInput {
   updatedAt: number
 }
 
+const assetTypes: Record<string, { symbol: string; name: string; network: string }> = {
+  '0': { symbol: 'PGC', name: 'Pangu Coin', network: 'Transfer Area' },
+  '1': { symbol: 'BTC', name: 'Bitcoin', network: 'Transfer Area' },
+  '2': { symbol: 'ETH', name: 'Ethereum', network: 'Transfer Area' },
+}
+
+export function assetIdentityForType(type: string): {
+  symbol: string
+  name: string
+  network: string
+} {
+  const normalized = String(type).trim()
+  return (
+    assetTypes[normalized] ?? {
+      symbol: `TYPE-${normalized || '?'}`,
+      name: `Asset type ${normalized || '?'}`,
+      network: 'Transfer Area',
+    }
+  )
+}
+
 export function shouldAnimateBalance(
   previous: WalletDashboardSnapshot | undefined,
   next: WalletDashboardSnapshot,
@@ -36,8 +57,7 @@ export function shouldAnimateBalance(
 }
 
 export function buildDashboardSnapshot(input: RawDashboardInput): WalletDashboardSnapshot {
-  let utxoUnits = 0n
-  let txCerUnits = 0n
+  const balances = new Map<string, { utxo: bigint; txCer: bigint }>()
   let isolatedCount = 0
   let pendingAudits = 0
 
@@ -51,8 +71,10 @@ export function buildDashboardSnapshot(input: RawDashboardInput): WalletDashboar
         if (txCer.fastEvidence === 'Pending') pendingAudits += 1
       }
     }
-    utxoUnits += balance
-    txCerUnits += spendable
+    const totals = balances.get(address.type) ?? { utxo: 0n, txCer: 0n }
+    totals.utxo += balance
+    totals.txCer += spendable
+    balances.set(address.type, totals)
     return {
       address: address.address,
       type: address.type,
@@ -61,23 +83,25 @@ export function buildDashboardSnapshot(input: RawDashboardInput): WalletDashboar
     }
   })
 
-  const total = addAmounts(formatAmount(utxoUnits), formatAmount(txCerUnits))
+  const assets = [...balances.entries()]
+    .sort(([left], [right]) => Number(left) - Number(right) || left.localeCompare(right))
+    .map(([type, balance]) => {
+      const identity = assetIdentityForType(type)
+      return {
+        ...identity,
+        total: addAmounts(formatAmount(balance.utxo), formatAmount(balance.txCer)),
+        utxoAvailable: formatAmount(balance.utxo),
+        txCerSpendable: formatAmount(balance.txCer),
+      }
+    })
+  const pgcSpendReady = balances.get('0')?.txCer ?? 0n
   return {
     accountId: input.accountId,
     displayName: input.displayName,
     addresses,
-    assets: [
-      {
-        symbol: 'PGC',
-        name: 'Pangu Coin',
-        total,
-        utxoAvailable: formatAmount(utxoUnits),
-        txCerSpendable: formatAmount(txCerUnits),
-        network: 'Transfer Area',
-      },
-    ],
+    assets,
     security: {
-      spendReady: formatAmount(txCerUnits),
+      spendReady: formatAmount(pgcSpendReady),
       credentialStatus: isolatedCount > 0 ? 'warning' : 'normal',
       pendingAudits,
       isolatedCount,

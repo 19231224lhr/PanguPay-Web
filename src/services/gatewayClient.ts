@@ -29,7 +29,7 @@ export function stringifyGatewayJSON(value: unknown): string {
 }
 
 function defaultGatewayURL(): string {
-  return String(import.meta.env.VITE_GATEWAY_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '')
+  return String(import.meta.env.VITE_GATEWAY_URL || 'http://127.0.0.1:3001').replace(/\/+$/, '')
 }
 
 export function parseGatewayJSON(input: string): unknown {
@@ -135,6 +135,20 @@ export class GatewayClient {
     })
   }
 
+  registerGroupAddress(groupID: string, message: unknown): Promise<unknown> {
+    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/new-address`, {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  unbindGroupAddress(groupID: string, message: unknown): Promise<unknown> {
+    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/unbind-address`, {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
   queryAddresses(addresses: string[]): Promise<unknown> {
     return this.request('/api/v1/com/query-address', {
       method: 'POST',
@@ -156,6 +170,29 @@ export class GatewayClient {
 
   groupInfo(groupID: string): Promise<unknown> {
     return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/group-info`)
+  }
+
+  generateGroupCapsule(groupID: string, message: unknown): Promise<unknown> {
+    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/capsule/generate`, {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  generateRetailCapsule(message: unknown): Promise<unknown> {
+    return this.request('/api/v1/com/capsule/generate', {
+      method: 'POST',
+      body: stringifyGatewayJSON(message),
+    })
+  }
+
+  getOrganizationPublicKey(orgID: string): Promise<unknown> {
+    const query = new URLSearchParams({ org_id: orgID })
+    return this.request(`/api/v1/org/publickey?${query}`)
+  }
+
+  getCommitteePublicKey(): Promise<unknown> {
+    return this.request('/api/v1/com/public-key')
   }
 
   txCerStatuses(groupID: string, userID: string): Promise<unknown> {

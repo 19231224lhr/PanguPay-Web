@@ -4,6 +4,7 @@ import {
   PhArrowRight as ArrowRight,
   PhCheckCircle as CheckCircle,
   PhPaperPlaneTilt as PaperPlaneTilt,
+  PhShieldCheck as ShieldCheck,
 } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
 
@@ -19,6 +20,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
 import type { TransferMode } from '@/transfer'
+import { describeTransferIssue } from '@/transfer/errors'
 
 const wallet = useWalletStore()
 const dashboard = useDashboardStore()
@@ -52,6 +54,19 @@ const modeOptions = computed(() => [
   { label: '普通', value: 'normal' },
   { label: '跨链', value: 'cross', disabled: !isMember.value },
 ])
+const transferIssue = computed(() =>
+  transfer.error ? describeTransferIssue(transfer.error) : undefined,
+)
+const recipientLooksCapsule = computed(() => recipient.value.trim().includes('@'))
+
+function formatObservedDuration(startedAt?: number, completedAt?: number): string | undefined {
+  if (!startedAt || !completedAt || completedAt < startedAt) return undefined
+  const elapsed = completedAt - startedAt
+  if (elapsed < 1) return '< 1 ms'
+  if (elapsed < 1_000) return `${Math.round(elapsed)} ms`
+  if (elapsed < 10_000) return `${(elapsed / 1_000).toFixed(2)} s`
+  return `${(elapsed / 1_000).toFixed(1)} s`
+}
 
 const timeline = computed<TimelineItem[]>(() => {
   const progress = transfer.currentProgress
@@ -69,11 +84,13 @@ const timeline = computed<TimelineItem[]>(() => {
     },
   ]
   if (transfer.review?.mode === 'quick') {
+    const spendReadyDuration = formatObservedDuration(progress?.acceptedAt, progress?.spendReadyAt)
     items.push({
-      label: '收款方 TXCer Active',
+      label: '收款方已到账可用',
       detail: spendReady
-        ? '收款方已依据 Assign 权威状态确认 TXCer 可继续支付。'
-        : '由收款方钱包独立确认；本设备不会用后台结算冒充 TXCer Active。',
+        ? 'TXCer 已完成原子登记，这笔资金可以立即用于下一笔支付。'
+        : '正在确认收款方是否已完成到账登记。',
+      meta: spendReadyDuration ? `接收 → 可用 · ${spendReadyDuration}` : undefined,
       state: failed ? 'error' : spendReady ? 'complete' : accepted ? 'active' : 'pending',
     })
   }
@@ -96,6 +113,8 @@ watch(
   },
   { immediate: true },
 )
+
+watch([mode, source, recipient, amount], () => transfer.dismissError())
 
 async function prepareReview(): Promise<void> {
   try {
@@ -145,14 +164,6 @@ function startAnother(): void {
       @submit.prevent="prepareReview"
     >
       <SegmentedControl v-model="mode" label="转账模式" :options="modeOptions" />
-      <p class="mode-explanation">
-        <template v-if="mode === 'quick'"
-          >优先使用 Active TXCer；不足部分由普通 UTXO 补足。</template
-        >
-        <template v-else-if="mode === 'cross'">仅支持 PGC、单一轻计算地址和整数金额。</template>
-        <template v-else-if="isMember">只使用普通 UTXO，通过当前担保组织提交。</template>
-        <template v-else>散户交易直接提交委员会，不依赖担保组织。</template>
-      </p>
       <AppSelect
         id="send-source"
         v-model="source"
@@ -164,8 +175,25 @@ function startAnother(): void {
         id="send-recipient"
         v-model="recipient"
         :label="mode === 'cross' ? '轻计算收款地址' : '收款地址'"
-        :placeholder="mode === 'cross' ? '0x…' : '输入完整地址'"
+        :placeholder="mode === 'cross' ? '0x…' : '40位原始地址或胶囊地址'"
       />
+      <div
+        v-if="recipientLooksCapsule"
+        class="capsule-input-status"
+        :data-busy="transfer.busy || undefined"
+        role="status"
+      >
+        <span class="capsule-input-status__icon" aria-hidden="true">
+          <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
+        </span>
+        {{
+          mode === 'cross'
+            ? '跨链转账暂不支持胶囊地址，请使用原始地址。'
+            : transfer.busy
+              ? '正在获取签名公钥并验证胶囊地址…'
+              : '审核前会先验签并还原链上真实地址。'
+        }}
+      </div>
       <AmountField
         id="send-amount"
         v-model="amount"
@@ -176,16 +204,26 @@ function startAnother(): void {
       <InlineNotice v-if="!isMember" title="当前为独立账户" tone="info">
         你仍可使用普通转账；快速和跨链功能需要先在“担保组织”中加入组织。
       </InlineNotice>
-      <InlineNotice v-if="transfer.error" title="无法生成交易" tone="danger">
-        {{ transfer.error }}
-      </InlineNotice>
       <AppButton type="submit" size="large" :loading="transfer.busy">
         审核交易
         <template #icon><ArrowRight :size="18" weight="bold" /></template>
       </AppButton>
+      <InlineNotice
+        v-if="transferIssue"
+        class="transfer-error-notice"
+        :title="transferIssue.title"
+        tone="danger"
+      >
+        {{ transferIssue.message }}
+      </InlineNotice>
     </form>
 
     <section v-else-if="transfer.stage === 'review' && transfer.review" class="review-plane">
+      <div v-if="transfer.review.capsule" class="capsule-review-mark">
+        <ShieldCheck :size="17" weight="fill" aria-hidden="true" />
+        <span>胶囊地址已验证</span>
+        <small>组织 {{ transfer.review.capsuleOrgID }}</small>
+      </div>
       <div class="review-amount">
         <span>将发送</span>
         <strong class="tabular">{{ transfer.review.amount }}</strong>
@@ -205,7 +243,11 @@ function startAnother(): void {
           </dd>
         </div>
         <div>
-          <dt>收款地址</dt>
+          <dt>{{ transfer.review.capsule ? '胶囊地址' : '收款地址' }}</dt>
+          <dd class="mono">{{ transfer.review.recipientInput }}</dd>
+        </div>
+        <div v-if="transfer.review.capsule">
+          <dt>链上真实目标</dt>
           <dd class="mono">{{ transfer.review.recipient }}</dd>
         </div>
         <div>
@@ -227,9 +269,6 @@ function startAnother(): void {
           <dd class="mono">{{ transfer.review.built.txID }}</dd>
         </div>
       </dl>
-      <InlineNotice v-if="transfer.error" title="提交未完成" tone="danger">
-        {{ transfer.error }}
-      </InlineNotice>
       <div class="review-actions">
         <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
           <ArrowLeft :size="18" /> 返回修改
@@ -238,6 +277,14 @@ function startAnother(): void {
           <PaperPlaneTilt :size="18" /> 确认并提交
         </AppButton>
       </div>
+      <InlineNotice
+        v-if="transferIssue"
+        class="transfer-error-notice"
+        :title="transferIssue.title"
+        tone="danger"
+      >
+        {{ transferIssue.message }}
+      </InlineNotice>
     </section>
 
     <section v-else-if="transfer.stage === 'result' && transfer.review" class="result-plane">
@@ -265,12 +312,51 @@ function startAnother(): void {
   display: grid;
   gap: 1.05rem;
 }
-.mode-explanation {
-  min-height: 1.35rem;
-  margin: -0.35rem 0 0;
+.capsule-input-status {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  gap: 0.48rem;
+  margin-top: -0.55rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  line-height: 1.5;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.capsule-input-status__icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  place-items: center;
+}
+.capsule-input-status[data-busy] .capsule-input-status__icon {
+  border: 1.5px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: capsule-spin 720ms linear infinite;
+}
+.send-page :deep(.transfer-error-notice.inline-notice) {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  min-height: auto;
+  padding: 0.95rem 1rem;
+  border-color: color-mix(in srgb, var(--danger) 18%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--danger) 11%, var(--surface-raised)) 0%,
+    color-mix(in srgb, var(--danger) 5%, var(--surface)) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 18px 42px -34px color-mix(in srgb, var(--danger) 46%, transparent);
+  backdrop-filter: blur(18px) saturate(112%);
+}
+.send-page :deep(.transfer-error-notice .inline-notice__icon) {
+  padding: 0.34rem;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.send-page :deep(.transfer-error-notice .inline-notice__title) {
+  color: color-mix(in srgb, var(--danger) 70%, var(--text));
 }
 .review-plane,
 .result-plane {
@@ -280,6 +366,20 @@ function startAnother(): void {
   padding: clamp(1.1rem, 2.4vw, 1.6rem);
   border-radius: var(--radius-lg);
   background: var(--surface);
+}
+.capsule-review-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.capsule-review-mark small {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 .review-amount {
   display: grid;
@@ -355,6 +455,11 @@ function startAnother(): void {
   font-size: 0.72rem;
   overflow-wrap: anywhere;
 }
+@keyframes capsule-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 @media (max-width: 599px) {
   .review-actions,
   .result-actions {
@@ -367,6 +472,12 @@ function startAnother(): void {
   }
   .review-details dd {
     text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capsule-input-status[data-busy] .capsule-input-status__icon {
+    animation: none;
   }
 }
 </style>

@@ -2,6 +2,7 @@
 export interface TimelineItem {
   label: string
   detail?: string
+  meta?: string
   state: 'complete' | 'active' | 'pending' | 'error'
 }
 
@@ -18,7 +19,10 @@ defineProps<{
         <span v-if="index < items.length - 1" class="timeline__line" />
       </div>
       <div class="timeline__content">
-        <strong>{{ item.label }}</strong>
+        <div class="timeline__title">
+          <strong>{{ item.label }}</strong>
+          <span v-if="item.meta" class="timeline__meta">{{ item.meta }}</span>
+        </div>
         <span v-if="item.detail">{{ item.detail }}</span>
       </div>
     </li>
@@ -90,8 +94,32 @@ defineProps<{
   font-weight: 650;
 }
 
+.timeline__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.timeline__meta {
+  flex: none;
+  color: var(--accent) !important;
+  font-size: 0.7rem !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+}
+
 .timeline__content span {
   color: var(--text-muted);
   font-size: 0.75rem;
+}
+
+@media (max-width: 479px) {
+  .timeline__title {
+    display: grid;
+    justify-content: start;
+    gap: 0.08rem;
+  }
 }
 </style>

@@ -16,6 +16,17 @@ interface EntryPreferenceStorage {
 
 const noGroupChoiceKey = (accountId: string) => `pangupay:wallet-entry:no-group:${accountId}`
 
+export function formatWalletEntryError(cause: unknown): string {
+  if (
+    cause instanceof TypeError ||
+    /failed to fetch|networkerror|load failed/i.test(String(cause))
+  ) {
+    return '无法连接到本地服务，请确认后端已启动后重试。'
+  }
+  if (cause instanceof Error && cause.message.trim()) return cause.message
+  return '无法恢复组织状态，请稍后重试。'
+}
+
 export function hasLocalNoGroupChoice(
   accountId: string,
   storage: EntryPreferenceStorage = localStorage,

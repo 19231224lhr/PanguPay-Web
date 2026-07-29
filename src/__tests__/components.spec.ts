@@ -9,8 +9,10 @@ import AppShell from '@/components/AppShell.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
+import ProgressTimeline from '@/components/ProgressTimeline.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
+import WalletBalanceField from '@/components/WalletBalanceField.vue'
 import WalletReceiveView from '@/views/wallet/WalletReceiveView.vue'
 import WalletSendView from '@/views/wallet/WalletSendView.vue'
 
@@ -37,6 +39,34 @@ describe('foundation components', () => {
     expect(wrapper.emitted('click')).toBeUndefined()
   })
 
+  it('settles a sync halo into the existing top-right value field', async () => {
+    const wrapper = mount(WalletBalanceField, {
+      props: {
+        animate: true,
+        asset: {
+          name: 'Pangu Coin',
+          network: 'Transfer Area',
+          symbol: 'PGC',
+          total: '12',
+          txCerSpendable: '2',
+          utxoAvailable: '10',
+        },
+      },
+      global: {
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+
+    expect(wrapper.classes()).toContain('wallet-balance-field--settle')
+    expect(wrapper.find('.wallet-balance-field__settle').exists()).toBe(true)
+    expect(wrapper.find('.wallet-balance-field__sweep').exists()).toBe(false)
+
+    await wrapper.get('.wallet-balance-field__settle').trigger('animationend')
+    expect(wrapper.emitted('sweepEnd')).toHaveLength(1)
+  })
+
   it('keeps a visible label and associates errors with the input', () => {
     const wrapper = mount(FormField, {
       props: {
@@ -49,6 +79,24 @@ describe('foundation components', () => {
     expect(wrapper.get('label').attributes('for')).toBe('recipient')
     expect(wrapper.get('input').attributes('aria-invalid')).toBe('true')
     expect(wrapper.get('input').attributes('aria-describedby')).toContain('recipient-error')
+  })
+
+  it('shows an observed milestone duration without mixing it into the status copy', () => {
+    const wrapper = mount(ProgressTimeline, {
+      props: {
+        items: [
+          {
+            label: '收款方已到账可用',
+            detail: 'TXCer 已完成原子登记，可立即再次支付。',
+            meta: '接收 → 可用 · 86 ms',
+            state: 'complete',
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.get('.timeline__content strong').text()).toBe('收款方已到账可用')
+    expect(wrapper.get('.timeline__meta').text()).toBe('接收 → 可用 · 86 ms')
   })
 
   it('moves one shared selection lens across segmented options', async () => {
@@ -102,7 +150,7 @@ describe('foundation components', () => {
     wrapper.unmount()
   })
 
-  it('uses the platform picker for compact viewports', async () => {
+  it('keeps the branded listbox in compact viewports', async () => {
     const mediaQuery = {
       matches: true,
       addEventListener:
@@ -129,8 +177,10 @@ describe('foundation components', () => {
       })
 
       await wrapper.vm.$nextTick()
-      expect(wrapper.find('[data-select-trigger]').exists()).toBe(false)
-      await wrapper.get('select').setValue('address-b')
+      expect(wrapper.find('select').exists()).toBe(false)
+      const trigger = wrapper.get('[data-select-trigger]')
+      await trigger.trigger('click')
+      await wrapper.findAll('[role="option"]')[1]?.trigger('click')
       expect(wrapper.emitted('update:modelValue')).toEqual([['address-b']])
       wrapper.unmount()
     } finally {

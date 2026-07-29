@@ -40,9 +40,7 @@ const root = ref<HTMLElement>()
 const trigger = ref<HTMLButtonElement>()
 const listbox = ref<HTMLElement>()
 const open = ref(false)
-const compact = ref(false)
 const activeIndex = ref(0)
-let compactQuery: MediaQueryList | undefined
 
 const labelId = `${props.id}-${instanceId}-label`
 const valueId = `${props.id}-${instanceId}-value`
@@ -144,32 +142,17 @@ function onWindowKeydown(event: KeyboardEvent): void {
   if (open.value && event.key === 'Escape') closeMenu()
 }
 
-function updateCompact(): void {
-  compact.value = compactQuery?.matches ?? false
-  if (compact.value) closeMenu(false)
-}
-
-function onNativeChange(event: Event): void {
-  emit('update:modelValue', (event.target as HTMLSelectElement).value)
-}
-
 watch(selectedIndex, (index) => {
   if (!open.value || index < 0 || props.options[index]?.disabled) return
   activeIndex.value = index
 })
 
 onMounted(() => {
-  if (typeof window.matchMedia === 'function') {
-    compactQuery = window.matchMedia('(max-width: 767px)')
-    updateCompact()
-    compactQuery.addEventListener('change', updateCompact)
-  }
   window.addEventListener('pointerdown', onWindowPointerDown)
   window.addEventListener('keydown', onWindowKeydown)
 })
 
 onBeforeUnmount(() => {
-  compactQuery?.removeEventListener('change', updateCompact)
   window.removeEventListener('pointerdown', onWindowPointerDown)
   window.removeEventListener('keydown', onWindowKeydown)
 })
@@ -177,34 +160,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="app-select" :data-open="open || undefined">
-    <label :id="labelId" class="app-select__label" :for="compact ? id : undefined">
+    <label :id="labelId" class="app-select__label" :for="id">
       {{ label }}
     </label>
 
-    <div v-if="compact" class="app-select__native-wrap">
-      <select
-        :id="id"
-        class="app-select__native"
-        :value="modelValue"
-        :disabled="triggerDisabled"
-        :aria-invalid="error ? 'true' : undefined"
-        :aria-describedby="describedBy"
-        @change="onNativeChange"
-      >
-        <option v-if="!selectedOption" value="" disabled>{{ placeholder }}</option>
-        <option
-          v-for="option in options"
-          :key="option.value"
-          :value="option.value"
-          :disabled="option.disabled"
-        >
-          {{ option.label }}
-        </option>
-      </select>
-      <CaretDown :size="18" weight="bold" aria-hidden="true" />
-    </div>
-
-    <div v-else class="app-select__desktop">
+    <div class="app-select__desktop">
       <button
         :id="id"
         ref="trigger"
@@ -306,14 +266,12 @@ onBeforeUnmount(() => {
   font-weight: 650;
 }
 
-.app-select__desktop,
-.app-select__native-wrap {
+.app-select__desktop {
   position: relative;
   min-width: 0;
 }
 
-.app-select__trigger,
-.app-select__native {
+.app-select__trigger {
   width: 100%;
   min-height: 56px;
   border: 1px solid var(--selection-border);
@@ -343,8 +301,7 @@ onBeforeUnmount(() => {
   transform: scale(0.993);
 }
 
-.app-select__trigger:focus-visible,
-.app-select__native:focus-visible {
+.app-select__trigger:focus-visible {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 2px var(--focus);
 }
@@ -473,22 +430,7 @@ onBeforeUnmount(() => {
   color: var(--danger);
 }
 
-.app-select__native {
-  appearance: none;
-  padding: 0 3rem 0 1rem;
-}
-
-.app-select__native-wrap > svg {
-  position: absolute;
-  top: 50%;
-  right: 1rem;
-  color: var(--text-muted);
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-
-.app-select__trigger:disabled,
-.app-select__native:disabled {
+.app-select__trigger:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -517,7 +459,6 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .app-select__trigger,
-  .app-select__native,
   .app-select__caret,
   .app-select__menu li,
   .select-menu-enter-active,
@@ -530,6 +471,12 @@ onBeforeUnmount(() => {
   .select-menu-leave-to {
     filter: none;
     transform: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-select__menu {
+    max-height: min(248px, 42dvh);
   }
 }
 </style>

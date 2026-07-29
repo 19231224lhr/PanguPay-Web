@@ -156,7 +156,13 @@ interface GroupAuthority {
 
 function groupAuthority(value: unknown, fallbackID: string): GroupAuthority {
   const root = record(value)
-  const source = Object.keys(root).length === 1 ? record(Object.values(root)[0]) : root
+  const groupMessage = record(first(root, 'GroupMsg', 'groupMsg'))
+  const source =
+    Object.keys(groupMessage).length > 0
+      ? groupMessage
+      : Object.keys(root).length === 1
+        ? record(Object.values(root)[0])
+        : root
   return {
     groupID: text(first(source, 'GroupID', 'groupID')) || fallbackID,
     assignNode: text(first(source, 'AssiID', 'assignNode', 'AssignID')),
@@ -201,6 +207,7 @@ export function buildCredentialAuthorities(
 
     const publicKeys: Record<string, PublicKeyV2> = {
       aggregation: source.aggregationPublicKey,
+      aggr: source.aggregationPublicKey,
     }
     if (source.aggregationNode) publicKeys[source.aggregationNode] = source.aggregationPublicKey
     if (source.assignNode) publicKeys[source.assignNode] = source.assignPublicKey

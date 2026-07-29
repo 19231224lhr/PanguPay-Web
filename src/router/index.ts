@@ -3,6 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import LandingView from '@/views/LandingView.vue'
 import WalletLayout from '@/layouts/WalletLayout.vue'
 import WalletActivityView from '@/views/wallet/WalletActivityView.vue'
+import WalletBlockchainView from '@/views/wallet/WalletBlockchainView.vue'
 import WalletOrganizationView from '@/views/wallet/WalletOrganizationView.vue'
 import WalletOverviewView from '@/views/wallet/WalletOverviewView.vue'
 import WalletReceiveView from '@/views/wallet/WalletReceiveView.vue'
@@ -53,6 +54,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'receive', name: 'wallet-receive', component: WalletReceiveView },
       { path: 'activity', name: 'wallet-activity', component: WalletActivityView },
       { path: 'security', name: 'wallet-security', component: WalletSecurityView },
+      { path: 'blockchain', name: 'wallet-blockchain', component: WalletBlockchainView },
       {
         path: 'organization',
         name: 'wallet-organization',

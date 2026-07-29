@@ -71,12 +71,22 @@ describe('transfer submission workflow', () => {
     await expect(submitBuiltTransfer(gateway, built('retail'))).rejects.toThrow('rejected')
   })
 
-  it('never treats Assign scheduler success as GQNC settlement', () => {
+  it('separates Assign receipt, recipient spend-readiness, and GQNC settlement', () => {
     expect(classifyAssignTransactionStatus({ status: 'queued', receive_result: true })).toBe(
       'accepted',
     )
-    expect(classifyAssignTransactionStatus({ status: 'success', result: true })).toBe('accepted')
-    expect(classifyAssignTransactionStatus({ status: 'completed', result: true })).toBe('accepted')
+    expect(classifyAssignTransactionStatus({ status: 'success', result: true })).toBe('spend-ready')
+    expect(classifyAssignTransactionStatus({ status: 'completed', result: true })).toBe(
+      'spend-ready',
+    )
+    expect(
+      classifyAssignTransactionStatus({
+        status: 'processing',
+        scheduler_status: 'success',
+        receive_result: true,
+        result: true,
+      }),
+    ).toBe('spend-ready')
     expect(
       classifyAssignTransactionStatus({
         status: 'failed',

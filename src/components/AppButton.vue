@@ -102,6 +102,16 @@ withDefaults(
   color: var(--danger);
 }
 
+.app-button__content {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .app-button:hover:not(:disabled) {
     transform: translateY(-1px);

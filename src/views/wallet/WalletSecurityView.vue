@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import CredentialTrustPath from '@/components/CredentialTrustPath.vue'
+import ExposureShareBar from '@/components/ExposureShareBar.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -77,10 +79,8 @@ const dashboard = useDashboardStore()
             {{ credential.lifecycle }}
           </StatusLabel>
         </header>
-        <p class="credential__summary">
-          快速凭证 {{ credential.fastEvidenceStatus }} · 后台审计
-          {{ credential.cfaaAuditStatus }}
-        </p>
+        <CredentialTrustPath :credential="credential" />
+        <ExposureShareBar :shares="credential.exposureShares" />
         <p v-if="credential.error" class="credential__error">{{ credential.error }}</p>
         <details>
           <summary>凭证与技术字段</summary>
@@ -195,10 +195,6 @@ summary {
 .credential__summary {
   color: var(--text-muted);
   font-size: 0.72rem;
-}
-
-.credential__summary {
-  margin: 0;
 }
 
 .credential__error {

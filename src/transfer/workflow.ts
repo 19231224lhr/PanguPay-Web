@@ -18,7 +18,7 @@ export interface TransferSubmissionOptions {
   beforeRetailSubmit?: () => Promise<void>
 }
 
-export type AssignTransactionState = 'accepted' | 'pending' | { failed: string }
+export type AssignTransactionState = 'accepted' | 'spend-ready' | 'pending' | { failed: string }
 
 export class TransferSubmissionRejectedError extends Error {
   constructor(message: string) {
@@ -56,10 +56,15 @@ export function classifyAssignTransactionStatus(value: unknown): AssignTransacti
     ['failed', 'error', 'cancelled', 'canceled', 'timeout', 'rejected'].includes(scheduler)
   )
     return { failed: submissionError(body) }
-  // Assign's success/completed status is emitted by the scheduler after the
-  // Aggregation DAG confirms the transaction. It is not a GQNC BlockQC.
-  if (body.result === true || ['confirmed', 'success', 'completed'].includes(status))
-    return 'accepted'
+  // Assign only reports success after Aggregation has confirmed that every
+  // issued TXCer was atomically registered with a matching AssignAck. This is
+  // recipient spend-readiness, not a GQNC BlockQC.
+  if (
+    body.result === true ||
+    ['confirmed', 'success', 'completed'].includes(status) ||
+    ['confirmed', 'success', 'completed'].includes(scheduler)
+  )
+    return 'spend-ready'
   if (
     body.receive_result === true ||
     ['queued', 'accepted', 'pending', 'processing', 'received'].includes(status) ||

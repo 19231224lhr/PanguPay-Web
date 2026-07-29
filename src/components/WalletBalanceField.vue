@@ -37,7 +37,7 @@ const updatedLabel = computed(() => {
 <template>
   <section
     class="wallet-balance-field"
-    :class="{ 'wallet-balance-field--sweep': animate }"
+    :class="{ 'wallet-balance-field--settle': animate }"
     aria-labelledby="wallet-total-assets"
   >
     <div class="wallet-balance-field__main">
@@ -82,12 +82,14 @@ const updatedLabel = computed(() => {
       </AppButton>
     </div>
 
-    <i class="wallet-balance-field__sweep" aria-hidden="true" @animationend="emit('sweepEnd')" />
+    <i class="wallet-balance-field__settle" aria-hidden="true" @animationend="emit('sweepEnd')" />
   </section>
 </template>
 
 <style scoped>
 .wallet-balance-field {
+  --wallet-field-halo: color-mix(in srgb, var(--hero-halo) 84%, var(--accent) 16%);
+
   position: relative;
   display: grid;
   min-height: 270px;
@@ -103,19 +105,23 @@ const updatedLabel = computed(() => {
 
 .wallet-balance-field::after {
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   top: -38%;
   right: -12%;
   width: min(520px, 52vw);
   aspect-ratio: 1.25;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--hero-halo), transparent 68%);
+  background: radial-gradient(circle, var(--wallet-field-halo), transparent 68%);
   content: '';
   filter: blur(20px);
-  opacity: 0.6;
+  opacity: 0.68;
+  transform: scale(1);
+  transform-origin: 62% 42%;
 }
 
 .wallet-balance-field__main {
+  position: relative;
+  z-index: 2;
   display: grid;
   min-width: 0;
   gap: 0.9rem;
@@ -211,6 +217,8 @@ const updatedLabel = computed(() => {
 }
 
 .wallet-balance-field__actions {
+  position: relative;
+  z-index: 2;
   display: grid;
   width: 316px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -226,34 +234,58 @@ const updatedLabel = computed(() => {
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
 }
 
-.wallet-balance-field__sweep {
+.wallet-balance-field__settle {
   position: absolute;
-  inset: 0 auto 0 -32%;
-  width: 28%;
+  z-index: 1;
+  top: -12%;
+  bottom: -12%;
+  left: -48%;
+  width: 48%;
+  min-width: 210px;
   opacity: 0;
   background: linear-gradient(
     90deg,
-    transparent,
-    color-mix(in srgb, var(--accent) 13%, transparent),
-    transparent
+    transparent 0%,
+    color-mix(in srgb, var(--wallet-field-halo) 14%, transparent) 14%,
+    color-mix(in srgb, var(--wallet-field-halo) 42%, transparent) 38%,
+    color-mix(in srgb, var(--wallet-field-halo) 62%, transparent) 52%,
+    color-mix(in srgb, var(--wallet-field-halo) 34%, transparent) 68%,
+    transparent 100%
   );
-  filter: blur(8px);
+  filter: blur(22px);
   pointer-events: none;
-  transform: translateX(0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
 }
 
-.wallet-balance-field--sweep .wallet-balance-field__sweep {
-  animation: wallet-balance-sweep 650ms var(--ease-standard) both;
+.wallet-balance-field--settle .wallet-balance-field__settle {
+  animation: wallet-balance-settle 1550ms cubic-bezier(0.22, 0.7, 0.18, 1) both;
 }
 
-@keyframes wallet-balance-sweep {
-  20% {
-    opacity: 0.74;
+@keyframes wallet-balance-settle {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+
+  16% {
+    opacity: 0.5;
+  }
+
+  76% {
+    opacity: 0.44;
   }
 
   100% {
     opacity: 0;
-    transform: translateX(510%);
+    transform: translate3d(310%, 0, 0);
+  }
+}
+
+@keyframes wallet-balance-settle-reduced {
+  from,
+  to {
+    opacity: 0;
   }
 }
 
@@ -297,8 +329,15 @@ const updatedLabel = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wallet-balance-field--sweep .wallet-balance-field__sweep,
   .wallet-balance-field__sync svg.is-spinning {
+    animation: none;
+  }
+
+  .wallet-balance-field--settle .wallet-balance-field__settle {
+    animation: wallet-balance-settle-reduced 1ms linear both;
+  }
+
+  .wallet-balance-field--settle::after {
     animation: none;
   }
 }

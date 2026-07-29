@@ -44,7 +44,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       snapshot.value ??
       emptySnapshot(
         wallet.accountId,
-        wallet.addresses.map((address) => ({ address: address.address, type: address.type })),
+        wallet.activeAddresses.map((address) => ({ address: address.address, type: address.type })),
       ),
   )
 
@@ -73,7 +73,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = true
     error.value = ''
     try {
-      const addressRecords = wallet.addresses.map((address) => ({
+      const addressRecords = wallet.activeAddresses.map((address) => ({
         address: address.address,
         type: address.type,
       }))
@@ -123,7 +123,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       )
       const next = buildDashboardSnapshot({
         accountId: wallet.accountId,
-        displayName: `${wallet.accountId.slice(0, 4)} ${wallet.accountId.slice(4)}`,
+        displayName: wallet.profile.displayName,
         addresses: normalizeAddressState(
           addressRecords,
           addressResponse,

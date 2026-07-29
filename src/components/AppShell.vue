@@ -16,6 +16,7 @@ export interface AppShellItem {
 withDefaults(
   defineProps<{
     items: AppShellItem[]
+    mobileItems?: AppShellItem[]
     accountItems?: AppShellItem[]
     utilityItems?: AppShellItem[]
     accountMenuLabel?: string
@@ -24,13 +25,16 @@ withDefaults(
     navigationLabel: string
     accountName?: string
     accountId?: string
+    accountAvatar?: string
   }>(),
   {
     accountItems: () => [],
+    mobileItems: undefined,
     utilityItems: () => [],
     accountMenuLabel: '打开账户菜单',
     accountName: 'Wallet',
     accountId: '',
+    accountAvatar: '',
     lockLabel: '锁定钱包',
     moreLabel: '我的',
   },
@@ -57,7 +61,10 @@ const accountMenuOpen = ref(false)
         :aria-expanded="accountMenuOpen"
         @click="accountMenuOpen = !accountMenuOpen"
       >
-        <span class="app-shell__avatar">{{ accountName.slice(0, 1).toUpperCase() }}</span>
+        <span class="app-shell__avatar">
+          <img v-if="accountAvatar" :src="accountAvatar" alt="" />
+          <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
+        </span>
         <span
           ><strong>{{ accountName }}</strong
           ><small>{{ accountId }}</small></span
@@ -109,7 +116,8 @@ const accountMenuOpen = ref(false)
           :aria-expanded="accountMenuOpen"
           @click="accountMenuOpen = !accountMenuOpen"
         >
-          {{ accountName.slice(0, 1).toUpperCase() }}
+          <img v-if="accountAvatar" :src="accountAvatar" alt="" />
+          <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
         </button>
       </header>
       <main class="app-shell__main"><slot /></main>
@@ -117,7 +125,7 @@ const accountMenuOpen = ref(false)
 
     <WalletMobileNavigation
       class="app-shell__bottom-nav"
-      :items="items"
+      :items="mobileItems ?? items"
       :label="navigationLabel"
       :more-label="moreLabel"
       @more="accountMenuOpen = true"
@@ -199,6 +207,14 @@ const accountMenuOpen = ref(false)
   place-items: center;
 }
 
+.app-shell__avatar img,
+.app-shell__mobile-account img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .app-shell__account > span:nth-child(2) {
   display: grid;
   gap: 0.1rem;
@@ -252,7 +268,7 @@ const accountMenuOpen = ref(false)
 }
 
 .app-shell__nav-item.router-link-exact-active {
-  box-shadow: inset 2px 0 var(--accent);
+  box-shadow: none;
 }
 
 .app-shell__body {

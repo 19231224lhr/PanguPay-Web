@@ -14,7 +14,13 @@ import {
 } from '@/protocol-v2/addressRegistration'
 import { signCanonicalMaterial } from '@/transfer'
 import { deriveAddressFromRootSeed } from '@/wallet/identity'
-import { configureWalletEntryService, type WalletEntryService } from '@/wallet/entryService'
+import {
+  configureWalletEntryService,
+  type WalletEntryOrganizationNode,
+  type WalletEntryOrganizationNodeRole,
+  type WalletEntryOrganizationDetail,
+  type WalletEntryService,
+} from '@/wallet/entryService'
 import type { WalletRecord } from '@/wallet/types'
 import { useWalletStore } from '@/stores/wallet'
 import { pinia } from '@/stores/pinia'
@@ -27,10 +33,13 @@ const PANGU_EPOCH_SECONDS = Date.UTC(2020, 0, 1) / 1_000
 
 export interface WalletEntryGatewayPort {
   groups(): Promise<unknown>
+  group(groupID: string): Promise<unknown>
   reOnline(message: unknown): Promise<unknown>
   queryAddressGroups(addresses: string[]): Promise<unknown>
   queryAddresses(addresses: string[]): Promise<unknown>
   joinGroup(groupID: string, message: unknown): Promise<unknown>
+  registerGroupAddress(groupID: string, message: unknown): Promise<unknown>
+  unbindGroupAddress(groupID: string, message: unknown): Promise<unknown>
   registerNoGroupAddress(message: unknown): Promise<unknown>
 }
 
@@ -66,6 +75,95 @@ function unwrap(value: unknown): Record<string, unknown> {
     if (Object.keys(nested).length) return nested
   }
   return current
+}
+
+function optionalString(value: unknown): string | undefined {
+  const normalized = String(value ?? '').trim()
+  return normalized || undefined
+}
+
+function organizationNode(
+  role: WalletEntryOrganizationNodeRole,
+  fields: Omit<WalletEntryOrganizationNode, 'role'>,
+): WalletEntryOrganizationNode | undefined {
+  const node: WalletEntryOrganizationNode = { role }
+  if (fields.id) node.id = fields.id
+  if (fields.peerId) node.peerId = fields.peerId
+  if (fields.endpoint) node.endpoint = fields.endpoint
+  if (fields.status) node.status = fields.status
+  return node.id || node.peerId || node.endpoint ? node : undefined
+}
+
+function mappedOrganizationNodes(
+  value: unknown,
+  role: Extract<WalletEntryOrganizationNodeRole, 'txcer' | 'guarantor'>,
+): WalletEntryOrganizationNode[] {
+  return Object.entries(object(value))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .flatMap(([key, raw]) => {
+      const detail = object(raw)
+      const node = organizationNode(role, {
+        id: optionalString(
+          detail.CertifierID ?? detail.certifierID ?? detail.ID ?? detail.id ?? key,
+        ),
+        peerId:
+          typeof raw === 'string'
+            ? optionalString(raw)
+            : optionalString(detail.PeerID ?? detail.peerID ?? detail.peer_id),
+        endpoint: optionalString(detail.APIEndpoint ?? detail.apiEndpoint ?? detail.api_endpoint),
+        status: optionalString(detail.Status ?? detail.status),
+      })
+      return node ? [node] : []
+    })
+}
+
+function organizationDetail(
+  groupId: string,
+  name: string | undefined,
+  response: unknown,
+): WalletEntryOrganizationDetail {
+  const payload = unwrap(response)
+  const assignEndpoint = optionalString(payload.AssignAPIEndpoint ?? payload.assign_api_endpoint)
+  const aggregationEndpoint = optionalString(payload.AggrAPIEndpoint ?? payload.aggr_api_endpoint)
+  const nodes = [
+    organizationNode('assign', {
+      id: optionalString(
+        payload.AssiID ?? payload.AssignID ?? payload.assi_id ?? payload.assign_id,
+      ),
+      peerId: optionalString(
+        payload.AssiPeerID ??
+          payload.AssignPeerID ??
+          payload.assi_peer_id ??
+          payload.assign_peer_id,
+      ),
+      endpoint: assignEndpoint,
+    }),
+    organizationNode('aggregation', {
+      id: optionalString(payload.AggrID ?? payload.AggregationID ?? payload.aggr_id),
+      peerId: optionalString(
+        payload.AggrPeerID ?? payload.AggregationPeerID ?? payload.aggr_peer_id,
+      ),
+      endpoint: aggregationEndpoint,
+    }),
+  ].filter((node): node is WalletEntryOrganizationNode => !!node)
+  nodes.push(
+    ...mappedOrganizationNodes(payload.Certifiers ?? payload.certifiers, 'txcer'),
+    ...mappedOrganizationNodes(payload.GuarTable ?? payload.guar_table, 'guarantor'),
+  )
+  return {
+    id: groupId,
+    name: name?.trim() || `担保组织 ${groupId}`,
+    pledgeAmount: optionalString(payload.PledgeAmount ?? payload.pledge_amount),
+    pledgeAddress: optionalString(payload.PledgeAddress ?? payload.pledge_address),
+    guarantorCount: Object.keys(object(payload.GuarTable ?? payload.guar_table)).length,
+    certifierCount: Object.keys(object(payload.Certifiers ?? payload.certifiers)).length,
+    assignAvailable: !!assignEndpoint,
+    aggregationAvailable: !!aggregationEndpoint,
+    assignEndpoint,
+    aggregationEndpoint,
+    peerGroupId: optionalString(payload.PeerGroupID ?? payload.peer_group_id),
+    nodes,
+  }
 }
 
 function publicKeyNew(privateKeyHex: string) {
@@ -228,6 +326,56 @@ function joinMessage(
   return { ...material, UserSig: legacySignature(material, accountPrivateKey) }
 }
 
+function groupAddressMessage(record: WalletRecord, address: PreparedAddress) {
+  const accountPrivateKey = walletSecretHex(record.account_private_scalar, '账户私钥')
+  const material = {
+    NewAddress: address.address,
+    PublicKeyNew: address.publicKeyNew,
+    UserID: record.account_id,
+    Type: address.type,
+    SignPublicKeyV2: publicKeyEnvelope(accountPrivateKey),
+    SeedAnchor: address.seedAnchor,
+    SeedChainStep: address.seedChainStep,
+    DefaultSpendAlgorithm: address.defaultSpendAlgorithm,
+    Sig: { R: null, S: null },
+  }
+  return { ...material, Sig: legacySignature(material, accountPrivateKey) }
+}
+
+function unbindAddressMessage(record: WalletRecord, address: PreparedAddress, timestamp: number) {
+  const accountPrivateKey = walletSecretHex(record.account_private_scalar, '账户私钥')
+  const material = {
+    Op: 0,
+    UserID: record.account_id,
+    Address: address.address,
+    PublicKey: address.publicKeyNew,
+    Type: address.type,
+    TimeStamp: timestamp,
+    SignPublicKeyV2: publicKeyEnvelope(accountPrivateKey),
+    SeedAnchor: address.seedAnchor,
+    SeedChainStep: address.seedChainStep,
+    DefaultSpendAlgorithm: address.defaultSpendAlgorithm,
+    Sig: { R: null, S: null },
+  }
+  return { ...material, Sig: legacySignature(material, accountPrivateKey) }
+}
+
+function leaveMessage(record: WalletRecord, groupID: string, timestamp: number) {
+  const accountPrivateKey = walletSecretHex(record.account_private_scalar, '账户私钥')
+  const material = {
+    Status: 0,
+    UserID: record.account_id,
+    UserPeerID: '',
+    GuarGroupID: groupID,
+    UserPublicKey: publicKeyNew(accountPrivateKey),
+    SignPublicKeyV2: publicKeyEnvelope(accountPrivateKey),
+    AddressMsg: {},
+    TimeStamp: timestamp,
+    UserSig: { R: null, S: null },
+  }
+  return { ...material, UserSig: legacySignature(material, accountPrivateKey) }
+}
+
 function currentTimestamp(): number {
   return Math.max(0, Math.floor(Date.now() / 1_000 - PANGU_EPOCH_SECONDS))
 }
@@ -244,6 +392,45 @@ export function createGatewayWalletEntryService({
   confirmationAttempts = 20,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 }: GatewayWalletEntryOptions): WalletEntryService {
+  const prepared = (addressValue?: string) => {
+    const record = requireWallet(getWalletRecord)
+    const addresses = prepareAddresses(record)
+    if (!addressValue) return { record, addresses }
+    const address = addresses.find(
+      (candidate) => candidate.address === addressValue.trim().toLowerCase(),
+    )
+    if (!address) throw new Error('地址不属于当前钱包。')
+    return { record, addresses, address }
+  }
+
+  const registerRetailAddresses = async (
+    record: WalletRecord,
+    addresses: PreparedAddress[],
+  ): Promise<void> => {
+    const accountPublicKey = publicKeyEnvelope(
+      walletSecretHex(record.account_private_scalar, '账户私钥'),
+    )
+    for (const address of addresses) {
+      const material = buildRetailAddressOwnershipMaterial({
+        address: address.address,
+        publicKeyNew: address.publicKeyNew,
+        signPublicKeyV2: accountPublicKey,
+        seedAnchor: address.seedAnchor,
+        seedChainStep: address.seedChainStep,
+        defaultSpendAlgorithm: address.defaultSpendAlgorithm,
+        type: address.type,
+        timestamp: retailAddressAuthorizationTimestamp,
+      })
+      const signed = signCanonicalMaterial(material, address.privateKey)
+      assertAccepted(
+        await gateway.registerNoGroupAddress(
+          buildRetailAddressRegistrationRequest(material, signed.signature),
+        ),
+        '独立地址登记失败。',
+      )
+    }
+  }
+
   const recover = async () => {
     const record = requireWallet(getWalletRecord)
     const addresses = prepareAddresses(record)
@@ -285,6 +472,12 @@ export function createGatewayWalletEntryService({
         )
         .sort((left, right) => left.id.localeCompare(right.id))
     },
+    async organization(groupId, name) {
+      const normalizedGroupID = groupId.trim()
+      if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID))
+        throw new Error('请选择有效的担保组织。')
+      return organizationDetail(normalizedGroupID, name, await gateway.group(normalizedGroupID))
+    },
     async join(groupId) {
       const normalizedGroupID = groupId.trim()
       if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID))
@@ -298,31 +491,59 @@ export function createGatewayWalletEntryService({
       assertAccepted(response, '加入担保组织失败。')
       await confirm(({ reOnline }) => reOnline.isInGroup && reOnline.groupId === normalizedGroupID)
     },
-    async registerNoGroup() {
-      const record = requireWallet(getWalletRecord)
-      const addresses = prepareAddresses(record)
-      const accountPublicKey = publicKeyEnvelope(
-        walletSecretHex(record.account_private_scalar, '账户私钥'),
+    async leave(groupId) {
+      const normalizedGroupID = groupId.trim()
+      if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID))
+        throw new Error('当前钱包未加入可退出的担保组织。')
+      const { record } = prepared()
+      assertAccepted(
+        await gateway.joinGroup(
+          normalizedGroupID,
+          leaveMessage(record, normalizedGroupID, timestamp()),
+        ),
+        '退出担保组织失败。',
       )
-      for (const address of addresses) {
-        const material = buildRetailAddressOwnershipMaterial({
-          address: address.address,
-          publicKeyNew: address.publicKeyNew,
-          signPublicKeyV2: accountPublicKey,
-          seedAnchor: address.seedAnchor,
-          seedChainStep: address.seedChainStep,
-          defaultSpendAlgorithm: address.defaultSpendAlgorithm,
-          type: address.type,
-          timestamp: retailAddressAuthorizationTimestamp,
-        })
-        const signed = signCanonicalMaterial(material, address.privateKey)
+      await confirm(({ reOnline }) => !reOnline.isInGroup)
+    },
+    async registerAddress(addressValue, groupId) {
+      const { record, address } = prepared(addressValue)
+      if (!address) throw new Error('地址不属于当前钱包。')
+      const normalizedGroupID = String(groupId ?? '').trim()
+      if (normalizedGroupID && !['0', '1'].includes(normalizedGroupID)) {
         assertAccepted(
-          await gateway.registerNoGroupAddress(
-            buildRetailAddressRegistrationRequest(material, signed.signature),
+          await gateway.registerGroupAddress(
+            normalizedGroupID,
+            groupAddressMessage(record, address),
           ),
-          '独立地址登记失败。',
+          '组织地址登记失败。',
         )
+      } else {
+        await registerRetailAddresses(record, [address])
       }
+      for (let attempt = 0; attempt < Math.max(1, confirmationAttempts); attempt += 1) {
+        const ids = addressGroupIDs(await gateway.queryAddressGroups([address.address]), [address])
+        const expected = normalizedGroupID && normalizedGroupID !== '0' ? normalizedGroupID : '1'
+        if (ids.length === 1 && ids[0] === expected) return
+        if (attempt + 1 < confirmationAttempts) await sleep(300)
+      }
+      throw new Error('网络尚未确认新地址。')
+    },
+    async unbindAddress(addressValue, groupId) {
+      const normalizedGroupID = String(groupId ?? '').trim()
+      if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID)) return
+      const { record, address } = prepared(addressValue)
+      if (!address) throw new Error('地址不属于当前钱包。')
+      assertAccepted(
+        await gateway.unbindGroupAddress(
+          normalizedGroupID,
+          unbindAddressMessage(record, address, timestamp()),
+        ),
+        '归档地址失败。',
+      )
+    },
+    async registerNoGroup() {
+      const { record, addresses } = prepared()
+      await registerRetailAddresses(record, addresses)
       let last: string[] = []
       for (let attempt = 0; attempt < Math.max(1, confirmationAttempts); attempt += 1) {
         last = addressGroupIDs(
@@ -344,7 +565,7 @@ export function installGatewayWalletEntryService(
   configureWalletEntryService(
     createGatewayWalletEntryService({
       gateway,
-      getWalletRecord: () => useWalletStore(pinia).unlockedRecord,
+      getWalletRecord: () => useWalletStore(pinia).activeRecord,
     }),
   )
 }

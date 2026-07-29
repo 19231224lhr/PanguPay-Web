@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest'
 import { bytesToHex, decodeBackendBytes } from '@/protocol-v2/canonical'
 import { computeTXCerFastEvidenceHashV2, verifyTXCerIssuanceAck } from '@/protocol-v2/evidence'
 import type { TXCerAuthoritySnapshot } from '@/protocol-v2/security'
-import { extractIssuanceRecords, normalizeCredentialSummaries } from '@/wallet/credentials'
+import {
+  buildCredentialAuthorities,
+  extractIssuanceRecords,
+  normalizeCredentialSummaries,
+} from '@/wallet/credentials'
 
 function quoteUnsafeJsonIntegers(input: string): string {
   let output = ''
@@ -48,6 +52,46 @@ const golden = JSON.parse(
 )
 
 describe('wallet credential summaries', () => {
+  it('builds a verifiable authority snapshot from the Gateway GroupMsg response', () => {
+    const evidence = golden.evidence
+    const records = extractIssuanceRecords({ records: [evidence.issuanceRecord] })
+    const groupResponse = (groupID: string, assignID: string) => ({
+      GuarGroupID: groupID,
+      GroupMsg: {
+        PeerGroupID: groupID,
+        AggrID: 'aggregation-node',
+        AssiID: assignID,
+        AggrPublicKeyNew: evidence.publicKey,
+        AssignPublicKeyNew: evidence.publicKey,
+      },
+    })
+
+    const authorities = buildCredentialAuthorities(
+      records,
+      {
+        'group-source': groupResponse('group-source', 'assign-source'),
+        'group-target': groupResponse('group-target', 'assign-target'),
+      },
+      {
+        'group-source': {
+          certifiers: [
+            {
+              certifierID: 'certifier-v2',
+              publicKey: evidence.publicKey,
+            },
+          ],
+        },
+      },
+      1,
+    )
+
+    const authority = authorities[evidence.txCerID]
+    expect(authority).toBeDefined()
+    expect(authority?.publicKeys.aggr).toEqual(evidence.publicKey)
+    expect(authority?.publicKeys['aggregation-node']).toEqual(evidence.publicKey)
+    expect(authority?.publicKeys['certifier:certifier-v2']).toEqual(evidence.publicKey)
+  })
+
   it('verifies and exposes exact TXCer evidence from the Go vector', () => {
     const evidence = golden.evidence
     expect(bytesToHex(decodeBackendBytes(evidence.assignAck.evidenceHash))).toBe(

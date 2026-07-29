@@ -3,6 +3,7 @@ import { PhArrowDown as ArrowDown } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
 
 import StatusLabel from '@/components/StatusLabel.vue'
+import WalletAddressLedger from '@/components/WalletAddressLedger.vue'
 import WalletBalanceField from '@/components/WalletBalanceField.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletStatusSummary from '@/components/WalletStatusSummary.vue'
@@ -46,6 +47,17 @@ async function refresh(): Promise<void> {
     />
 
     <WalletStatusSummary :offline="dashboard.offline" :security="dashboard.current.security" />
+
+    <WalletAddressLedger />
+
+    <nav class="overview-shortcuts" aria-label="钱包扩展功能">
+      <RouterLink to="/wallet/organization"
+        ><span>担保组织</span><small>成员关系与服务节点</small></RouterLink
+      >
+      <RouterLink to="/wallet/blockchain"
+        ><span>区块链</span><small>认证区块与委员会状态</small></RouterLink
+      >
+    </nav>
 
     <div class="overview-ledger">
       <section class="ledger-section assets" aria-labelledby="assets-heading">
@@ -102,6 +114,26 @@ async function refresh(): Promise<void> {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(300px, 5fr);
   border-bottom: 1px solid var(--hairline);
+}
+
+.overview-shortcuts {
+  display: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.overview-shortcuts a {
+  display: grid;
+  min-height: 70px;
+  align-content: center;
+  gap: 0.18rem;
+  padding: 0.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+.overview-shortcuts small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
 }
 
 .ledger-section {
@@ -213,6 +245,9 @@ async function refresh(): Promise<void> {
 }
 
 @media (max-width: 940px) {
+  .overview-shortcuts {
+    display: grid;
+  }
   .overview-ledger {
     grid-template-columns: 1fr;
   }

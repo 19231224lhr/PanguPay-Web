@@ -61,6 +61,7 @@ const messages = {
         activity: '活动',
         security: '凭证与安全',
         organization: '担保组织',
+        blockchain: '区块链',
         settings: '设置',
       },
       account: {
@@ -158,6 +159,7 @@ const messages = {
         activity: 'Activity',
         security: 'Credentials',
         organization: 'Organization',
+        blockchain: 'Blockchain',
         settings: 'Settings',
       },
       account: {
