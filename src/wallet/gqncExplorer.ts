@@ -101,6 +101,6 @@ export function normalizeGQNCBlock(value: unknown): GQNCBlockView {
 }
 
 export function recentCertifiedHeights(tip: number, limit = 12): number[] {
-  if (!Number.isSafeInteger(tip) || tip < 0 || limit <= 0) return []
-  return Array.from({ length: Math.min(limit, tip + 1) }, (_, index) => tip - index)
+  if (!Number.isSafeInteger(tip) || tip < 1 || limit <= 0) return []
+  return Array.from({ length: Math.min(limit, tip) }, (_, index) => tip - index)
 }

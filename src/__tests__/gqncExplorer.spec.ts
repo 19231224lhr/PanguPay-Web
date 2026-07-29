@@ -90,6 +90,7 @@ describe('GQNC explorer normalization', () => {
 
   it('returns the latest certified heights in newest-first order', () => {
     expect(recentCertifiedHeights(5, 3)).toEqual([5, 4, 3])
-    expect(recentCertifiedHeights(1, 12)).toEqual([1, 0])
+    expect(recentCertifiedHeights(1, 12)).toEqual([1])
+    expect(recentCertifiedHeights(0, 12)).toEqual([])
   })
 })
