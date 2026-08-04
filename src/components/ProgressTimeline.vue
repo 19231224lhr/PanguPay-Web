@@ -1,5 +1,6 @@
 <script setup lang="ts">
 export interface TimelineItem {
+  id?: string
   label: string
   detail?: string
   meta?: string
@@ -13,7 +14,11 @@ defineProps<{
 
 <template>
   <ol class="timeline">
-    <li v-for="(item, index) in items" :key="item.label" :class="`timeline__item--${item.state}`">
+    <li
+      v-for="(item, index) in items"
+      :key="item.id ?? `${index}:${item.label}`"
+      :class="`timeline__item--${item.state}`"
+    >
       <div class="timeline__rail" aria-hidden="true">
         <span class="timeline__dot" />
         <span v-if="index < items.length - 1" class="timeline__line" />

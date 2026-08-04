@@ -150,8 +150,8 @@ const updatedLabel = computed(() => {
 .wallet-balance-field__amount {
   overflow: hidden;
   font-size: clamp(4.4rem, 7vw, 6rem);
-  font-weight: 540;
-  letter-spacing: -0.04em;
+  font-weight: 720;
+  letter-spacing: 0;
   line-height: 0.94;
   text-overflow: ellipsis;
 }

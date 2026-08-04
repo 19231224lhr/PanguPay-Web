@@ -224,6 +224,17 @@ export class GatewayClient {
     )
   }
 
+  schedulerDAGEvents(groupID: string, txID: string, afterSeq = 0, limit = 100): Promise<unknown> {
+    const query = new URLSearchParams({
+      txID,
+      afterSeq: String(Math.max(0, Math.trunc(afterSeq))),
+      limit: String(Math.max(1, Math.trunc(limit))),
+    })
+    return this.request(
+      `/api/v1/${encodeURIComponent(groupID)}/assign/scheduler-dag-events?${query}`,
+    )
+  }
+
   gqncStatus(): Promise<unknown> {
     return this.request('/api/v1/committee/gqnc/status')
   }

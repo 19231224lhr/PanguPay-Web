@@ -184,6 +184,13 @@ function certifierAuthorities(value: unknown): Array<{ id: string; key: PublicKe
     .filter((item): item is { id: string; key: PublicKeyV2 } => Boolean(item.id && item.key))
 }
 
+function liabilitySignerSetID(item: TXCerIssuanceRecordV2, groupID: string): string {
+  const candidate = text(item.LiabilityReceipt?.SignerSetID)
+  const prefix = `${groupID}:liability:v`
+  const version = candidate.startsWith(prefix) ? candidate.slice(prefix.length) : ''
+  return /^[1-9]\d*$/.test(version) ? candidate : `${groupID}:liability:v1`
+}
+
 export function buildCredentialAuthorities(
   records: TXCerIssuanceRecordV2[],
   groupResponses: Record<string, unknown>,
@@ -222,7 +229,7 @@ export function buildCredentialAuthorities(
     if (members.length === 0) continue
     result[txCerID] = {
       groupID: sourceID,
-      signerSetID: `${sourceID}:liability:v1`,
+      signerSetID: liabilitySignerSetID(item, sourceID),
       members,
       threshold: Math.floor((2 * members.length) / 3) + 1,
       publicKeys,

@@ -3,6 +3,18 @@ import type { TransferMode } from './core'
 export type TransferPhase =
   'review' | 'submitting' | 'accepted' | 'spend-ready' | 'settled' | 'failed'
 
+export interface TransferDAGReceipt {
+  eventID: string
+  seq: number
+  eventType: string
+  nodeRole: string
+  nodeID?: string
+  fromStatus?: string
+  toStatus: string
+  reason?: string
+  timestamp?: number
+}
+
 export interface TransferProgress {
   draftID: string
   txID: string
@@ -18,6 +30,7 @@ export interface TransferProgress {
   acceptedAt?: number
   spendReadyAt?: number
   settledAt?: number
+  dagReceipts?: TransferDAGReceipt[]
   updatedAt: number
 }
 

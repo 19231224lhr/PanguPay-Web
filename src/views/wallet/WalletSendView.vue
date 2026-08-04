@@ -59,6 +59,29 @@ const transferIssue = computed(() =>
 )
 const recipientLooksCapsule = computed(() => recipient.value.trim().includes('@'))
 
+const dagEventCopy: Record<string, { label: string; detail: string }> = {
+  submitted: { label: '分配节点已接收', detail: '交易已进入担保组织内部审查。' },
+  queued: { label: '等待资源调度', detail: '相关资源正在被前序交易占用。' },
+  acquired: { label: '资源调度已通过', detail: '输入与责任资源已锁定，没有发现重复消费。' },
+  dispatched: { label: '已分配担保节点', detail: '交易已发送给指定担保节点。' },
+  guar_received: { label: '担保节点已接收', detail: '担保节点已确认收到完整交易。' },
+  verify_started: { label: '担保审查开始', detail: '正在校验输入、签名和协议约束。' },
+  verify_passed: { label: '担保审查通过', detail: '担保节点已完成验证，等待聚合节点确认。' },
+  aggr_confirmed: { label: '聚合节点已确认', detail: '聚合节点已接收担保结果并完成内部确认。' },
+  verify_failed: { label: '担保审查失败', detail: '担保节点拒绝了这笔交易。' },
+  aggr_failed: { label: '聚合处理失败', detail: '聚合节点未能接受担保结果。' },
+  timeout: { label: '内部处理超时', detail: '交易在担保组织内部超过了等待期限。' },
+  rejected: { label: '资源调度拒绝', detail: '交易与已经占用的输入资源冲突。' },
+  recovered: { label: '调度状态已恢复', detail: '节点重启后已从权威日志恢复处理状态。' },
+}
+
+function dagNodeLabel(role: string, nodeID?: string): string {
+  const roleLabel = { assign: '分配节点', guar: '担保节点', aggr: '聚合节点' }[role] ?? '内部节点'
+  const compactID =
+    nodeID && nodeID.length > 14 ? `${nodeID.slice(0, 6)}…${nodeID.slice(-4)}` : nodeID
+  return compactID ? `${roleLabel} · ${compactID}` : roleLabel
+}
+
 function formatObservedDuration(startedAt?: number, completedAt?: number): string | undefined {
   if (!startedAt || !completedAt || completedAt < startedAt) return undefined
   const elapsed = completedAt - startedAt
@@ -83,6 +106,39 @@ const timeline = computed<TimelineItem[]>(() => {
       state: failed ? 'error' : accepted ? 'complete' : 'active',
     },
   ]
+  const dagReceipts = progress?.dagReceipts ?? []
+  dagReceipts.forEach((receipt, index) => {
+    const copy = dagEventCopy[receipt.eventType] ?? {
+      label: receipt.eventType,
+      detail: '担保组织已记录新的内部处理回执。',
+    }
+    const isFailure = ['verify_failed', 'aggr_failed', 'timeout', 'rejected'].includes(
+      receipt.eventType,
+    )
+    const isLatest = index === dagReceipts.length - 1
+    items.push({
+      id: `dag:${receipt.eventID}`,
+      label: copy.label,
+      detail: receipt.reason || copy.detail,
+      meta: `${dagNodeLabel(receipt.nodeRole, receipt.nodeID)} · #${receipt.seq}`,
+      state: isFailure
+        ? 'error'
+        : isLatest && receipt.eventType !== 'aggr_confirmed'
+          ? 'active'
+          : 'complete',
+    })
+  })
+  const latestDAGEvent = dagReceipts.length
+    ? dagReceipts[dagReceipts.length - 1]?.eventType
+    : undefined
+  if (latestDAGEvent === 'verify_passed') {
+    items.push({
+      id: 'dag:awaiting-aggregation',
+      label: '等待聚合节点确认',
+      detail: '担保审查已经通过，聚合节点尚未返回确认或失败回执。',
+      state: 'active',
+    })
+  }
   if (transfer.review?.mode === 'quick') {
     const spendReadyDuration = formatObservedDuration(progress?.acceptedAt, progress?.spendReadyAt)
     items.push({

@@ -111,6 +111,7 @@ describe('Gateway Phase 2 contracts', () => {
 
     await client.submitAssignTransaction('g 1', { TX: { TXID: 'a'.repeat(64) } })
     await client.assignTransactionStatus('g 1', 'b'.repeat(64))
+    await client.schedulerDAGEvents('g 1', 'b'.repeat(64), 7, 25)
     await client.submitNoGroupTransaction({ TXHash: 'c'.repeat(64) })
     await client.pollCrossOrganizationTXCers('g 1', 'alice')
     await client.gqncStatus()
@@ -125,6 +126,10 @@ describe('Gateway Phase 2 contracts', () => {
       {
         method: 'GET',
         url: `http://gateway.test/api/v1/g%201/assign/tx-status/${'b'.repeat(64)}`,
+      },
+      {
+        method: 'GET',
+        url: `http://gateway.test/api/v1/g%201/assign/scheduler-dag-events?txID=${'b'.repeat(64)}&afterSeq=7&limit=25`,
       },
       {
         body: JSON.stringify({ TXHash: 'c'.repeat(64) }),

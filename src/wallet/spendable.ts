@@ -239,8 +239,6 @@ export async function loadWalletSpendableSnapshot(
     }),
   )
   const authorities = buildCredentialAuthorities(records, groupResponses, certifierResponses)
-  for (const authority of Object.values(authorities))
-    authority.signerSetID = `${authority.groupID}:liability:v2`
   const snapshot = normalizeWalletSpendableSnapshot({
     userID: input.userID,
     addresses,

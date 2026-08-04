@@ -1,5 +1,6 @@
 import type { BuiltTransferTransaction } from './builder'
 import { GatewayRequestError } from '@/services/gatewayClient'
+import type { TransferDAGReceipt } from './journal'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -19,6 +20,8 @@ export interface TransferSubmissionOptions {
 }
 
 export type AssignTransactionState = 'accepted' | 'spend-ready' | 'pending' | { failed: string }
+
+const schedulerFailureEvents = new Set(['verify_failed', 'aggr_failed', 'timeout', 'rejected'])
 
 export class TransferSubmissionRejectedError extends Error {
   constructor(message: string) {
@@ -72,6 +75,61 @@ export function classifyAssignTransactionStatus(value: unknown): AssignTransacti
   )
     return 'accepted'
   return 'pending'
+}
+
+function integer(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0
+}
+
+export function parseSchedulerDAGReceipts(value: unknown): TransferDAGReceipt[] {
+  const body = record(value)
+  const rawEvents = body.events ?? body.Events
+  if (!Array.isArray(rawEvents)) return []
+  const byIdentity = new Map<string, TransferDAGReceipt>()
+  for (const rawEvent of rawEvents) {
+    const event = record(rawEvent)
+    const seq = integer(event.Seq ?? event.seq)
+    const eventType = text(event.EventType ?? event.eventType ?? event.event_type).toLowerCase()
+    const toStatus = text(event.ToStatus ?? event.toStatus ?? event.to_status).toLowerCase()
+    if (seq < 1 || !eventType || !toStatus) continue
+    const eventID = text(event.EventID ?? event.eventID ?? event.event_id)
+    const receipt: TransferDAGReceipt = {
+      eventID: eventID || `seq:${seq}`,
+      seq,
+      eventType,
+      nodeRole: text(
+        event.SourceNodeRole ?? event.sourceNodeRole ?? event.NodeRole ?? event.nodeRole,
+      ).toLowerCase(),
+      nodeID: text(event.SourceNodeID ?? event.sourceNodeID ?? event.NodeID ?? event.nodeID),
+      fromStatus: text(event.FromStatus ?? event.fromStatus ?? event.from_status).toLowerCase(),
+      toStatus,
+      reason: text(event.Reason ?? event.reason),
+      timestamp: integer(event.Timestamp ?? event.timestamp) || undefined,
+    }
+    byIdentity.set(receipt.eventID, receipt)
+  }
+  return [...byIdentity.values()].sort((left, right) => left.seq - right.seq)
+}
+
+export function mergeSchedulerDAGReceipts(
+  current: TransferDAGReceipt[] = [],
+  incoming: TransferDAGReceipt[] = [],
+): TransferDAGReceipt[] {
+  const merged = new Map<string, TransferDAGReceipt>()
+  for (const receipt of [...current, ...incoming]) {
+    if (!receipt.eventID || !Number.isSafeInteger(receipt.seq) || receipt.seq < 1) continue
+    merged.set(receipt.eventID, receipt)
+  }
+  return [...merged.values()].sort((left, right) => left.seq - right.seq).slice(-100)
+}
+
+export function schedulerDAGFailure(receipts: TransferDAGReceipt[]): string | undefined {
+  const failed = [...receipts]
+    .reverse()
+    .find((receipt) => schedulerFailureEvents.has(receipt.eventType))
+  if (!failed) return undefined
+  return failed.reason || `担保组织内部处理失败（${failed.eventType}）。`
 }
 
 function assertSubmissionAccepted(response: unknown): void {

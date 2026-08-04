@@ -15,11 +15,14 @@ import {
   isTransferSubmissionRejectedError,
   loadResumableTransferProgress,
   loadTransferReservations,
+  mergeSchedulerDAGReceipts,
+  parseSchedulerDAGReceipts,
   loadTransferJournal,
   recordTransferProgress,
   reserveTransferInputs,
   reservedTransferInputIDs,
   resolveRecipientSpendMetadata,
+  schedulerDAGFailure,
   selectSpendableInputs,
   submitBuiltTransfer,
   type BuiltTransferTransaction,
@@ -257,6 +260,45 @@ export const useTransferStore = defineStore('transfer', () => {
         }
         firstPass = false
         try {
+          if (progress.submissionKind === 'assign') {
+            const afterSeq = progress.dagReceipts?.length
+              ? (progress.dagReceipts[progress.dagReceipts.length - 1]?.seq ?? 0)
+              : 0
+            const incoming = parseSchedulerDAGReceipts(
+              await gateway.value.schedulerDAGEvents(
+                progress.groupID ?? '',
+                progress.txID,
+                afterSeq,
+              ),
+            )
+            if (incoming.length) {
+              const dagReceipts = mergeSchedulerDAGReceipts(progress.dagReceipts, incoming)
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: progress.phase,
+                dagReceipts,
+                updatedAt: Date.now(),
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              refreshHistory()
+              const dagFailure = schedulerDAGFailure(dagReceipts)
+              if (dagFailure) {
+                const failed = recordTransferProgress(wallet.accountId, {
+                  draftID: progress.draftID,
+                  phase: 'failed',
+                  error: dagFailure,
+                  updatedAt: Date.now(),
+                })
+                if (currentProgress.value?.draftID === progress.draftID)
+                  currentProgress.value = failed
+                clearTransferReservation(wallet.accountId, progress.draftID)
+                refreshHistory()
+                return
+              }
+            }
+          }
+
           if (progress.submissionKind === 'assign' && !progress.spendReadyAt) {
             const state = classifyAssignTransactionStatus(
               await gateway.value.assignTransactionStatus(progress.groupID ?? '', progress.txID),

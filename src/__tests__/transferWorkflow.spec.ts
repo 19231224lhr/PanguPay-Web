@@ -6,6 +6,9 @@ import {
   classifyAssignTransactionStatus,
   hasObservedGQNCCertification,
   isTransferSubmissionRejectedError,
+  mergeSchedulerDAGReceipts,
+  parseSchedulerDAGReceipts,
+  schedulerDAGFailure,
   submitBuiltTransfer,
 } from '@/transfer/workflow'
 
@@ -108,6 +111,68 @@ describe('transfer submission workflow', () => {
       classifyAssignTransactionStatus({ status: 'failed', result: false, error_reason: '' }),
     ).toEqual({ failed: '后端未接受这笔交易。' })
     expect(classifyAssignTransactionStatus({ status: 'unknown' })).toBe('pending')
+  })
+
+  it('normalizes, orders, and deduplicates signed scheduler receipts from the backend view', () => {
+    const receipts = parseSchedulerDAGReceipts({
+      events: [
+        {
+          EventID: 'verify',
+          Seq: 7,
+          EventType: 'verify_passed',
+          SourceNodeRole: 'guar',
+          SourceNodeID: 'guar-1',
+          FromStatus: 'processing',
+          ToStatus: 'pending_confirm',
+          Timestamp: 100,
+        },
+        {
+          EventID: 'submit',
+          Seq: 2,
+          EventType: 'submitted',
+          NodeRole: 'assign',
+          NodeID: 'assign-1',
+          FromStatus: '',
+          ToStatus: 'processing',
+        },
+        { EventID: 'ignored', Seq: 0, EventType: 'queued', ToStatus: 'queued' },
+        {
+          EventID: 'verify',
+          Seq: 7,
+          EventType: 'verify_passed',
+          SourceNodeRole: 'guar',
+          SourceNodeID: 'guar-1',
+          ToStatus: 'pending_confirm',
+        },
+      ],
+    })
+
+    expect(receipts).toEqual([
+      expect.objectContaining({ eventID: 'submit', seq: 2, nodeRole: 'assign' }),
+      expect.objectContaining({ eventID: 'verify', seq: 7, nodeRole: 'guar' }),
+    ])
+    expect(mergeSchedulerDAGReceipts(receipts, receipts)).toHaveLength(2)
+    expect(schedulerDAGFailure(receipts)).toBeUndefined()
+  })
+
+  it('surfaces the authoritative aggregation failure reason from the DAG receipt', () => {
+    const receipts = parseSchedulerDAGReceipts({
+      events: [
+        {
+          EventID: 'aggr-failed',
+          Seq: 9,
+          EventType: 'aggr_failed',
+          NodeRole: 'assign',
+          SourceNodeRole: 'aggr',
+          SourceNodeID: 'aggr-1',
+          FromStatus: 'pending_confirm',
+          ToStatus: 'failed',
+          Reason: 'normal input UTXO not found',
+        },
+      ],
+    })
+
+    expect(schedulerDAGFailure(receipts)).toBe('normal input UTXO not found')
   })
 
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {
