@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   formatWalletEntryError,
   hasLocalNoGroupChoice,
+  isWalletEntryConnectionError,
   rememberLocalNoGroupChoice,
   resolveOrganizationEntry,
 } from '@/wallet/entry'
@@ -13,6 +16,7 @@ import {
   type WalletEntryService,
 } from '@/wallet/entryService'
 import router from '@/router'
+import WalletEntryView from '@/views/wallet/WalletEntryView.vue'
 
 function entryService(recover: WalletEntryService['recover']): WalletEntryService {
   return {
@@ -36,13 +40,73 @@ function entryService(recover: WalletEntryService['recover']): WalletEntryServic
 }
 
 describe('organization entry', () => {
-  afterEach(() => configureWalletEntryService(undefined))
+  afterEach(() => {
+    configureWalletEntryService(undefined)
+    vi.useRealTimers()
+  })
 
-  it('turns browser network failures into a useful local-service message', () => {
+  it('classifies browser network failures without calling a remote backend local', () => {
+    expect(isWalletEntryConnectionError(new TypeError('Failed to fetch'))).toBe(true)
+    expect(isWalletEntryConnectionError(new Error('加入担保组织失败。'))).toBe(false)
     expect(formatWalletEntryError(new TypeError('Failed to fetch'))).toBe(
-      '无法连接到本地服务，请确认后端已启动后重试。',
+      '服务连接暂时中断，请稍后重试。',
     )
     expect(formatWalletEntryError(new Error('加入担保组织失败。'))).toBe('加入担保组织失败。')
+  })
+
+  it('presents a temporary service interruption as a compact recoverable state', async () => {
+    setActivePinia(createPinia())
+    configureWalletEntryService(
+      entryService(async () => {
+        throw new TypeError('Failed to fetch')
+      }),
+    )
+
+    const wrapper = mount(WalletEntryView, {
+      global: {
+        stubs: {
+          WalletAccessFrame: { template: '<main><slot /></main>' },
+          OrganizationDetailDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('h1').text()).toBe('服务暂时未就绪')
+    expect(wrapper.get('[data-service-interruption]').text()).toContain('钱包仍安全保存在本机')
+    expect(wrapper.text()).not.toContain('无法进入钱包')
+    expect(wrapper.get('button').text()).toContain('重新连接')
+
+    wrapper.unmount()
+  })
+
+  it('retries a temporary service interruption once without another click', async () => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    const recover = vi
+      .fn<WalletEntryService['recover']>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue({ reOnline: { isInGroup: false }, addressGroupIds: [] })
+    configureWalletEntryService(entryService(recover))
+
+    const wrapper = mount(WalletEntryView, {
+      global: {
+        stubs: {
+          WalletAccessFrame: { template: '<main><slot /></main>' },
+          OrganizationDetailDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+    expect(recover).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1_500)
+    await flushPromises()
+
+    expect(recover).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('h1').text()).toBe('选择你的使用方式')
+
+    wrapper.unmount()
   })
 
   it('keeps organization recovery outside the authenticated wallet shell', () => {

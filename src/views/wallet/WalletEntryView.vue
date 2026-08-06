@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {
+  PhArrowClockwise as ArrowClockwise,
   PhArrowRight as ArrowRight,
   PhCaretRight as CaretRight,
   PhCheckCircle as CheckCircle,
+  PhCloudSlash as CloudSlash,
 } from '@phosphor-icons/vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
@@ -15,6 +17,7 @@ import { useWalletStore } from '@/stores/wallet'
 import {
   formatWalletEntryError,
   hasLocalNoGroupChoice,
+  isWalletEntryConnectionError,
   rememberLocalNoGroupChoice,
   resolveOrganizationEntry,
   type OrganizationEntryDecision,
@@ -32,6 +35,7 @@ const organizations = ref<WalletEntryOrganization[]>([])
 const selectedGroupId = ref('')
 const busy = ref(true)
 const error = ref('')
+const connectionInterrupted = ref(false)
 const stage = ref('正在恢复你的钱包状态')
 const pendingAction = ref<'join' | 'retail'>()
 const detailOpen = ref(false)
@@ -47,15 +51,40 @@ const selectedOrganization = computed(() =>
   organizations.value.find((organization) => organization.id === selectedGroupId.value),
 )
 
+let reconnectTimer: number | undefined
+let reconnectAttempted = false
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer === undefined) return
+  window.clearTimeout(reconnectTimer)
+  reconnectTimer = undefined
+}
+
+function scheduleReconnect(): void {
+  if (reconnectAttempted || reconnectTimer !== undefined) return
+  reconnectAttempted = true
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = undefined
+    void restore()
+  }, 1_500)
+}
+
 function enterWallet(): void {
   void navigateWithSpatialTransition(router, '/wallet', 'wallet')
 }
 
-async function restore(): Promise<void> {
+async function restore(manual = false): Promise<void> {
+  if (manual) reconnectAttempted = false
+  clearReconnectTimer()
+  busy.value = true
+  error.value = ''
+  connectionInterrupted.value = false
   const service = getWalletEntryService()
   if (!service) {
     busy.value = false
-    error.value = '网络连接正在配置中，请稍后重试。'
+    connectionInterrupted.value = true
+    error.value = '服务连接暂时中断，请稍后重试。'
+    scheduleReconnect()
     return
   }
   try {
@@ -69,6 +98,7 @@ async function restore(): Promise<void> {
     }
     if (decision.value.kind === 'chooser') {
       organizations.value = await service.listOrganizations()
+      reconnectAttempted = false
       return
     }
     if (decision.value.kind === 'member') stage.value = '已恢复担保组织连接'
@@ -77,9 +107,12 @@ async function restore(): Promise<void> {
       stage.value = '已恢复独立使用状态'
     }
     if (decision.value.kind === 'repair-no-group') stage.value = '需要重新确认独立使用状态'
+    reconnectAttempted = false
     if (decision.value.kind !== 'repair-no-group') enterWallet()
   } catch (cause) {
+    connectionInterrupted.value = isWalletEntryConnectionError(cause)
     error.value = formatWalletEntryError(cause)
+    if (connectionInterrupted.value) scheduleReconnect()
   } finally {
     busy.value = false
   }
@@ -151,6 +184,7 @@ function closeOrganizationDetail(): void {
 }
 
 onMounted(() => void restore())
+onBeforeUnmount(clearReconnectTimer)
 </script>
 
 <template>
@@ -230,10 +264,34 @@ onMounted(() => void restore())
         </AppButton>
       </template>
 
+      <template v-else-if="error && connectionInterrupted">
+        <div class="entry-service-state" data-service-interruption role="alert">
+          <span class="entry-service-state__icon" aria-hidden="true">
+            <CloudSlash :size="24" weight="regular" />
+          </span>
+          <h1>服务暂时未就绪</h1>
+          <p>钱包仍安全保存在本机。恢复连接后即可继续。</p>
+          <div class="entry-service-state__status">
+            <span aria-hidden="true" />
+            服务连接暂时中断
+          </div>
+          <AppButton
+            class="entry-service-state__retry"
+            size="large"
+            variant="secondary"
+            :loading="busy"
+            @click="restore(true)"
+          >
+            重新连接
+            <template #icon><ArrowClockwise :size="18" /></template>
+          </AppButton>
+        </div>
+      </template>
+
       <template v-else-if="error">
         <h1>无法进入钱包</h1>
         <p class="entry-error" role="alert">{{ error }}</p>
-        <AppButton size="large" @click="restore">重新尝试</AppButton>
+        <AppButton size="large" @click="restore(true)">重新尝试</AppButton>
       </template>
 
       <template v-else>
@@ -272,6 +330,62 @@ onMounted(() => void restore())
 
 .entry-mark {
   color: var(--accent);
+}
+
+.entry-service-state {
+  display: grid;
+  justify-items: start;
+  gap: 0;
+}
+
+.entry-service-state__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  margin-bottom: 1.15rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--accent-strong);
+}
+
+.entry-service-state > h1 {
+  max-width: 9em;
+  font-size: clamp(2.25rem, 4vw, 2.75rem);
+}
+
+.entry-service-state > p {
+  max-width: 34ch;
+  margin: 0.7rem 0 1.35rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.entry-service-state__status {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.2rem;
+  padding-inline: 0.9rem;
+  border: 1px solid var(--hairline);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 570;
+  backdrop-filter: blur(14px);
+}
+
+.entry-service-state__status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.entry-service-state__retry {
+  min-width: 172px;
 }
 
 .organization-list {
