@@ -29,6 +29,8 @@ export interface TransferProgress {
   error?: string
   acceptedAt?: number
   spendReadyAt?: number
+  backendAcceptedAt?: number
+  backendSpendReadyAt?: number
   settledAt?: number
   dagReceipts?: TransferDAGReceipt[]
   updatedAt: number

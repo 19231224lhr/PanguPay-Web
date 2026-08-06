@@ -21,6 +21,11 @@ export interface TransferSubmissionOptions {
 
 export type AssignTransactionState = 'accepted' | 'spend-ready' | 'pending' | { failed: string }
 
+export interface AssignBackendTiming {
+  acceptedAt?: number
+  spendReadyAt?: number
+}
+
 const schedulerFailureEvents = new Set(['verify_failed', 'aggr_failed', 'timeout', 'rejected'])
 
 export interface TransferTimelineItem {
@@ -83,6 +88,16 @@ export function classifyAssignTransactionStatus(value: unknown): AssignTransacti
   )
     return 'accepted'
   return 'pending'
+}
+
+export function parseAssignBackendTiming(value: unknown): AssignBackendTiming {
+  const body = record(value)
+  const acceptedAt = Number(body.accepted_at_unix_ms)
+  const spendReadyAt = Number(body.spend_ready_at_unix_ms)
+  if (!Number.isSafeInteger(acceptedAt) || acceptedAt <= 0) return {}
+  if (!Number.isSafeInteger(spendReadyAt) || spendReadyAt <= 0) return { acceptedAt }
+  if (spendReadyAt < acceptedAt) return {}
+  return { acceptedAt, spendReadyAt }
 }
 
 function integer(value: unknown): number {
@@ -180,7 +195,16 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     failure?.eventType === 'timeout' ||
     failure?.eventType === 'rejected'
   const isQuick = progress?.mode === 'quick'
-  const spendReadyDuration = observedDuration(progress?.acceptedAt, progress?.spendReadyAt)
+  const backendSpendReadyDuration = observedDuration(
+    progress?.backendAcceptedAt,
+    progress?.backendSpendReadyAt,
+  )
+  const frontendObservationDuration = observedDuration(progress?.acceptedAt, progress?.spendReadyAt)
+  const spendReadyTiming = backendSpendReadyDuration
+    ? `后端可用 ${backendSpendReadyDuration}${frontendObservationDuration ? ` · 前端观测 ${frontendObservationDuration}` : ''}`
+    : frontendObservationDuration
+      ? `前端观测 ${frontendObservationDuration}`
+      : undefined
 
   return [
     {
@@ -233,7 +257,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
         : settled
           ? '交易已结算到收款地址。'
           : '等待后台结算完成。',
-      meta: isQuick && spendReadyDuration ? `接收 → 可用 · ${spendReadyDuration}` : undefined,
+      meta: isQuick && spendReady ? spendReadyTiming : undefined,
       state:
         failed && !guaranteeFailed && !organizationFailed
           ? 'error'

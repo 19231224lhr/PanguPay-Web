@@ -16,6 +16,7 @@ import {
   loadResumableTransferProgress,
   loadTransferReservations,
   mergeSchedulerDAGReceipts,
+  parseAssignBackendTiming,
   parseSchedulerDAGReceipts,
   reconcileTransferChainScope,
   loadTransferJournal,
@@ -312,6 +313,52 @@ export const useTransferStore = defineStore('transfer', () => {
         }
         firstPass = false
         try {
+          if (progress.submissionKind === 'assign' && !progress.spendReadyAt) {
+            const status = await gateway.value.assignTransactionStatus(
+              progress.groupID ?? '',
+              progress.txID,
+            )
+            const state = classifyAssignTransactionStatus(status)
+            const backendTiming = parseAssignBackendTiming(status)
+            const observedAt = Date.now()
+            if (typeof state === 'object') {
+              const failed = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'failed',
+                error: state.failed,
+                updatedAt: observedAt,
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = failed
+              clearTransferReservation(wallet.accountId, progress.draftID)
+              refreshHistory()
+              return
+            }
+            if (state === 'accepted' && !progress.acceptedAt) {
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'accepted',
+                backendAcceptedAt: backendTiming.acceptedAt,
+                updatedAt: observedAt,
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              refreshHistory()
+            }
+            if (state === 'spend-ready') {
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'spend-ready',
+                backendAcceptedAt: backendTiming.acceptedAt,
+                backendSpendReadyAt: backendTiming.spendReadyAt,
+                updatedAt: observedAt,
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              refreshHistory()
+            }
+          }
+
           if (progress.submissionKind === 'assign') {
             const afterSeq = progress.dagReceipts?.length
               ? (progress.dagReceipts[progress.dagReceipts.length - 1]?.seq ?? 0)
@@ -348,45 +395,6 @@ export const useTransferStore = defineStore('transfer', () => {
                 refreshHistory()
                 return
               }
-            }
-          }
-
-          if (progress.submissionKind === 'assign' && !progress.spendReadyAt) {
-            const state = classifyAssignTransactionStatus(
-              await gateway.value.assignTransactionStatus(progress.groupID ?? '', progress.txID),
-            )
-            if (typeof state === 'object') {
-              const failed = recordTransferProgress(wallet.accountId, {
-                draftID: progress.draftID,
-                phase: 'failed',
-                error: state.failed,
-                updatedAt: Date.now(),
-              })
-              if (currentProgress.value?.draftID === progress.draftID)
-                currentProgress.value = failed
-              clearTransferReservation(wallet.accountId, progress.draftID)
-              refreshHistory()
-              return
-            }
-            if (state === 'accepted' && !progress.acceptedAt) {
-              progress = recordTransferProgress(wallet.accountId, {
-                draftID: progress.draftID,
-                phase: 'accepted',
-                updatedAt: Date.now(),
-              })
-              if (currentProgress.value?.draftID === progress.draftID)
-                currentProgress.value = progress
-              refreshHistory()
-            }
-            if (state === 'spend-ready') {
-              progress = recordTransferProgress(wallet.accountId, {
-                draftID: progress.draftID,
-                phase: 'spend-ready',
-                updatedAt: Date.now(),
-              })
-              if (currentProgress.value?.draftID === progress.draftID)
-                currentProgress.value = progress
-              refreshHistory()
             }
           }
 

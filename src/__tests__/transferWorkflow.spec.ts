@@ -8,6 +8,7 @@ import {
   hasObservedGQNCCertification,
   isTransferSubmissionRejectedError,
   mergeSchedulerDAGReceipts,
+  parseAssignBackendTiming,
   parseSchedulerDAGReceipts,
   schedulerDAGFailure,
   submitBuiltTransfer,
@@ -112,6 +113,21 @@ describe('transfer submission workflow', () => {
       classifyAssignTransactionStatus({ status: 'failed', result: false, error_reason: '' }),
     ).toEqual({ failed: '后端未接受这笔交易。' })
     expect(classifyAssignTransactionStatus({ status: 'unknown' })).toBe('pending')
+  })
+
+  it('keeps authoritative backend timing separate from browser observation timing', () => {
+    expect(
+      parseAssignBackendTiming({
+        accepted_at_unix_ms: 10_000,
+        spend_ready_at_unix_ms: 10_024,
+      }),
+    ).toEqual({ acceptedAt: 10_000, spendReadyAt: 10_024 })
+    expect(
+      parseAssignBackendTiming({
+        accepted_at_unix_ms: 10_024,
+        spend_ready_at_unix_ms: 10_000,
+      }),
+    ).toEqual({})
   })
 
   it('normalizes, orders, and deduplicates signed scheduler receipts from the backend view', () => {
@@ -247,6 +263,26 @@ describe('transfer submission workflow', () => {
       'pending',
       'pending',
     ])
+  })
+
+  it('labels backend spend-ready time separately from frontend observation time', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'draft-timing',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '1',
+      recipient: 'b'.repeat(40),
+      phase: 'spend-ready',
+      acceptedAt: 20_000,
+      spendReadyAt: 20_180,
+      backendAcceptedAt: 10_000,
+      backendSpendReadyAt: 10_024,
+      updatedAt: 20_180,
+    })
+
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe(
+      '后端可用 24 ms · 前端观测 180 ms',
+    )
   })
 
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {
