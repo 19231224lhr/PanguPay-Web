@@ -11,6 +11,7 @@ import {
   classifyAssignTransactionStatus,
   clearTransferReservation,
   gqncCertifiedHeight,
+  gqncConsensusMillisAtHeight,
   hasObservedGQNCCertification,
   isTransferSubmissionRejectedError,
   loadResumableTransferProgress,
@@ -404,7 +405,7 @@ export const useTransferStore = defineStore('transfer', () => {
           const fromHeight = lastCertifiedHeight
             ? lastCertifiedHeight + 1
             : Math.max(1, certifiedHeight - 49)
-          let certified = false
+          let certifiedBlockHeight = 0
           for (let height = fromHeight; height <= certifiedHeight; height += 1) {
             if (
               hasObservedGQNCCertification(
@@ -412,15 +413,25 @@ export const useTransferStore = defineStore('transfer', () => {
                 await gateway.value.gqncCertifiedBlock(height),
               )
             ) {
-              certified = true
+              certifiedBlockHeight = height
               break
             }
           }
           lastCertifiedHeight = Math.max(lastCertifiedHeight, certifiedHeight)
-          if (certified) {
+          if (certifiedBlockHeight) {
+            let backendConsensusMillis: number | undefined
+            try {
+              backendConsensusMillis = gqncConsensusMillisAtHeight(
+                await gateway.value.gqncPerformance(),
+                certifiedBlockHeight,
+              )
+            } catch {
+              // Performance data is diagnostic; settlement remains authoritative without it.
+            }
             const settled = recordTransferProgress(wallet.accountId, {
               draftID: progress.draftID,
               phase: 'settled',
+              backendConsensusMillis,
               updatedAt: Date.now(),
             })
             if (currentProgress.value?.draftID === progress.draftID) currentProgress.value = settled

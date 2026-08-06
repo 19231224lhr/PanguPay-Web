@@ -134,6 +134,10 @@ const statusTone = (item: ActivityRow) =>
   font-size: 0.72rem;
 }
 
+.activity-ledger .wallet-section__heading {
+  margin-bottom: 0.45rem;
+}
+
 ol {
   margin: 0;
   padding: 0;
@@ -151,9 +155,11 @@ li:last-child {
 details > summary {
   display: grid;
   grid-template-columns: minmax(150px, 1fr) auto auto auto;
-  min-height: 78px;
+  min-height: 88px;
   align-items: center;
-  gap: 0.85rem;
+  column-gap: 1rem;
+  row-gap: 0.55rem;
+  padding-block: 0.45rem;
   cursor: pointer;
   list-style: none;
 }
@@ -165,7 +171,7 @@ details > summary::-webkit-details-marker {
 .activity-copy,
 .activity-amount {
   display: grid;
-  gap: 0.18rem;
+  gap: 0.32rem;
 }
 
 .activity-status {
@@ -177,6 +183,7 @@ details > summary::-webkit-details-marker {
   color: var(--text);
   font-size: 0.7rem;
   font-weight: 580;
+  line-height: 1.35;
 }
 
 .activity-status :deep(.status-label__dot) {
@@ -255,12 +262,16 @@ details[open] .activity-caret {
 
 @media (max-width: 680px) {
   details > summary {
+    min-height: 0;
     grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-block: 1rem;
+    row-gap: 0.72rem;
   }
 
   details > summary :deep(.status-label) {
     grid-column: 1;
     justify-self: start;
+    margin-top: 0.08rem;
   }
 
   .activity-amount {

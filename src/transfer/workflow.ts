@@ -155,13 +155,17 @@ export function schedulerDAGFailure(receipts: TransferDAGReceipt[]): string | un
   return failed.reason || `担保组织内部处理失败（${failed.eventType}）。`
 }
 
-function observedDuration(startedAt?: number, completedAt?: number): string | undefined {
-  if (!startedAt || !completedAt || completedAt < startedAt) return undefined
-  const elapsed = completedAt - startedAt
+function durationLabel(elapsed?: number): string | undefined {
+  if (!Number.isFinite(elapsed) || elapsed == null || elapsed < 0) return undefined
   if (elapsed < 1) return '< 1 ms'
   if (elapsed < 1_000) return `${Math.round(elapsed)} ms`
   if (elapsed < 10_000) return `${(elapsed / 1_000).toFixed(2)} s`
   return `${(elapsed / 1_000).toFixed(1)} s`
+}
+
+function observedDuration(startedAt?: number, completedAt?: number): string | undefined {
+  if (!startedAt || !completedAt || completedAt < startedAt) return undefined
+  return durationLabel(completedAt - startedAt)
 }
 
 export function buildTransferTimeline(progress?: TransferProgress): TransferTimelineItem[] {
@@ -202,10 +206,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
   const spendReadyTiming = backendSpendReadyDuration
     ? `可用耗时 ${backendSpendReadyDuration}`
     : undefined
-  const settlementDuration = observedDuration(
-    progress?.backendAcceptedAt ?? progress?.acceptedAt,
-    progress?.settledAt,
-  )
+  const settlementDuration = durationLabel(progress?.backendConsensusMillis)
   const settlementTiming = settlementDuration ? `结算耗时 ${settlementDuration}` : undefined
 
   return [
@@ -309,6 +310,23 @@ export function gqncCertifiedHeight(value: unknown): number {
   const status = record(root.status)
   const height = Number(status.certifiedHeight ?? status.certified_height ?? 0)
   return Number.isSafeInteger(height) && height > 0 ? height : 0
+}
+
+export function gqncConsensusMillisAtHeight(value: unknown, height: number): number | undefined {
+  if (!Number.isSafeInteger(height) || height < 1) return undefined
+  const samples = record(value).samples
+  if (!Array.isArray(samples)) return undefined
+  let selected: { certifiedAt: number; millis: number } | undefined
+  for (const rawSample of samples) {
+    const sample = record(rawSample)
+    if (Number(sample.height) !== height) continue
+    const millis = Number(sample.consensusMillis)
+    const certifiedAt = Number(sample.certifiedAtUnixNano)
+    if (!Number.isFinite(millis) || millis < 0 || !Number.isFinite(certifiedAt) || certifiedAt <= 0)
+      continue
+    if (!selected || certifiedAt > selected.certifiedAt) selected = { certifiedAt, millis }
+  }
+  return selected?.millis
 }
 
 export function hasObservedGQNCCertification(txID: string, value: unknown): boolean {

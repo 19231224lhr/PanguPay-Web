@@ -245,6 +245,10 @@ export class GatewayClient {
     )
   }
 
+  gqncPerformance(): Promise<unknown> {
+    return this.request('/api/v1/committee/gqnc/performance')
+  }
+
   submitNoGroupTransaction(message: unknown): Promise<unknown> {
     return this.request('/api/v1/com/submit-noguargroup-tx', {
       method: 'POST',

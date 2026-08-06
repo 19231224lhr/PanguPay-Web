@@ -5,6 +5,7 @@ import { GatewayRequestError } from '@/services/gatewayClient'
 import {
   buildTransferTimeline,
   classifyAssignTransactionStatus,
+  gqncConsensusMillisAtHeight,
   hasObservedGQNCCertification,
   isTransferSubmissionRejectedError,
   mergeSchedulerDAGReceipts,
@@ -283,7 +284,7 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
-  it('shows the observed end-to-end GQNC settlement time', () => {
+  it('shows only the authoritative backend GQNC consensus time', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-settlement-timing',
       txID: 'a'.repeat(64),
@@ -293,13 +294,26 @@ describe('transfer submission workflow', () => {
       phase: 'settled',
       acceptedAt: 20_000,
       backendAcceptedAt: 10_000,
+      backendConsensusMillis: 27.720961,
       settledAt: 13_450,
       updatedAt: 13_450,
     })
 
-    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe(
-      '结算耗时 3.45 s',
-    )
+    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('结算耗时 28 ms')
+  })
+
+  it('reads GQNC consensus time from the certified block height', () => {
+    expect(
+      gqncConsensusMillisAtHeight(
+        {
+          samples: [
+            { height: 11, consensusMillis: 900, certifiedAtUnixNano: 100 },
+            { height: 12, consensusMillis: 27.720961, certifiedAtUnixNano: 200 },
+          ],
+        },
+        12,
+      ),
+    ).toBe(27.720961)
   })
 
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {

@@ -31,6 +31,7 @@ export interface TransferProgress {
   spendReadyAt?: number
   backendAcceptedAt?: number
   backendSpendReadyAt?: number
+  backendConsensusMillis?: number
   settledAt?: number
   dagReceipts?: TransferDAGReceipt[]
   updatedAt: number

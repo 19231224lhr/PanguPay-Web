@@ -116,6 +116,7 @@ describe('Gateway Phase 2 contracts', () => {
     await client.pollCrossOrganizationTXCers('g 1', 'alice')
     await client.gqncStatus()
     await client.gqncCertifiedBlock(7)
+    await client.gqncPerformance()
 
     expect(calls).toEqual([
       {
@@ -147,6 +148,10 @@ describe('Gateway Phase 2 contracts', () => {
       {
         method: 'GET',
         url: 'http://gateway.test/api/v1/committee/gqnc/certified-block/7',
+      },
+      {
+        method: 'GET',
+        url: 'http://gateway.test/api/v1/committee/gqnc/performance',
       },
     ])
   })
