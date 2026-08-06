@@ -93,7 +93,9 @@ const statusTone = (item: ActivityRow) =>
                 <b>{{ item.title }}</b>
                 <small>{{ formatTime(item.timestamp) }}</small>
               </span>
-              <StatusLabel :tone="statusTone(item)">{{ item.status }}</StatusLabel>
+              <StatusLabel class="activity-status" :tone="statusTone(item)">
+                {{ item.status }}
+              </StatusLabel>
               <span class="activity-amount">
                 <b class="tabular">{{ item.direction === 'out' ? '−' : '+' }}{{ item.amount }}</b>
                 <small>{{ assetSymbol(item.coinType, item.asset) }}</small>
@@ -164,6 +166,22 @@ details > summary::-webkit-details-marker {
 .activity-amount {
   display: grid;
   gap: 0.18rem;
+}
+
+.activity-status {
+  min-height: auto;
+  padding: 0.12rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 580;
+}
+
+.activity-status :deep(.status-label__dot) {
+  width: 5px;
+  height: 5px;
 }
 
 .activity-copy small,

@@ -202,6 +202,11 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
   const spendReadyTiming = backendSpendReadyDuration
     ? `可用耗时 ${backendSpendReadyDuration}`
     : undefined
+  const settlementDuration = observedDuration(
+    progress?.backendAcceptedAt ?? progress?.acceptedAt,
+    progress?.settledAt,
+  )
+  const settlementTiming = settlementDuration ? `结算耗时 ${settlementDuration}` : undefined
 
   return [
     {
@@ -274,6 +279,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
       id: 'settlement',
       label: '后台结算',
       detail: settled ? '交易已获得 GQNC 认证并完成结算。' : 'GQNC 在后台认证，不阻塞快速可用。',
+      meta: settled ? settlementTiming : undefined,
       state:
         failed && !failure ? 'error' : settled ? 'complete' : spendReady ? 'active' : 'pending',
     },

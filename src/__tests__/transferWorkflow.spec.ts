@@ -283,6 +283,25 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
+  it('shows the observed end-to-end GQNC settlement time', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'draft-settlement-timing',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '1',
+      recipient: 'b'.repeat(40),
+      phase: 'settled',
+      acceptedAt: 20_000,
+      backendAcceptedAt: 10_000,
+      settledAt: 13_450,
+      updatedAt: 13_450,
+    })
+
+    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe(
+      '结算耗时 3.45 s',
+    )
+  })
+
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {
     const envelope = {
       success: true,

@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "63d6072e284ce4ade908265c122a35ed2c76378c",
-    "indexed_at": "2026-08-06T11:04:23Z",
+    "commit": "b5db3f2671c0dde434df2f1226443456a532f93e",
+    "indexed_at": "2026-08-06T16:24:19Z",
     "project": "PanguPay-Web",
-    "nodes": 1235,
-    "edges": 2850,
+    "nodes": 1238,
+    "edges": 2858,
     "original_size": 3276800,
-    "compressed_size": 332418,
+    "compressed_size": 334288,
     "compression_level": 3
 }
