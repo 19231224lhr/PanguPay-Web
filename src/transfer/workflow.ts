@@ -199,12 +199,9 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     progress?.backendAcceptedAt,
     progress?.backendSpendReadyAt,
   )
-  const frontendObservationDuration = observedDuration(progress?.acceptedAt, progress?.spendReadyAt)
   const spendReadyTiming = backendSpendReadyDuration
-    ? `后端可用 ${backendSpendReadyDuration}${frontendObservationDuration ? ` · 前端观测 ${frontendObservationDuration}` : ''}`
-    : frontendObservationDuration
-      ? `前端观测 ${frontendObservationDuration}`
-      : undefined
+    ? `可用耗时 ${backendSpendReadyDuration}`
+    : undefined
 
   return [
     {

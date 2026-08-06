@@ -265,7 +265,7 @@ describe('transfer submission workflow', () => {
     ])
   })
 
-  it('labels backend spend-ready time separately from frontend observation time', () => {
+  it('shows only the authoritative backend spend-ready time', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-timing',
       txID: 'a'.repeat(64),
@@ -280,9 +280,7 @@ describe('transfer submission workflow', () => {
       updatedAt: 20_180,
     })
 
-    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe(
-      '后端可用 24 ms · 前端观测 180 ms',
-    )
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {
