@@ -1,10 +1,16 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   loadResumableTransferProgress,
   loadTransferJournal,
   recordTransferProgress,
 } from '@/transfer/journal'
+import {
+  loadTransferChainScope,
+  reconcileTransferChainScope,
+  resolveTransferChainScope,
+} from '@/transfer/chainScope'
+import { loadTransferReservations, reserveTransferInputs } from '@/transfer/reservations'
 
 describe('transfer progress journal', () => {
   beforeEach(() => localStorage.clear())
@@ -110,5 +116,98 @@ describe('transfer progress journal', () => {
     })
 
     expect(loadResumableTransferProgress('account-a')).toEqual([])
+  })
+
+  it('derives a stable backend scope from certified block one', async () => {
+    const gateway = {
+      gqncStatus: vi.fn<() => Promise<unknown>>().mockResolvedValue({
+        status: {
+          protocolVersion: 'gqnc-master-v2',
+          enabled: true,
+          certifiedHeight: 7,
+        },
+      }),
+      gqncCertifiedBlock: vi.fn<(height: number) => Promise<unknown>>().mockResolvedValue({
+        envelope: {
+          Block: {
+            BlockHead: { BlockHeight: 1, BlockHash: 'A'.repeat(64) },
+            BlockBody: {},
+          },
+          QC: { QCID: 'B'.repeat(64), Threshold: 3, Signers: ['1', '2', '3'] },
+        },
+      }),
+    }
+
+    await expect(resolveTransferChainScope(gateway)).resolves.toBe(
+      `gqnc-master-v2:1:${'a'.repeat(64)}:${'b'.repeat(64)}`,
+    )
+    expect(gateway.gqncCertifiedBlock).toHaveBeenCalledWith(1)
+  })
+
+  it('does not invent a scope before the first certified block exists', async () => {
+    const gateway = {
+      gqncStatus: vi.fn<() => Promise<unknown>>().mockResolvedValue({
+        status: { protocolVersion: 'gqnc-master-v2', enabled: true, certifiedHeight: 0 },
+      }),
+      gqncCertifiedBlock: vi.fn<(height: number) => Promise<unknown>>(),
+    }
+
+    await expect(resolveTransferChainScope(gateway)).resolves.toBeUndefined()
+    expect(gateway.gqncCertifiedBlock).not.toHaveBeenCalled()
+  })
+
+  it('clears unscoped legacy journal and reservations once a chain is known', () => {
+    recordTransferProgress('account-a', {
+      draftID: 'legacy-draft',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '5',
+      recipient: 'recipient',
+      phase: 'settled',
+      updatedAt: 10,
+    })
+    reserveTransferInputs('account-a', 'legacy-reservation', ['utxo-1'])
+
+    expect(reconcileTransferChainScope('account-a', 'chain-a')).toBe(true)
+    expect(loadTransferChainScope('account-a')).toBe('chain-a')
+    expect(loadTransferJournal('account-a')).toEqual([])
+    expect(loadTransferReservations('account-a')).toEqual({})
+  })
+
+  it('preserves local transfer state on the same certified chain', () => {
+    reconcileTransferChainScope('account-a', 'chain-a')
+    recordTransferProgress('account-a', {
+      draftID: 'current-draft',
+      txID: 'a'.repeat(64),
+      mode: 'normal',
+      amount: '1',
+      recipient: 'recipient',
+      phase: 'accepted',
+      updatedAt: 20,
+    })
+    reserveTransferInputs('account-a', 'current-draft', ['utxo-2'])
+
+    expect(reconcileTransferChainScope('account-a', 'chain-a')).toBe(false)
+    expect(loadTransferJournal('account-a')).toHaveLength(1)
+    expect(loadTransferReservations('account-a')).toEqual({ 'current-draft': ['utxo-2'] })
+  })
+
+  it('drops only public transfer state when the certified chain changes', () => {
+    reconcileTransferChainScope('account-a', 'chain-a')
+    recordTransferProgress('account-a', {
+      draftID: 'stale-draft',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '2',
+      recipient: 'recipient',
+      phase: 'spend-ready',
+      updatedAt: 30,
+    })
+    reserveTransferInputs('account-a', 'stale-draft', ['txcer-1'])
+
+    expect(reconcileTransferChainScope('account-a', 'chain-b')).toBe(true)
+    expect(loadTransferChainScope('account-a')).toBe('chain-b')
+    expect(loadTransferJournal('account-a')).toEqual([])
+    expect(loadTransferReservations('account-a')).toEqual({})
   })
 })

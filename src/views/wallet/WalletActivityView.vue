@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { PhCaretDown as CaretDown } from '@phosphor-icons/vue'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
 import ActivityProgress from '@/components/ActivityProgress.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
@@ -12,6 +12,8 @@ import type { WalletActivity } from '@/wallet/types'
 
 const dashboard = useDashboardStore()
 const transfer = useTransferStore()
+
+onMounted(() => void transfer.synchronizeHistory(true))
 
 const phaseLabels = {
   review: '待审核',

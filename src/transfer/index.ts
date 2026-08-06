@@ -1,4 +1,5 @@
 export * from './builder'
+export * from './chainScope'
 export * from './core'
 export * from './journal'
 export * from './recipient'

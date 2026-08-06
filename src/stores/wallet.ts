@@ -2,6 +2,7 @@ import { computed, markRaw, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
 import { bytesToBase64, bytesToHex, hexToBytes } from '@/protocol-v2/canonical'
+import { clearTransferChainScope } from '@/transfer/chainScope'
 import { clearTransferJournal } from '@/transfer/journal'
 import { clearTransferReservations } from '@/transfer/reservations'
 import {
@@ -277,6 +278,7 @@ export const useWalletStore = defineStore('wallet', () => {
       clearTimer()
       await repository.value.clear()
       if (previousAccountID) {
+        clearTransferChainScope(previousAccountID)
         clearTransferJournal(previousAccountID)
         clearTransferReservations(previousAccountID)
       }

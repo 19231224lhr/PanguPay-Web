@@ -17,10 +17,12 @@ import {
   loadTransferReservations,
   mergeSchedulerDAGReceipts,
   parseSchedulerDAGReceipts,
+  reconcileTransferChainScope,
   loadTransferJournal,
   recordTransferProgress,
   reserveTransferInputs,
   reservedTransferInputIDs,
+  resolveTransferChainScope,
   resolveRecipientSpendMetadata,
   schedulerDAGFailure,
   selectSpendableInputs,
@@ -98,6 +100,10 @@ export const useTransferStore = defineStore('transfer', () => {
   const currentProgress = shallowRef<TransferProgress>()
   const history = shallowRef<TransferProgress[]>([])
   const monitoring = new Set<string>()
+  let scopeRequest: Promise<boolean> | undefined
+  let scopedAccountID = ''
+  let activeChainScope = ''
+  let monitorEpoch = 0
 
   function refreshHistory(): void {
     if (!wallet.accountId) {
@@ -111,7 +117,51 @@ export const useTransferStore = defineStore('transfer', () => {
     }
   }
 
-  refreshHistory()
+  async function synchronizeHistory(force = false): Promise<boolean> {
+    const accountID = wallet.accountId
+    if (!accountID || !wallet.unlockedRecord) {
+      history.value = []
+      return false
+    }
+    if (!force && scopedAccountID === accountID && activeChainScope) return true
+    if (scopeRequest) return scopeRequest
+
+    const request = (async () => {
+      try {
+        const nextScope = await resolveTransferChainScope(gateway.value)
+        if (!nextScope) {
+          // A new chain may not have block one yet. Keep offline/local state until
+          // there is an immutable anchor that can safely identify the backend.
+          refreshHistory()
+          return false
+        }
+
+        const accountChanged = !!scopedAccountID && scopedAccountID !== accountID
+        const discarded = reconcileTransferChainScope(accountID, nextScope)
+        if (accountChanged || discarded) {
+          monitorEpoch += 1
+          review.value = undefined
+          currentProgress.value = undefined
+          stage.value = 'compose'
+        }
+        scopedAccountID = accountID
+        activeChainScope = nextScope
+        refreshHistory()
+        return true
+      } catch {
+        // Network loss must not erase local history. It remains explicitly local
+        // until the backend can provide a certified chain anchor again.
+        refreshHistory()
+        return false
+      }
+    })()
+    scopeRequest = request
+    try {
+      return await request
+    } finally {
+      if (scopeRequest === request) scopeRequest = undefined
+    }
+  }
 
   function reconcileReservations(): void {
     const journal = new Map(
@@ -132,6 +182,7 @@ export const useTransferStore = defineStore('transfer', () => {
     busy.value = true
     error.value = ''
     try {
+      await synchronizeHistory(true)
       const source = form.source.trim().toLowerCase()
       if (!wallet.activeAddresses.some((address) => address.address.toLowerCase() === source))
         throw new Error('请选择当前钱包中的来源地址。')
@@ -238,13 +289,14 @@ export const useTransferStore = defineStore('transfer', () => {
     )
       return
     monitoring.add(value.draftID)
+    const startedInEpoch = monitorEpoch
     let progress = value
     let lastCertifiedHeight = 0
     const monitorStartedAt = Date.now()
     let nextSettlementCheckAt = 0
     let firstPass = true
     try {
-      while (Date.now() - monitorStartedAt < 90_000) {
+      while (startedInEpoch === monitorEpoch && Date.now() - monitorStartedAt < 90_000) {
         if (!firstPass) {
           const elapsed = Date.now() - monitorStartedAt
           const waitingForSpendReady =
@@ -389,6 +441,7 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   async function submit(): Promise<void> {
+    await synchronizeHistory(true)
     const value = review.value
     if (!value || stage.value !== 'review') throw new Error('没有等待审核的交易。')
     busy.value = true
@@ -464,9 +517,15 @@ export const useTransferStore = defineStore('transfer', () => {
 
   function setGatewayForTests(next: GatewayClient): void {
     gateway.value = markRaw(next)
+    scopedAccountID = ''
+    activeChainScope = ''
+    scopeRequest = undefined
+    monitorEpoch += 1
   }
 
-  resumePendingMonitoring()
+  void synchronizeHistory(true).then((scoped) => {
+    if (scoped) resumePendingMonitoring()
+  })
 
   return {
     stage,
@@ -475,6 +534,7 @@ export const useTransferStore = defineStore('transfer', () => {
     review,
     currentProgress,
     history,
+    synchronizeHistory,
     prepare,
     submit,
     cancelReview,

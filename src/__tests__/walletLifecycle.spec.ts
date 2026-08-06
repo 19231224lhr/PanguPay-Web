@@ -55,6 +55,7 @@ describe('wallet lifecycle', () => {
   it('clears the encrypted wallet only through the explicit destructive action', async () => {
     const repository = new MemoryWalletRepository()
     await repository.saveEnvelope(goEnvelope)
+    localStorage.setItem('pangupay-transfer-chain:68740417', 'old-chain')
     localStorage.setItem('pangupay-transfer-journal:68740417', '[{"draftID":"old"}]')
     localStorage.setItem('pangupay-transfer-reservations:68740417', '{"old":["genesis-utxo"]}')
     const store = useWalletStore()
@@ -66,6 +67,7 @@ describe('wallet lifecycle', () => {
     expect(store.lifecycle).toBe('absent')
     expect(store.accountId).toBe('')
     expect(await repository.loadEnvelope()).toBeUndefined()
+    expect(localStorage.getItem('pangupay-transfer-chain:68740417')).toBeNull()
     expect(localStorage.getItem('pangupay-transfer-journal:68740417')).toBeNull()
     expect(localStorage.getItem('pangupay-transfer-reservations:68740417')).toBeNull()
   })
