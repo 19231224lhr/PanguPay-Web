@@ -4,6 +4,7 @@ import ExposureShareBar from '@/components/ExposureShareBar.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import { isActiveCredentialFailure } from '@/wallet/credentials'
 
 const dashboard = useDashboardStore()
 </script>
@@ -75,13 +76,27 @@ const dashboard = useDashboardStore()
             <small>TXCer</small>
             <b>{{ credential.amount }} PGC</b>
           </span>
-          <StatusLabel :tone="credential.fastEvidenceStatus === 'Failed' ? 'danger' : 'success'">
+          <StatusLabel
+            :tone="
+              isActiveCredentialFailure(credential)
+                ? 'danger'
+                : credential.lifecycle === 'Active'
+                  ? 'success'
+                  : 'neutral'
+            "
+          >
             {{ credential.lifecycle }}
           </StatusLabel>
         </header>
         <CredentialTrustPath :credential="credential" />
         <ExposureShareBar :shares="credential.exposureShares" />
-        <p v-if="credential.error" class="credential__error">{{ credential.error }}</p>
+        <p v-if="credential.error" class="credential__error">
+          {{
+            credential.lifecycle === 'Active'
+              ? credential.error
+              : `历史凭证验证记录：${credential.error}`
+          }}
+        </p>
         <details>
           <summary>凭证与技术字段</summary>
           <dl class="wallet-detail-list">

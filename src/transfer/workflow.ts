@@ -1,6 +1,6 @@
 import type { BuiltTransferTransaction } from './builder'
 import { GatewayRequestError } from '@/services/gatewayClient'
-import type { TransferDAGReceipt } from './journal'
+import type { TransferDAGReceipt, TransferProgress } from './journal'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -22,6 +22,14 @@ export interface TransferSubmissionOptions {
 export type AssignTransactionState = 'accepted' | 'spend-ready' | 'pending' | { failed: string }
 
 const schedulerFailureEvents = new Set(['verify_failed', 'aggr_failed', 'timeout', 'rejected'])
+
+export interface TransferTimelineItem {
+  id?: string
+  label: string
+  detail?: string
+  meta?: string
+  state: 'complete' | 'active' | 'pending' | 'error'
+}
 
 export class TransferSubmissionRejectedError extends Error {
   constructor(message: string) {
@@ -130,6 +138,125 @@ export function schedulerDAGFailure(receipts: TransferDAGReceipt[]): string | un
     .find((receipt) => schedulerFailureEvents.has(receipt.eventType))
   if (!failed) return undefined
   return failed.reason || `担保组织内部处理失败（${failed.eventType}）。`
+}
+
+function observedDuration(startedAt?: number, completedAt?: number): string | undefined {
+  if (!startedAt || !completedAt || completedAt < startedAt) return undefined
+  const elapsed = completedAt - startedAt
+  if (elapsed < 1) return '< 1 ms'
+  if (elapsed < 1_000) return `${Math.round(elapsed)} ms`
+  if (elapsed < 10_000) return `${(elapsed / 1_000).toFixed(2)} s`
+  return `${(elapsed / 1_000).toFixed(1)} s`
+}
+
+export function buildTransferTimeline(progress?: TransferProgress): TransferTimelineItem[] {
+  const receipts = progress?.dagReceipts ?? []
+  const events = new Set(receipts.map((receipt) => receipt.eventType))
+  const failure = [...receipts]
+    .reverse()
+    .find((receipt) => schedulerFailureEvents.has(receipt.eventType))
+  const failed = progress?.phase === 'failed'
+  const accepted =
+    Boolean(progress?.acceptedAt) ||
+    Boolean(progress && ['accepted', 'spend-ready', 'settled'].includes(progress.phase)) ||
+    receipts.length > 0
+  const guaranteeStarted =
+    events.has('dispatched') ||
+    events.has('guar_received') ||
+    events.has('verify_started') ||
+    events.has('verify_passed')
+  const guaranteeComplete =
+    events.has('verify_passed') ||
+    events.has('aggr_confirmed') ||
+    Boolean(progress?.spendReadyAt) ||
+    Boolean(progress?.settledAt)
+  const organizationComplete =
+    events.has('aggr_confirmed') || Boolean(progress?.spendReadyAt) || Boolean(progress?.settledAt)
+  const spendReady = Boolean(progress?.spendReadyAt) || progress?.phase === 'spend-ready'
+  const settled = Boolean(progress?.settledAt) || progress?.phase === 'settled'
+  const guaranteeFailed = failure?.eventType === 'verify_failed'
+  const organizationFailed =
+    failure?.eventType === 'aggr_failed' ||
+    failure?.eventType === 'timeout' ||
+    failure?.eventType === 'rejected'
+  const isQuick = progress?.mode === 'quick'
+  const spendReadyDuration = observedDuration(progress?.acceptedAt, progress?.spendReadyAt)
+
+  return [
+    {
+      id: 'received',
+      label: '交易已接收',
+      detail: accepted ? '交易与签名已通过入口校验。' : '正在提交交易。',
+      state: accepted ? 'complete' : failed ? 'error' : 'active',
+    },
+    {
+      id: 'guarantee',
+      label: '担保验证',
+      detail: guaranteeFailed
+        ? failure?.reason || '担保节点拒绝了这笔交易。'
+        : guaranteeComplete
+          ? '担保节点已完成安全验证。'
+          : '正在验证输入、签名与担保约束。',
+      state: guaranteeFailed
+        ? 'error'
+        : guaranteeComplete
+          ? 'complete'
+          : guaranteeStarted
+            ? 'active'
+            : 'pending',
+    },
+    {
+      id: 'organization',
+      label: '组织确认',
+      detail: organizationFailed
+        ? failure?.reason || '担保组织未能完成确认。'
+        : organizationComplete
+          ? '担保组织已确认并登记处理结果。'
+          : guaranteeComplete
+            ? '担保验证已通过，正在完成组织确认。'
+            : '等待担保验证完成。',
+      state: organizationFailed
+        ? 'error'
+        : organizationComplete
+          ? 'complete'
+          : guaranteeComplete
+            ? 'active'
+            : 'pending',
+    },
+    {
+      id: 'recipient-ready',
+      label: isQuick ? '收款方可用' : '收款方到账',
+      detail: isQuick
+        ? spendReady
+          ? 'TXCer 已完成原子登记，收款方现在即可再次支付。'
+          : '等待收款方完成到账登记。'
+        : settled
+          ? '交易已结算到收款地址。'
+          : '等待后台结算完成。',
+      meta: isQuick && spendReadyDuration ? `接收 → 可用 · ${spendReadyDuration}` : undefined,
+      state:
+        failed && !guaranteeFailed && !organizationFailed
+          ? 'error'
+          : isQuick
+            ? spendReady
+              ? 'complete'
+              : organizationComplete
+                ? 'active'
+                : 'pending'
+            : settled
+              ? 'complete'
+              : organizationComplete
+                ? 'active'
+                : 'pending',
+    },
+    {
+      id: 'settlement',
+      label: '后台结算',
+      detail: settled ? '交易已获得 GQNC 认证并完成结算。' : 'GQNC 在后台认证，不阻塞快速可用。',
+      state:
+        failed && !failure ? 'error' : settled ? 'complete' : spendReady ? 'active' : 'pending',
+    },
+  ]
 }
 
 function assertSubmissionAccepted(response: unknown): void {

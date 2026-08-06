@@ -5,6 +5,21 @@ import type { WalletCredentialSummary, WalletExposureShareSummary } from '@/wall
 
 type UnknownRecord = Record<string, unknown>
 
+export function isActiveCredentialFailure(
+  credential: Pick<WalletCredentialSummary, 'lifecycle' | 'fastEvidenceStatus'>,
+): boolean {
+  return credential.lifecycle === 'Active' && credential.fastEvidenceStatus === 'Failed'
+}
+
+export function isActiveCredentialAuditPending(
+  credential: Pick<WalletCredentialSummary, 'lifecycle' | 'cfaaAuditStatus'>,
+): boolean {
+  return (
+    credential.lifecycle === 'Active' &&
+    ['Pending', 'Unavailable'].includes(credential.cfaaAuditStatus)
+  )
+}
+
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as UnknownRecord) : {}
 }

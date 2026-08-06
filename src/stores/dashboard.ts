@@ -8,6 +8,8 @@ import {
   buildCredentialAuthorities,
   credentialGroupIDs,
   extractIssuanceRecords,
+  isActiveCredentialAuditPending,
+  isActiveCredentialFailure,
   mergeTXCerDeliveryEnvelopes,
   mergeTXCerIssuanceResponses,
   normalizeCredentialSummaries,
@@ -135,12 +137,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
       next.organization = organization
       next.receivedTXCers = receivedTXCers
       next.credentials = credentials
-      next.security.pendingAudits = credentials.filter((item) =>
-        ['Pending', 'Unavailable'].includes(item.cfaaAuditStatus),
-      ).length
-      next.security.isolatedCount = credentials.filter(
-        (item) => item.fastEvidenceStatus === 'Failed',
-      ).length
+      next.security.pendingAudits = credentials.filter(isActiveCredentialAuditPending).length
+      next.security.isolatedCount = credentials.filter(isActiveCredentialFailure).length
       next.security.credentialStatus = next.security.isolatedCount > 0 ? 'warning' : 'normal'
       next.activities = normalizeActivities(updateResponse)
       const shouldAnimate = shouldAnimateBalance(snapshot.value, next, manual)

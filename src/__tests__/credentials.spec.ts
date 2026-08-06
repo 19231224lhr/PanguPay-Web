@@ -9,6 +9,8 @@ import type { TXCerAuthoritySnapshot } from '@/protocol-v2/security'
 import {
   buildCredentialAuthorities,
   extractIssuanceRecords,
+  isActiveCredentialAuditPending,
+  isActiveCredentialFailure,
   normalizeCredentialSummaries,
 } from '@/wallet/credentials'
 
@@ -52,6 +54,39 @@ const golden = JSON.parse(
 )
 
 describe('wallet credential summaries', () => {
+  it('isolates only an active TXCer with failed fast evidence', () => {
+    expect(isActiveCredentialFailure({ lifecycle: 'Active', fastEvidenceStatus: 'Failed' })).toBe(
+      true,
+    )
+    expect(
+      isActiveCredentialFailure({ lifecycle: 'ConvertedToUTXO', fastEvidenceStatus: 'Failed' }),
+    ).toBe(false)
+    expect(isActiveCredentialFailure({ lifecycle: 'Consumed', fastEvidenceStatus: 'Failed' })).toBe(
+      false,
+    )
+    expect(isActiveCredentialFailure({ lifecycle: 'Active', fastEvidenceStatus: 'Verified' })).toBe(
+      false,
+    )
+  })
+
+  it('counts pending CFAA audit only for an active TXCer', () => {
+    expect(
+      isActiveCredentialAuditPending({ lifecycle: 'Active', cfaaAuditStatus: 'Pending' }),
+    ).toBe(true)
+    expect(
+      isActiveCredentialAuditPending({ lifecycle: 'Active', cfaaAuditStatus: 'Unavailable' }),
+    ).toBe(true)
+    expect(
+      isActiveCredentialAuditPending({
+        lifecycle: 'ConvertedToUTXO',
+        cfaaAuditStatus: 'Pending',
+      }),
+    ).toBe(false)
+    expect(
+      isActiveCredentialAuditPending({ lifecycle: 'Active', cfaaAuditStatus: 'Verified' }),
+    ).toBe(false)
+  })
+
   it('builds a verifiable authority snapshot from the Gateway GroupMsg response', () => {
     const evidence = golden.evidence
     const records = extractIssuanceRecords({ records: [evidence.issuanceRecord] })

@@ -88,6 +88,37 @@ describe('wallet dashboard normalization', () => {
     expect(snapshot.security.spendReady).toBe('1.25')
   })
 
+  it('does not isolate a failed historical TXCer that already converted to UTXO', () => {
+    const snapshot = buildDashboardSnapshot({
+      accountId: '68740417',
+      displayName: '6874 0417',
+      addresses: [
+        {
+          address: 'abc',
+          type: '0',
+          utxos: [{ value: '95' }],
+          txCers: [
+            {
+              id: 'converted-history',
+              value: '90',
+              lifecycle: 'ConvertedToUTXO',
+              fastEvidence: 'Failed',
+            },
+          ],
+        },
+      ],
+      updatedAt: 10,
+    })
+
+    expect(snapshot.security.isolatedCount).toBe(0)
+    expect(snapshot.security.credentialStatus).toBe('normal')
+    expect(snapshot.assets[0]).toMatchObject({
+      utxoAvailable: '95',
+      txCerSpendable: '0',
+      total: '95',
+    })
+  })
+
   it('animates only the first live snapshot, manual refresh or an actual balance change', () => {
     const make = (value: string, updatedAt: number) =>
       buildDashboardSnapshot({

@@ -65,8 +65,9 @@ export function buildDashboardSnapshot(input: RawDashboardInput): WalletDashboar
     const balance = address.utxos.reduce((sum, utxo) => sum + parseAmount(utxo.value), 0n)
     let spendable = 0n
     for (const txCer of address.txCers) {
+      if (txCer.lifecycle !== 'Active') continue
       if (txCer.fastEvidence === 'Failed') isolatedCount += 1
-      else if (txCer.lifecycle === 'Active') {
+      else {
         spendable += parseAmount(txCer.value)
         if (txCer.fastEvidence === 'Pending') pendingAudits += 1
       }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BuiltTransferTransaction } from '@/transfer/builder'
 import { GatewayRequestError } from '@/services/gatewayClient'
 import {
+  buildTransferTimeline,
   classifyAssignTransactionStatus,
   hasObservedGQNCCertification,
   isTransferSubmissionRejectedError,
@@ -173,6 +174,79 @@ describe('transfer submission workflow', () => {
     })
 
     expect(schedulerDAGFailure(receipts)).toBe('normal input UTXO not found')
+  })
+
+  it('compresses scheduler receipts into five user-facing milestones', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'draft-1',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '10',
+      recipient: 'b'.repeat(40),
+      phase: 'accepted',
+      acceptedAt: 1_000,
+      updatedAt: 1_250,
+      dagReceipts: [
+        {
+          eventID: '1',
+          seq: 21,
+          eventType: 'submitted',
+          nodeRole: 'assign',
+          toStatus: 'processing',
+        },
+        {
+          eventID: '2',
+          seq: 22,
+          eventType: 'acquired',
+          nodeRole: 'assign',
+          toStatus: 'processing',
+        },
+        {
+          eventID: '3',
+          seq: 23,
+          eventType: 'dispatched',
+          nodeRole: 'assign',
+          toStatus: 'processing',
+        },
+        {
+          eventID: '4',
+          seq: 24,
+          eventType: 'guar_received',
+          nodeRole: 'guar',
+          toStatus: 'processing',
+        },
+        {
+          eventID: '5',
+          seq: 25,
+          eventType: 'verify_started',
+          nodeRole: 'guar',
+          toStatus: 'processing',
+        },
+        {
+          eventID: '6',
+          seq: 26,
+          eventType: 'verify_passed',
+          nodeRole: 'guar',
+          toStatus: 'pending_confirm',
+        },
+      ],
+    })
+
+    expect(timeline).toHaveLength(5)
+    expect(timeline.map((item) => item.label)).toEqual([
+      '交易已接收',
+      '担保验证',
+      '组织确认',
+      '收款方可用',
+      '后台结算',
+    ])
+    expect(timeline.map((item) => item.state)).toEqual([
+      'complete',
+      'complete',
+      'active',
+      'pending',
+      'pending',
+    ])
   })
 
   it('observes settlement only from a 3-of-4 certified block containing the TXID', () => {
