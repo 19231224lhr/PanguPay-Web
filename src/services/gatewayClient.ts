@@ -5,6 +5,12 @@ export interface GatewayClientOptions {
   fetcher?: typeof fetch
 }
 
+export interface CrossChainCapability {
+  enabled: boolean
+  ready: boolean
+  reasonCode: string
+}
+
 export class GatewayRequestError extends Error {
   constructor(
     readonly status: number,
@@ -100,6 +106,21 @@ export class GatewayClient {
 
   health(): Promise<unknown> {
     return this.request('/health')
+  }
+
+  async crossChainCapability(): Promise<CrossChainCapability> {
+    const response = await this.request('/api/v1/com/health')
+    const root =
+      response && typeof response === 'object' ? (response as Record<string, unknown>) : {}
+    const raw =
+      root.cross_chain && typeof root.cross_chain === 'object'
+        ? (root.cross_chain as Record<string, unknown>)
+        : {}
+    return {
+      enabled: raw.enabled === true,
+      ready: raw.ready === true,
+      reasonCode: String(raw.reason_code ?? 'UNAVAILABLE'),
+    }
   }
 
   committeeEndpoint(): Promise<unknown> {
@@ -247,6 +268,10 @@ export class GatewayClient {
 
   gqncPerformance(): Promise<unknown> {
     return this.request('/api/v1/committee/gqnc/performance')
+  }
+
+  crossChainTransferStatus(txID: string): Promise<unknown> {
+    return this.request(`/api/v1/committee/cross-chain/transfers/${encodeURIComponent(txID)}`)
   }
 
   submitNoGroupTransaction(message: unknown): Promise<unknown> {

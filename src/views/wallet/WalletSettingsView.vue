@@ -92,15 +92,15 @@ function lock(): void {
 
 async function cropAvatar(file: File): Promise<string> {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
-    throw new Error('请选择 PNG、JPEG 或 WebP 图片。')
-  if (file.size > 5 * 1024 * 1024) throw new Error('头像文件不能超过 5 MB。')
+    throw new Error(t('wallet.settings.avatarTypeError'))
+  if (file.size > 5 * 1024 * 1024) throw new Error(t('wallet.settings.avatarSizeError'))
   const bitmap = await createImageBitmap(file)
   const side = Math.min(bitmap.width, bitmap.height)
   const canvas = document.createElement('canvas')
   canvas.width = 256
   canvas.height = 256
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('当前浏览器无法处理头像。')
+  if (!context) throw new Error(t('wallet.settings.avatarUnsupportedError'))
   context.drawImage(
     bitmap,
     (bitmap.width - side) / 2,
@@ -124,7 +124,8 @@ async function chooseAvatar(event: Event): Promise<void> {
   try {
     avatar.value = await cropAvatar(file)
   } catch (cause) {
-    profileError.value = cause instanceof Error ? cause.message : '无法读取头像。'
+    profileError.value =
+      cause instanceof Error ? cause.message : t('wallet.settings.avatarReadError')
   } finally {
     input.value = ''
   }
@@ -136,10 +137,10 @@ async function saveProfile(): Promise<void> {
   profileMessage.value = ''
   try {
     await wallet.saveProfile(displayName.value, avatar.value || undefined)
-    profileMessage.value = '个人资料已保存在本机。'
+    profileMessage.value = t('wallet.settings.profileSaved')
     await dashboard.sync(true)
-  } catch (cause) {
-    profileError.value = cause instanceof Error ? cause.message : '无法保存个人资料。'
+  } catch {
+    profileError.value = t('wallet.settings.profileSaveError')
   } finally {
     profileBusy.value = false
   }
@@ -153,26 +154,28 @@ async function saveProfile(): Promise<void> {
       :description="t('wallet.settings.description')"
     />
     <section class="wallet-section profile-settings" aria-labelledby="profile-settings-heading">
-      <div class="wallet-section__heading"><h2 id="profile-settings-heading">个人资料</h2></div>
+      <div class="wallet-section__heading">
+        <h2 id="profile-settings-heading">{{ t('wallet.settings.profile') }}</h2>
+      </div>
       <div class="profile-editor">
         <label class="profile-avatar">
-          <img v-if="avatar" :src="avatar" alt="当前头像" />
+          <img v-if="avatar" :src="avatar" :alt="t('wallet.settings.currentAvatar')" />
           <UserCircle v-else :size="42" weight="light" />
-          <span>更换头像</span>
+          <span>{{ t('wallet.settings.changeAvatar') }}</span>
           <input type="file" accept="image/png,image/jpeg,image/webp" @change="chooseAvatar" />
         </label>
         <div class="profile-name">
-          <label for="wallet-display-name">用户名</label>
+          <label for="wallet-display-name">{{ t('wallet.settings.username') }}</label>
           <input
             id="wallet-display-name"
             v-model="displayName"
             maxlength="24"
             autocomplete="nickname"
           />
-          <small>仅保存在本机，不会改变账户 ID 或链上身份。</small>
+          <small>{{ t('wallet.settings.profileDescription') }}</small>
         </div>
         <AppButton :loading="profileBusy" :disabled="!displayName.trim()" @click="saveProfile">
-          保存资料
+          {{ t('wallet.settings.saveProfile') }}
         </AppButton>
       </div>
       <p v-if="profileError" class="settings-feedback settings-feedback--error" role="alert">
@@ -213,29 +216,37 @@ async function saveProfile(): Promise<void> {
     </section>
     <section class="wallet-section settings-actions" aria-labelledby="wallet-controls-heading">
       <div class="wallet-section__heading">
-        <h2 id="wallet-controls-heading">钱包与访问</h2>
+        <h2 id="wallet-controls-heading">{{ t('wallet.settings.access') }}</h2>
       </div>
       <div>
-        <span><b>导出加密备份</b><small>下载兼容 wallet-keystore v1 的 wallet.json。</small></span
+        <span
+          ><b>{{ t('wallet.settings.exportEncrypted') }}</b
+          ><small>{{ t('wallet.settings.exportEncryptedDescription') }}</small></span
         ><AppButton variant="secondary" @click="exportWallet"
-          ><DownloadSimple :size="18" />导出</AppButton
+          ><DownloadSimple :size="18" />{{ t('wallet.settings.export') }}</AppButton
         >
       </div>
       <div>
         <span
-          ><b>导出独立恢复材料</b
-          ><small>包含未加密私钥与 RootSeed；只应离线保存，任何人都不应向你索取。</small></span
+          ><b>{{ t('wallet.settings.exportRecovery') }}</b
+          ><small>{{ t('wallet.settings.exportRecoveryDescription') }}</small></span
         ><AppButton variant="secondary" @click="exportRecoveryKit"
-          ><Key :size="18" />导出</AppButton
+          ><Key :size="18" />{{ t('wallet.settings.export') }}</AppButton
         >
       </div>
       <div>
-        <span><b>立即锁定</b><small>清除当前页面内存中的私钥与 RootSeed。</small></span
-        ><AppButton variant="secondary" @click="lock"><LockKey :size="18" />锁定</AppButton>
+        <span
+          ><b>{{ t('wallet.settings.lockNow') }}</b
+          ><small>{{ t('wallet.settings.lockDescription') }}</small></span
+        ><AppButton variant="secondary" @click="lock"
+          ><LockKey :size="18" />{{ t('wallet.settings.lock') }}</AppButton
+        >
       </div>
       <div>
-        <span><b>自动锁定</b><small>连续 15 分钟无操作后自动锁定。</small></span
-        ><strong>15 分钟</strong>
+        <span
+          ><b>{{ t('wallet.settings.autoLock') }}</b
+          ><small>{{ t('wallet.settings.autoLockDescription') }}</small></span
+        ><strong>{{ t('wallet.settings.fifteenMinutes') }}</strong>
       </div>
     </section>
   </div>

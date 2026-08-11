@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { evaluateAddressArchive } from '@/wallet/addressBook'
+import { evaluateAddressArchive, resolveAddressArchiveActivity } from '@/wallet/addressBook'
 
 describe('address archive safety', () => {
   it.each([
@@ -35,5 +35,71 @@ describe('address archive safety', () => {
         isOrganizationMember: true,
       }),
     ).toEqual({ allowed: true, reasons: [], requiresNetworkUnbind: true })
+  })
+
+  it('does not let a pending transfer from one address block another empty address', () => {
+    expect(
+      resolveAddressArchiveActivity({
+        address: 'address-b',
+        transfers: [
+          {
+            draftID: 'draft-a',
+            phase: 'accepted',
+            sourceAddress: 'address-a',
+            inputIDs: ['utxo-a'],
+          },
+        ],
+        reservations: { 'draft-a': ['utxo-a'] },
+        inputOwners: { 'utxo-a': 'address-a' },
+      }),
+    ).toEqual({ hasReservedInputs: false, hasPendingTransfers: false, ownershipUnknown: false })
+  })
+
+  it('blocks the address that owns a pending transfer and its reservation', () => {
+    expect(
+      resolveAddressArchiveActivity({
+        address: 'address-b',
+        transfers: [
+          {
+            draftID: 'draft-b',
+            phase: 'accepted',
+            sourceAddress: 'address-b',
+            inputIDs: ['utxo-b'],
+          },
+        ],
+        reservations: { 'draft-b': ['utxo-b'] },
+        inputOwners: { 'utxo-b': 'address-b' },
+      }),
+    ).toEqual({ hasReservedInputs: true, hasPendingTransfers: true, ownershipUnknown: false })
+  })
+
+  it('resolves a legacy transfer source from authoritative input ownership', () => {
+    expect(
+      resolveAddressArchiveActivity({
+        address: 'address-b',
+        transfers: [{ draftID: 'legacy-a', phase: 'accepted', inputIDs: ['utxo-a'] }],
+        reservations: { 'legacy-a': ['utxo-a'] },
+        inputOwners: { 'utxo-a': 'address-a' },
+      }),
+    ).toEqual({ hasReservedInputs: false, hasPendingTransfers: false, ownershipUnknown: false })
+  })
+
+  it('fails closed when a legacy transfer input owner cannot be established', () => {
+    const activity = resolveAddressArchiveActivity({
+      address: 'address-b',
+      transfers: [{ draftID: 'legacy', phase: 'accepted', inputIDs: ['missing'] }],
+      reservations: { legacy: ['missing'] },
+      inputOwners: {},
+    })
+    expect(activity.ownershipUnknown).toBe(true)
+    expect(
+      evaluateAddressArchive({
+        isLastActive: false,
+        utxoBalance: '0',
+        txCerBalance: '0',
+        ...activity,
+        isOrganizationMember: false,
+      }).reasons,
+    ).toContain('无法确认该地址的归档安全状态')
   })
 })

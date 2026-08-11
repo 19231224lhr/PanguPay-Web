@@ -20,6 +20,10 @@ withDefaults(
     accountItems?: AppShellItem[]
     utilityItems?: AppShellItem[]
     accountMenuLabel?: string
+    accountMenuNavigationLabel?: string
+    accountMenuItemsLabel?: string
+    mobileUtilityLabel?: string
+    utilityNavigationLabel?: string
     lockLabel?: string
     moreLabel?: string
     navigationLabel: string
@@ -88,7 +92,7 @@ const accountMenuOpen = ref(false)
         v-if="utilityItems.length"
         class="app-shell__utilities"
         data-sidebar-utilities
-        aria-label="钱包设置"
+        :aria-label="utilityNavigationLabel || utilityItems[0]?.label || navigationLabel"
       >
         <RouterLink
           v-for="item in utilityItems"
@@ -138,6 +142,9 @@ const accountMenuOpen = ref(false)
       :items="accountItems"
       :utility-items="utilityItems"
       :lock-label="lockLabel"
+      :menu-label="accountMenuNavigationLabel || navigationLabel"
+      :items-label="accountMenuItemsLabel || navigationLabel"
+      :mobile-utility-label="mobileUtilityLabel || utilityItems[0]?.label || moreLabel"
       @close="accountMenuOpen = false"
       @lock="$emit('lock')"
     />

@@ -168,7 +168,123 @@ function observedDuration(startedAt?: number, completedAt?: number): string | un
   return durationLabel(completedAt - startedAt)
 }
 
+function shortHash(value?: string): string | undefined {
+  if (!value) return undefined
+  return value.length > 18 ? `${value.slice(0, 10)}…${value.slice(-6)}` : value
+}
+
+function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineItem[] {
+  const receipts = progress.dagReceipts ?? []
+  const events = new Set(receipts.map((receipt) => receipt.eventType))
+  const failure = [...receipts]
+    .reverse()
+    .find((receipt) => schedulerFailureEvents.has(receipt.eventType))
+  const failed = progress.phase === 'failed'
+  const accepted =
+    Boolean(progress.acceptedAt) ||
+    ['accepted', 'spend-ready', 'local-certified', 'target-accepted', 'settled'].includes(
+      progress.phase,
+    ) ||
+    receipts.length > 0
+  const localCertified =
+    Boolean(progress.certifiedHeight) ||
+    ['local-certified', 'target-accepted', 'settled'].includes(progress.phase)
+  const guaranteeComplete =
+    events.has('verify_passed') || events.has('aggr_confirmed') || localCertified
+  const guaranteeStarted =
+    events.has('dispatched') || events.has('guar_received') || events.has('verify_started')
+  const lightAccepted =
+    Boolean(progress.lightTxHash) &&
+    (Boolean(progress.targetAcceptedAt) || ['target-accepted', 'settled'].includes(progress.phase))
+  const targetConfirmed =
+    progress.phase === 'settled' &&
+    Boolean(progress.targetBlock) &&
+    Boolean(progress.targetConfirmedAt)
+  const lightHash = shortHash(progress.lightTxHash)
+  const total = observedDuration(progress.acceptedAt, progress.targetConfirmedAt)
+  const targetMeta = targetConfirmed
+    ? [`区块 ${progress.targetBlock}`, total ? `跨链总耗时 ${total}` : '']
+        .filter(Boolean)
+        .join(' · ')
+    : undefined
+
+  return [
+    {
+      id: 'received',
+      label: '跨链交易已接收',
+      detail: accepted ? '交易与签名已通过源区入口校验。' : '正在提交跨链交易。',
+      state: failed ? 'error' : accepted ? 'complete' : 'active',
+    },
+    {
+      id: 'guarantee',
+      label: '担保验证',
+      detail: failure
+        ? failure.reason || '担保组织拒绝了这笔跨链交易。'
+        : guaranteeComplete
+          ? '担保节点已完成跨链约束验证。'
+          : '正在验证输入、签名与跨链约束。',
+      state: failure
+        ? 'error'
+        : guaranteeComplete
+          ? 'complete'
+          : guaranteeStarted
+            ? 'active'
+            : 'pending',
+    },
+    {
+      id: 'local-certified',
+      label: '本地 GQNC 已认证',
+      detail: localCertified
+        ? '源区交易已经终局认证，正在提交轻计算区。'
+        : '等待源区 GQNC 完成 3-of-4 认证。',
+      meta: progress.certifiedHeight ? `认证高度 ${progress.certifiedHeight}` : undefined,
+      state: progress.crossChainError
+        ? 'error'
+        : localCertified
+          ? 'complete'
+          : guaranteeComplete
+            ? 'active'
+            : 'pending',
+    },
+    {
+      id: 'target-accepted',
+      label: '轻计算区已接收',
+      detail: progress.crossChainError
+        ? `跨链投递需要人工恢复：${progress.crossChainError}`
+        : lightAccepted
+          ? '轻计算区交易池已接收，正在等待目标链出块。'
+          : '等待轻计算区确认接收。',
+      meta: lightAccepted ? lightHash : undefined,
+      state: progress.crossChainError
+        ? 'error'
+        : lightAccepted
+          ? 'complete'
+          : localCertified
+            ? 'active'
+            : 'pending',
+    },
+    {
+      id: 'target-confirmed',
+      label: '目标链到账',
+      detail: targetConfirmed
+        ? '目标链回执成功，跨链到账完成。'
+        : lightAccepted
+          ? '等待目标链将交易写入区块。'
+          : '等待轻计算区接收交易。',
+      meta: targetMeta,
+      state: progress.crossChainError
+        ? 'error'
+        : targetConfirmed
+          ? 'complete'
+          : lightAccepted
+            ? 'active'
+            : 'pending',
+    },
+  ]
+}
+
 export function buildTransferTimeline(progress?: TransferProgress): TransferTimelineItem[] {
+  if (progress?.mode === 'cross') return buildCrossChainTimeline(progress)
   const receipts = progress?.dagReceipts ?? []
   const events = new Set(receipts.map((receipt) => receipt.eventType))
   const failure = [...receipts]
@@ -177,7 +293,12 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
   const failed = progress?.phase === 'failed'
   const accepted =
     Boolean(progress?.acceptedAt) ||
-    Boolean(progress && ['accepted', 'spend-ready', 'settled'].includes(progress.phase)) ||
+    Boolean(
+      progress &&
+      ['accepted', 'spend-ready', 'local-certified', 'target-accepted', 'settled'].includes(
+        progress.phase,
+      ),
+    ) ||
     receipts.length > 0
   const guaranteeStarted =
     events.has('dispatched') ||

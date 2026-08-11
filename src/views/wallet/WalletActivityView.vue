@@ -7,7 +7,12 @@ import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
-import type { TransferMode, TransferPhase } from '@/transfer'
+import {
+  transferActivityStatus,
+  transferModeLabel,
+  type TransferMode,
+  type TransferPhase,
+} from '@/transfer'
 import type { WalletActivity } from '@/wallet/types'
 
 const dashboard = useDashboardStore()
@@ -15,19 +20,13 @@ const transfer = useTransferStore()
 
 onMounted(() => void transfer.synchronizeHistory(true))
 
-const phaseLabels = {
-  review: '待审核',
-  submitting: '正在提交',
-  accepted: '入口已接收',
-  'spend-ready': 'TXCer 可用',
-  settled: '后台已结算',
-  failed: '失败',
-} as const
-
 interface ActivityRow extends WalletActivity {
   txID: string
   mode?: TransferMode
   phase?: TransferPhase
+  lightTxHash?: string
+  targetBlock?: number
+  crossChainError?: string
 }
 
 const assetSymbol = (coinType?: number, explicit?: string) =>
@@ -48,23 +47,26 @@ const activities = computed<ActivityRow[]>(() => {
   for (const item of transfer.history) {
     merged.set(item.txID, {
       id: item.txID,
-      title: `${item.mode === 'quick' ? '快速' : item.mode === 'cross' ? '跨链' : '普通'}转账`,
+      title: transferModeLabel(item.mode),
       amount: item.amount,
       coinType: item.coinType,
       asset: assetSymbol(item.coinType),
-      status: phaseLabels[item.phase],
+      status: transferActivityStatus(item.mode, item.phase, item.crossChainError),
       timestamp: item.updatedAt,
       txID: item.txID,
       direction: 'out',
       mode: item.mode,
       phase: item.phase,
+      lightTxHash: item.lightTxHash,
+      targetBlock: item.targetBlock,
+      crossChainError: item.crossChainError,
     })
   }
   return [...merged.values()].sort((left, right) => right.timestamp - left.timestamp)
 })
 
 const statusTone = (item: ActivityRow) =>
-  item.phase === 'failed' || /失败|rejected/i.test(item.status)
+  item.phase === 'failed' || item.crossChainError || /失败|恢复|rejected/i.test(item.status)
     ? 'danger'
     : item.phase === 'settled' || /结算|confirm|success/i.test(item.status)
       ? 'success'
@@ -103,7 +105,14 @@ const statusTone = (item: ActivityRow) =>
               <CaretDown class="activity-caret" :size="17" aria-hidden="true" />
             </summary>
             <div class="activity-detail">
-              <ActivityProgress :mode="item.mode" :phase="item.phase" :status="item.status" />
+              <ActivityProgress
+                :mode="item.mode"
+                :phase="item.phase"
+                :status="item.status"
+                :light-tx-hash="item.lightTxHash"
+                :target-block="item.targetBlock"
+                :cross-chain-error="item.crossChainError"
+              />
               <dl>
                 <div>
                   <dt>方向</dt>
@@ -112,7 +121,7 @@ const statusTone = (item: ActivityRow) =>
                 <div v-if="item.mode">
                   <dt>路径</dt>
                   <dd>
-                    {{ item.mode === 'quick' ? '快速' : item.mode === 'cross' ? '跨链' : '普通' }}
+                    {{ transferModeLabel(item.mode) }}
                   </dd>
                 </div>
                 <div>

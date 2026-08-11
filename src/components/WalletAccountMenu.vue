@@ -11,6 +11,9 @@ const props = withDefaults(
     items?: AppShellItem[]
     utilityItems?: AppShellItem[]
     lockLabel?: string
+    menuLabel?: string
+    itemsLabel?: string
+    mobileUtilityLabel?: string
     open: boolean
   }>(),
   {
@@ -19,6 +22,9 @@ const props = withDefaults(
     items: () => [],
     utilityItems: () => [],
     lockLabel: '锁定钱包',
+    menuLabel: '账户菜单',
+    itemsLabel: '账户功能',
+    mobileUtilityLabel: '移动端钱包设置',
   },
 )
 
@@ -53,7 +59,13 @@ onBeforeUnmount(() => {
 
 <template>
   <Transition name="account-menu">
-    <section v-if="open" ref="panel" class="wallet-account-menu" role="menu" aria-label="账户菜单">
+    <section
+      v-if="open"
+      ref="panel"
+      class="wallet-account-menu"
+      role="menu"
+      :aria-label="menuLabel"
+    >
       <header>
         <span class="wallet-account-menu__avatar">{{ accountName.slice(0, 1).toUpperCase() }}</span>
         <span>
@@ -66,7 +78,7 @@ onBeforeUnmount(() => {
         v-if="items.length"
         class="wallet-account-menu__items"
         data-account-items
-        aria-label="账户功能"
+        :aria-label="itemsLabel"
       >
         <RouterLink
           v-for="item in items"
@@ -84,7 +96,7 @@ onBeforeUnmount(() => {
         v-if="utilityItems.length"
         class="wallet-account-menu__mobile-utilities"
         data-mobile-utilities
-        aria-label="移动端钱包设置"
+        :aria-label="mobileUtilityLabel"
       >
         <RouterLink
           v-for="item in utilityItems"

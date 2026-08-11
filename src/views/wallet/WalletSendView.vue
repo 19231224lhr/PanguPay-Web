@@ -19,7 +19,12 @@ import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
-import { buildTransferTimeline, type TransferMode } from '@/transfer'
+import {
+  buildTransferTimeline,
+  transferModeLabel,
+  transferResultTitle,
+  type TransferMode,
+} from '@/transfer'
 import { describeTransferIssue } from '@/transfer/errors'
 
 const wallet = useWalletStore()
@@ -60,6 +65,9 @@ const transferIssue = computed(() =>
 const recipientLooksCapsule = computed(() => recipient.value.trim().includes('@'))
 
 const timeline = computed(() => buildTransferTimeline(transfer.currentProgress))
+const resultTitle = computed(() =>
+  transferResultTitle(transfer.review?.mode ?? mode.value, transfer.currentProgress?.phase),
+)
 
 watch(
   isMember,
@@ -188,13 +196,7 @@ function startAnother(): void {
         <div>
           <dt>转账路径</dt>
           <dd>
-            {{
-              transfer.review.mode === 'quick'
-                ? '快速'
-                : transfer.review.mode === 'cross'
-                  ? '跨链'
-                  : '普通'
-            }}
+            {{ transferModeLabel(transfer.review.mode) }}
           </dd>
         </div>
         <div>
@@ -246,7 +248,7 @@ function startAnother(): void {
       <header class="result-heading">
         <CheckCircle :size="30" weight="fill" aria-hidden="true" />
         <div>
-          <h2>交易已进入处理流程</h2>
+          <h2>{{ resultTitle }}</h2>
           <p class="mono">{{ transfer.review.built.txID }}</p>
         </div>
       </header>

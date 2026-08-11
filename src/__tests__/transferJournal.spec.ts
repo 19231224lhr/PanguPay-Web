@@ -118,6 +118,65 @@ describe('transfer progress journal', () => {
     expect(loadResumableTransferProgress('account-a')).toEqual([])
   })
 
+  it('resumes cross-chain delivery after local certification and light acceptance', () => {
+    const common = {
+      txID: 'c'.repeat(64),
+      mode: 'cross' as const,
+      amount: '1',
+      recipient: `0x${'1'.repeat(40)}`,
+      inputIDs: ['utxo-cross'],
+      groupID: 'group-a',
+      submissionKind: 'assign' as const,
+      coinType: 0,
+    }
+    recordTransferProgress('account-a', {
+      ...common,
+      draftID: 'cross-local',
+      phase: 'local-certified',
+      certifiedHeight: 9,
+      qcID: 'd'.repeat(64),
+      updatedAt: 100,
+    })
+    recordTransferProgress('account-a', {
+      ...common,
+      draftID: 'cross-light',
+      phase: 'target-accepted',
+      lightTxHash: `0x${'e'.repeat(64)}`,
+      updatedAt: 200,
+    })
+
+    expect(loadResumableTransferProgress('account-a').map((item) => item.phase)).toEqual([
+      'target-accepted',
+      'local-certified',
+    ])
+  })
+
+  it('migrates legacy cross-chain settlement to a resumable local certification', () => {
+    localStorage.setItem(
+      'pangupay-transfer-journal:account-a',
+      JSON.stringify([
+        {
+          draftID: 'legacy-cross',
+          txID: 'f'.repeat(64),
+          mode: 'cross',
+          amount: '1',
+          recipient: `0x${'2'.repeat(40)}`,
+          inputIDs: ['utxo-legacy'],
+          groupID: 'group-a',
+          submissionKind: 'assign',
+          coinType: 0,
+          phase: 'settled',
+          settledAt: 300,
+          updatedAt: 300,
+        },
+      ]),
+    )
+
+    const [progress] = loadResumableTransferProgress('account-a')
+    expect(progress).toMatchObject({ draftID: 'legacy-cross', phase: 'local-certified' })
+    expect(progress?.settledAt).toBeUndefined()
+  })
+
   it('derives a stable backend scope from certified block one', async () => {
     const gateway = {
       gqncStatus: vi.fn<() => Promise<unknown>>().mockResolvedValue({

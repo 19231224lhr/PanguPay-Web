@@ -10,6 +10,7 @@ import {
   buildTransferTransaction,
   classifyAssignTransactionStatus,
   clearTransferReservation,
+  crossChainProgressUpdate,
   gqncCertifiedHeight,
   gqncConsensusMillisAtHeight,
   hasObservedGQNCCertification,
@@ -18,6 +19,7 @@ import {
   loadTransferReservations,
   mergeSchedulerDAGReceipts,
   parseAssignBackendTiming,
+  parseCrossChainTransferStatus,
   parseSchedulerDAGReceipts,
   reconcileTransferChainScope,
   loadTransferJournal,
@@ -171,7 +173,12 @@ export const useTransferStore = defineStore('transfer', () => {
     )
     for (const draftID of Object.keys(loadTransferReservations(wallet.accountId))) {
       const progress = journal.get(draftID)
-      if (!progress || ['review', 'failed', 'settled'].includes(progress.phase)) {
+      if (
+        !progress ||
+        ['review', 'local-certified', 'target-accepted', 'failed', 'settled'].includes(
+          progress.phase,
+        )
+      ) {
         clearTransferReservation(wallet.accountId, draftID)
         continue
       }
@@ -184,6 +191,11 @@ export const useTransferStore = defineStore('transfer', () => {
     busy.value = true
     error.value = ''
     try {
+      if (form.mode === 'cross') {
+        const capability = await gateway.value.crossChainCapability()
+        if (!capability.enabled || !capability.ready)
+          throw new Error('跨链服务当前未就绪，请稍后重试。')
+      }
       await synchronizeHistory(true)
       const source = form.source.trim().toLowerCase()
       if (!wallet.activeAddresses.some((address) => address.address.toLowerCase() === source))
@@ -265,6 +277,7 @@ export const useTransferStore = defineStore('transfer', () => {
         mode: form.mode,
         amount: form.amount,
         recipient: recipient.address,
+        sourceAddress: source,
         inputIDs: built.inputIDs,
         groupID: snapshot.guarantorGroupID,
         submissionKind: built.submission.kind,
@@ -298,7 +311,8 @@ export const useTransferStore = defineStore('transfer', () => {
     let nextSettlementCheckAt = 0
     let firstPass = true
     try {
-      while (startedInEpoch === monitorEpoch && Date.now() - monitorStartedAt < 90_000) {
+      const monitorLimit = progress.mode === 'cross' ? 10 * 60_000 : 90_000
+      while (startedInEpoch === monitorEpoch && Date.now() - monitorStartedAt < monitorLimit) {
         if (!firstPass) {
           const elapsed = Date.now() - monitorStartedAt
           const waitingForSpendReady =
@@ -399,6 +413,34 @@ export const useTransferStore = defineStore('transfer', () => {
             }
           }
 
+          if (
+            progress.mode === 'cross' &&
+            ['local-certified', 'target-accepted'].includes(progress.phase)
+          ) {
+            const status = parseCrossChainTransferStatus(
+              await gateway.value.crossChainTransferStatus(progress.txID),
+            )
+            if (status.txID !== progress.txID.toLowerCase())
+              throw new Error('cross-chain status TXID mismatch')
+            const update = crossChainProgressUpdate(status, Date.now())
+            if (status.state === 'NEEDS_RECOVERY' && progress.phase === 'target-accepted')
+              update.phase = 'target-accepted'
+            progress = recordTransferProgress(wallet.accountId, {
+              draftID: progress.draftID,
+              ...update,
+            })
+            if (currentProgress.value?.draftID === progress.draftID)
+              currentProgress.value = progress
+            clearTransferReservation(wallet.accountId, progress.draftID)
+            refreshHistory()
+            if (status.state === 'TARGET_CONFIRMED') {
+              await dashboard.sync()
+              return
+            }
+            if (status.state === 'NEEDS_RECOVERY') return
+            continue
+          }
+
           if (Date.now() < nextSettlementCheckAt) continue
           nextSettlementCheckAt = Date.now() + 2_000
           const certifiedHeight = gqncCertifiedHeight(await gateway.value.gqncStatus())
@@ -427,6 +469,21 @@ export const useTransferStore = defineStore('transfer', () => {
               )
             } catch {
               // Performance data is diagnostic; settlement remains authoritative without it.
+            }
+            if (progress.mode === 'cross') {
+              progress = recordTransferProgress(wallet.accountId, {
+                draftID: progress.draftID,
+                phase: 'local-certified',
+                certifiedHeight: certifiedBlockHeight,
+                backendConsensusMillis,
+                updatedAt: Date.now(),
+              })
+              if (currentProgress.value?.draftID === progress.draftID)
+                currentProgress.value = progress
+              clearTransferReservation(wallet.accountId, progress.draftID)
+              refreshHistory()
+              nextSettlementCheckAt = 0
+              continue
             }
             const settled = recordTransferProgress(wallet.accountId, {
               draftID: progress.draftID,

@@ -1,7 +1,14 @@
 import type { TransferMode } from './core'
 
 export type TransferPhase =
-  'review' | 'submitting' | 'accepted' | 'spend-ready' | 'settled' | 'failed'
+  | 'review'
+  | 'submitting'
+  | 'accepted'
+  | 'spend-ready'
+  | 'local-certified'
+  | 'target-accepted'
+  | 'settled'
+  | 'failed'
 
 export interface TransferDAGReceipt {
   eventID: string
@@ -21,6 +28,7 @@ export interface TransferProgress {
   mode: TransferMode
   amount: string
   recipient: string
+  sourceAddress?: string
   inputIDs?: string[]
   groupID?: string
   submissionKind?: 'assign' | 'retail'
@@ -32,6 +40,14 @@ export interface TransferProgress {
   backendAcceptedAt?: number
   backendSpendReadyAt?: number
   backendConsensusMillis?: number
+  localCertifiedAt?: number
+  certifiedHeight?: number
+  qcID?: string
+  lightTxHash?: string
+  targetBlock?: number
+  targetAcceptedAt?: number
+  targetConfirmedAt?: number
+  crossChainError?: string
   settledAt?: number
   dagReceipts?: TransferDAGReceipt[]
   updatedAt: number
@@ -47,7 +63,9 @@ const rank: Record<Exclude<TransferPhase, 'failed'>, number> = {
   submitting: 1,
   accepted: 2,
   'spend-ready': 3,
-  settled: 4,
+  'local-certified': 4,
+  'target-accepted': 5,
+  settled: 6,
 }
 
 function key(accountID: string): string {
@@ -61,7 +79,20 @@ export function loadTransferJournal(accountID: string): TransferProgress[] {
   try {
     const value = JSON.parse(raw) as unknown
     if (!Array.isArray(value)) throw new Error()
-    return value as TransferProgress[]
+    let migrated = false
+    const journal = (value as TransferProgress[]).map((progress) => {
+      if (
+        progress.mode !== 'cross' ||
+        progress.phase !== 'settled' ||
+        (progress.targetBlock && progress.targetConfirmedAt)
+      )
+        return progress
+      migrated = true
+      const { settledAt: _settledAt, ...legacy } = progress
+      return { ...legacy, phase: 'local-certified' as const }
+    })
+    if (migrated) localStorage.setItem(key(accountID), JSON.stringify(journal.slice(0, 100)))
+    return journal
   } catch {
     throw new Error('transfer journal is damaged')
   }
@@ -87,8 +118,9 @@ function hasMonitorContext(progress: TransferProgress): boolean {
 export function loadResumableTransferProgress(accountID: string): TransferProgress[] {
   return loadTransferJournal(accountID).filter(
     (progress) =>
-      ['submitting', 'accepted', 'spend-ready'].includes(progress.phase) &&
-      hasMonitorContext(progress),
+      ['submitting', 'accepted', 'spend-ready', 'local-certified', 'target-accepted'].includes(
+        progress.phase,
+      ) && hasMonitorContext(progress),
   )
 }
 
@@ -121,6 +153,15 @@ export function recordTransferProgress(
   if (update.phase === 'spend-ready') {
     next.acceptedAt ??= update.updatedAt
     next.spendReadyAt ??= update.updatedAt
+  }
+  if (update.phase === 'local-certified') {
+    next.acceptedAt ??= update.updatedAt
+    next.localCertifiedAt ??= update.updatedAt
+  }
+  if (update.phase === 'target-accepted') {
+    next.acceptedAt ??= update.updatedAt
+    next.localCertifiedAt ??= update.updatedAt
+    next.targetAcceptedAt ??= update.updatedAt
   }
   if (update.phase === 'settled') {
     next.acceptedAt ??= update.updatedAt

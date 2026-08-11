@@ -3,7 +3,16 @@ import { computed } from 'vue'
 
 import type { TransferMode, TransferPhase } from '@/transfer'
 
-const props = defineProps<{ mode?: TransferMode; phase?: TransferPhase; status?: string }>()
+const props = defineProps<{
+  mode?: TransferMode
+  phase?: TransferPhase
+  status?: string
+  lightTxHash?: string
+  targetBlock?: number
+  crossChainError?: string
+}>()
+
+const shortHash = (value: string) => `${value.slice(0, 10)}…${value.slice(-8)}`
 
 type StepState = 'complete' | 'active' | 'pending' | 'error'
 
@@ -11,9 +20,70 @@ const steps = computed(() => {
   if (!props.phase)
     return [{ label: '后端记录', detail: props.status || '状态未知', state: 'active' as StepState }]
   const failed = props.phase === 'failed'
-  const accepted = ['accepted', 'spend-ready', 'settled'].includes(props.phase)
+  const accepted = [
+    'accepted',
+    'spend-ready',
+    'local-certified',
+    'target-accepted',
+    'settled',
+  ].includes(props.phase)
   const spendReady = ['spend-ready', 'settled'].includes(props.phase)
   const settled = props.phase === 'settled'
+  if (props.mode === 'cross') {
+    const localCertified = ['local-certified', 'target-accepted', 'settled'].includes(props.phase)
+    const targetAccepted = ['target-accepted', 'settled'].includes(props.phase)
+    return [
+      {
+        label: '跨链交易已接收',
+        detail: accepted ? '源区入口已接收交易。' : '等待源区入口确认。',
+        state: failed ? 'error' : accepted ? 'complete' : ('active' as StepState),
+      },
+      {
+        label: '担保验证',
+        detail: localCertified ? '担保验证已经完成。' : '等待担保节点确认。',
+        state: failed ? 'error' : localCertified ? 'complete' : accepted ? 'active' : 'pending',
+      },
+      {
+        label: '本地 GQNC 已认证',
+        detail: localCertified ? '源区交易已获得终局认证。' : '等待本地 GQNC 认证。',
+        state: failed ? 'error' : localCertified ? 'complete' : 'pending',
+      },
+      {
+        label: '轻计算区已接收',
+        detail: targetAccepted
+          ? props.lightTxHash
+            ? `交易 ${shortHash(props.lightTxHash)} 已接收，等待出块。`
+            : '目标交易已进入轻计算区，等待出块。'
+          : '等待轻计算区接收。',
+        state: failed
+          ? 'error'
+          : targetAccepted
+            ? 'complete'
+            : localCertified
+              ? 'active'
+              : 'pending',
+      },
+      {
+        label: '目标链到账',
+        detail: props.crossChainError
+          ? `需要人工恢复：${props.crossChainError}`
+          : settled
+            ? props.targetBlock
+              ? `目标链回执成功，区块高度 ${props.targetBlock}。`
+              : '目标链回执成功。'
+            : '等待目标链出块。',
+        state: props.crossChainError
+          ? 'error'
+          : failed
+            ? 'error'
+            : settled
+              ? 'complete'
+              : targetAccepted
+                ? 'active'
+                : 'pending',
+      },
+    ] satisfies Array<{ label: string; detail: string; state: StepState }>
+  }
   const result = [
     {
       label: '入口接收',

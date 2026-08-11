@@ -302,6 +302,75 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('结算耗时 28 ms')
   })
 
+  it('uses five cross-chain milestones and waits for a successful target receipt', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'cross-1',
+      txID: 'a'.repeat(64),
+      mode: 'cross',
+      amount: '1',
+      recipient: `0x${'1'.repeat(40)}`,
+      phase: 'target-accepted',
+      acceptedAt: 1_000,
+      certifiedHeight: 12,
+      qcID: 'b'.repeat(64),
+      lightTxHash: `0x${'c'.repeat(64)}`,
+      targetAcceptedAt: 1_250,
+      updatedAt: 1_250,
+      dagReceipts: [
+        {
+          eventID: 'verified',
+          seq: 1,
+          eventType: 'verify_passed',
+          nodeRole: 'guar',
+          toStatus: 'pending_confirm',
+        },
+      ],
+    })
+
+    expect(timeline.map((item) => item.label)).toEqual([
+      '跨链交易已接收',
+      '担保验证',
+      '本地 GQNC 已认证',
+      '轻计算区已接收',
+      '目标链到账',
+    ])
+    expect(timeline.map((item) => item.state)).toEqual([
+      'complete',
+      'complete',
+      'complete',
+      'complete',
+      'active',
+    ])
+    expect(timeline.map((item) => item.detail).join(' ')).not.toContain('TXCer')
+    expect(timeline[3]?.meta).toContain('0xcccc')
+  })
+
+  it('shows the target block and total time only after target confirmation', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'cross-2',
+      txID: 'a'.repeat(64),
+      mode: 'cross',
+      amount: '1',
+      recipient: `0x${'1'.repeat(40)}`,
+      phase: 'settled',
+      acceptedAt: 1_000,
+      certifiedHeight: 12,
+      qcID: 'b'.repeat(64),
+      lightTxHash: `0x${'c'.repeat(64)}`,
+      targetBlock: 88,
+      targetAcceptedAt: 1_250,
+      targetConfirmedAt: 1_640,
+      settledAt: 1_640,
+      updatedAt: 1_640,
+    })
+
+    expect(timeline[4]).toMatchObject({
+      label: '目标链到账',
+      meta: '区块 88 · 跨链总耗时 640 ms',
+      state: 'complete',
+    })
+  })
+
   it('reads GQNC consensus time from the certified block height', () => {
     expect(
       gqncConsensusMillisAtHeight(

@@ -117,6 +117,7 @@ describe('Gateway Phase 2 contracts', () => {
     await client.gqncStatus()
     await client.gqncCertifiedBlock(7)
     await client.gqncPerformance()
+    await client.crossChainTransferStatus('d'.repeat(64))
 
     expect(calls).toEqual([
       {
@@ -153,7 +154,36 @@ describe('Gateway Phase 2 contracts', () => {
         method: 'GET',
         url: 'http://gateway.test/api/v1/committee/gqnc/performance',
       },
+      {
+        method: 'GET',
+        url: `http://gateway.test/api/v1/committee/cross-chain/transfers/${'d'.repeat(64)}`,
+      },
     ])
+  })
+
+  it('reads the committee cross-chain readiness before transfer preparation', async () => {
+    const calls: string[] = []
+    const client = new GatewayClient({
+      baseURL: 'http://gateway.test',
+      fetcher: async (input) => {
+        calls.push(String(input))
+        return jsonResponse({
+          status: 'ok',
+          cross_chain: {
+            enabled: true,
+            ready: false,
+            reason_code: 'BUILDER_UNAVAILABLE',
+          },
+        })
+      },
+    })
+
+    await expect(client.crossChainCapability()).resolves.toEqual({
+      enabled: true,
+      ready: false,
+      reasonCode: 'BUILDER_UNAVAILABLE',
+    })
+    expect(calls).toEqual(['http://gateway.test/api/v1/com/health'])
   })
 
   it('uses the existing capsule generation and authority routes', async () => {

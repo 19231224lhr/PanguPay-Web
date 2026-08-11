@@ -9,13 +9,16 @@ import {
 import { computed, ref } from 'vue'
 
 import { addAmounts } from '@/protocol-v2/amount'
+import { GatewayClient } from '@/services/gatewayClient'
+import { buildWalletReOnlineMessage } from '@/services/walletEntryGateway'
 import { loadTransferJournal } from '@/transfer/journal'
 import { loadTransferReservations } from '@/transfer/reservations'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
 import { assetIdentityForType } from '@/wallet/dashboard'
-import { evaluateAddressArchive } from '@/wallet/addressBook'
+import { evaluateAddressArchive, resolveAddressArchiveActivity } from '@/wallet/addressBook'
 import { getWalletEntryService } from '@/wallet/entryService'
+import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
 import AppButton from './AppButton.vue'
 import AppSelect from './AppSelect.vue'
 import FormField from './FormField.vue'
@@ -25,6 +28,8 @@ const dashboard = useDashboardStore()
 const creating = ref(false)
 const createBusy = ref(false)
 const archiveBusy = ref(false)
+const archiveChecking = ref(false)
+const archiveInputOwners = ref<Record<string, string>>({})
 const type = ref('0')
 const password = ref('')
 const error = ref('')
@@ -60,29 +65,61 @@ const activeCount = computed(() => rows.value.filter((item) => !item.archived).l
 const selectedArchive = computed(() =>
   rows.value.find((item) => item.address === archiveAddress.value),
 )
+const archiveActivity = computed(() => {
+  const row = selectedArchive.value
+  if (!row) return { hasReservedInputs: false, hasPendingTransfers: false, ownershipUnknown: false }
+  let activity = {
+    hasReservedInputs: false,
+    hasPendingTransfers: false,
+    ownershipUnknown: false,
+  }
+  try {
+    activity = resolveAddressArchiveActivity({
+      address: row.address,
+      transfers: loadTransferJournal(wallet.accountId),
+      reservations: loadTransferReservations(wallet.accountId),
+      inputOwners: archiveInputOwners.value,
+    })
+  } catch {
+    activity.ownershipUnknown = true
+  }
+  return activity
+})
 const archiveDecision = computed(() => {
   const row = selectedArchive.value
   if (!row) return undefined
-  let hasReservedInputs = false
-  let hasPendingTransfers = false
-  try {
-    hasReservedInputs = Object.keys(loadTransferReservations(wallet.accountId)).length > 0
-    hasPendingTransfers = loadTransferJournal(wallet.accountId).some(
-      (item) => !['settled', 'failed'].includes(item.phase),
-    )
-  } catch {
-    hasReservedInputs = true
-    hasPendingTransfers = true
-  }
   return evaluateAddressArchive({
     isLastActive: !row.archived && activeCount.value <= 1,
     utxoBalance: row.utxo,
     txCerBalance: row.txCer,
-    hasReservedInputs,
-    hasPendingTransfers,
+    ...archiveActivity.value,
     isOrganizationMember: !!dashboard.current.organization,
   })
 })
+
+async function openArchive(address: string): Promise<void> {
+  archiveAddress.value = address
+  archiveInputOwners.value = {}
+  if (!archiveActivity.value.ownershipUnknown) return
+  const record = wallet.activeRecord
+  if (!record) return
+  archiveChecking.value = true
+  try {
+    const snapshot = await loadWalletSpendableSnapshot(new GatewayClient(), {
+      userID: wallet.accountId,
+      addresses: wallet.activeAddresses.map((item) => item.address),
+      reOnlineMessage: buildWalletReOnlineMessage(record),
+      receivedTXCers: dashboard.current.receivedTXCers,
+    })
+    archiveInputOwners.value = Object.fromEntries(
+      [...snapshot.utxos, ...snapshot.txCers].map((item) => [item.id, item.address]),
+    )
+  } catch {
+    // Unknown legacy ownership stays fail-closed; current records carry sourceAddress directly.
+  } finally {
+    archiveChecking.value = false
+  }
+}
 
 async function copyAddress(address: string): Promise<void> {
   await navigator.clipboard.writeText(address)
@@ -224,7 +261,7 @@ async function confirmArchive(): Promise<void> {
             type="button"
             class="archive-trigger"
             :aria-label="`归档 ${row.label}`"
-            @click="archiveAddress = row.address"
+            @click="openArchive(row.address)"
           >
             <Archive :size="16" /> 归档
           </button>
@@ -245,8 +282,8 @@ async function confirmArchive(): Promise<void> {
           <AppButton variant="ghost" @click="archiveAddress = ''">取消</AppButton>
           <AppButton
             variant="danger"
-            :disabled="!archiveDecision?.allowed"
-            :loading="archiveBusy"
+            :disabled="archiveChecking || !archiveDecision?.allowed"
+            :loading="archiveBusy || archiveChecking"
             @click="confirmArchive"
           >
             确认归档
