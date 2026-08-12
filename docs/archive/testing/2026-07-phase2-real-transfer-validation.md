@@ -1,4 +1,6 @@
-# Phase 2 真实转账对接验证
+# 历史记录：Phase 2 真实转账对接验证
+
+> 本文仅保留 2026-07 阶段性证据，不代表当前发布状态。当前验收入口见 `docs/release-acceptance.md`。
 
 适用基线：2026-07-28，`PanguPay-Web` Phase 2 工作树与 `UTXO-Area` `experiment` 分支。
 

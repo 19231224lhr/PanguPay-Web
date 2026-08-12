@@ -1,9 +1,6 @@
 # PanguPay Web
 
-PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前已完成 Phase 2：
-设计基座、protocol-v2、正式浏览器 keystore、组织接入，以及普通、快速、混合和跨链交易的真实构造、签名与提交。
-
-最新一轮视觉与契约收口进一步补齐了收款二维码、不同转账模式的真实路径说明、活动阶段、TXCer 凭证链、ExposureShares 责任份额和担保组织详情。
+PanguPay Web 是 Pangu 转账区的 Vue 钱包前端。它提供浏览器 keystore、组织接入、多地址账户、原始/胶囊地址收款，以及普通、快速、混合和跨链转账的真实构造、签名、提交与状态观察。
 
 ## 技术栈
 
@@ -15,20 +12,16 @@ PanguPay Web 是 Pangu 快速转账系统的新一代 Vue 前端。当前已完�
 
 项目不使用 Tailwind、shadcn、Storybook、GSAP 或 Three.js。
 
-## 安装
+## 安装与开发
 
-建议使用 Node `22.21.0` 和 npm `10.9.4`。依赖版本由 `package-lock.json` 固定：
+建议使用 Node `22.21.0` 和 npm `10.9.4`；依赖版本由 `package-lock.json` 固定。
 
 ```powershell
 npm ci
+npm run dev
 ```
 
-当前锁文件已经解决 create-vue 初始模板中的两个安装问题：
-
-- `oxlint` 与 `eslint-plugin-oxlint` 使用一致的 `1.75.x` 版本，不再发生 peer dependency 冲突。
-- 不再依赖要求 Node `22.22.2` 的 `npm-run-all2`，构建和 lint 使用 npm 原生串行脚本。
-
-如果本机访问 npm registry 偶发 `ECONNRESET`，不要使用 `--force` 或 `--legacy-peer-deps`。保留已经下载的 npm 缓存并降低连接并发后重试：
+若 npm registry 偶发 `ECONNRESET`，保留缓存并降低并发后重试，不要使用 `--force` 或 `--legacy-peer-deps`：
 
 ```powershell
 $env:NODE_OPTIONS='--dns-result-order=ipv4first'
@@ -37,35 +30,37 @@ $env:npm_config_fetch_retries='5'
 npm ci --prefer-offline --no-audit --no-fund
 ```
 
-Playwright 使用系统 Microsoft Edge，不下载额外浏览器镜像。
+Gateway 地址通过 `.env` 中的 `VITE_GATEWAY_URL` 配置。部署方式见 [docs/deployment.md](./docs/deployment.md)。
 
-## 开发
+## 正式路由
 
-```powershell
-npm run dev
-```
+| 路由                   | 用途                                             |
+| ---------------------- | ------------------------------------------------ |
+| `/`                    | 品牌首页与钱包入口                               |
+| `/wallet/setup`        | 创建钱包、导入加密备份或使用私钥与 RootSeed 恢复 |
+| `/wallet/unlock`       | 解锁本地 keystore                                |
+| `/wallet/recover`      | 使用独立恢复材料重建 keystore                    |
+| `/wallet/entry`        | 恢复身份并选择独立或组织使用方式                 |
+| `/wallet`              | 账户、余额和地址总览                             |
+| `/wallet/send`         | 普通、快速、混合与跨链转账                       |
+| `/wallet/receive`      | 原始地址、胶囊地址、二维码与复制                 |
+| `/wallet/activity`     | 交易类型、方向和已知阶段                         |
+| `/wallet/security`     | TXCer 凭证、审计和责任份额                       |
+| `/wallet/blockchain`   | 只读 GQNC 认证链浏览器                           |
+| `/wallet/organization` | 组织详情、加入和安全退出                         |
+| `/wallet/settings`     | 本地资料、主题、语言、备份和锁定                 |
 
-内部评审页面：
+`/__foundation` 仅在开发模式注册，不属于正式路由。
 
-- `/`：无导航沉浸式首页
-- `/__foundation`：开发模式下的设计系统陈列页
+## 当前能力与边界
 
-正式钱包路由：
-
-- `/wallet/setup`：创建或导入钱包
-- `/wallet/unlock`：解锁
-- `/wallet/recover`：使用独立恢复材料重建本地 keystore
-- `/wallet/entry`：恢复组织身份或选择独立/组织使用方式
-- `/wallet`：真实账户总览
-- `/wallet/send`：普通、快速、混合与跨链交易
-- `/wallet/receive`：真实地址、二维码与复制
-- `/wallet/activity`：入口、快速可用和后台结算阶段
-- `/wallet/security`：TXCer 凭证链与责任份额
-- `/wallet/organization`：组织选择与权威详情
-- `/wallet/settings`：备份与锁定
-
-Gateway 地址通过 `.env` 的 `VITE_GATEWAY_URL` 配置；后端离线时，页面明确显示缓存时间，
-不会把旧快照伪装成最新数据。
+- 金额运算使用精确十进制字符串和 `bigint`，最终交易使用 protocol-v2 64-hex TXID。
+- 胶囊地址是可重复使用的签名隐私别名；发送前必须验签并解析为真实 40-hex 地址，跨链暂不接受胶囊地址。
+- 快速转账把入口接收、收款方可用和后台 GQNC 结算分开显示。
+- 跨链转账把本地 GQNC 认证、轻计算区接收和目标链 receipt 确认分开显示；只有目标链确认后才显示到账。
+- 余额和转账快路径不依赖 GQNC 运维接口；`/wallet/blockchain` 只读访问 Gateway 已公开的 GQNC 观测接口，不提供投票、治理或节点控制。
+- 加密秘密不写入 LocalStorage；CFAA `Pending/Unavailable` 不阻塞 Active TXCer，完整证据明确失败时才隔离。
+- 后端离线时页面标记缓存时间，不把旧快照伪装成最新状态。
 
 ## 质量门禁
 
@@ -80,23 +75,14 @@ npm run check:backend-contract
 npm run build
 ```
 
-生成本地视觉评审截图：
+当前 `check:backend-contract` 对照后端 `gateway/server.go` 验证钱包核心 method/path；完整前端调用矩阵见 [docs/backend-contract.md](./docs/backend-contract.md)。
 
-```powershell
-npm run dev -- --host 127.0.0.1 --port 5174
-npm run capture:visual
-```
+## 文档
 
-设计原则见 [DESIGN.md](./DESIGN.md)，产品范围见 [PRODUCT.md](./PRODUCT.md)。
-
-## 当前安全边界
-
-- 不展示未经实验支持的实时指标。
-- 不调用 `/committee/gqnc/*` 等运维接口。
-- 加密秘密不写入 LocalStorage；未确认备份前，新钱包不会持久化。
-- CFAA 审计状态不阻塞 TXCer 快速可用；FastEvidence、Ack 或责任收据明确失败时隔离 TXCer。
-- 页面分别展示“入口已接收”“TXCer 可支付”“后台已结算”，不把它们合并成含糊的成功状态。
-
-真实 UI 操作流程见
-[钱包操作图谱](./docs/testing/phase1-wallet-ui-operation-atlas.md)，真实转账结果见
-[Phase 2 验证记录](./docs/testing/phase2-real-transfer-validation.md)。
+- [产品范围](./PRODUCT.md)
+- [设计语言](./DESIGN.md)
+- [钱包 UI 操作图谱](./docs/testing/wallet-ui-operation-atlas.md)
+- [真实页面验收](./docs/testing/real-browser-acceptance.md)
+- [后端契约](./docs/backend-contract.md)
+- [部署与回滚](./docs/deployment.md)
+- [发布验收记录](./docs/release-acceptance.md)
