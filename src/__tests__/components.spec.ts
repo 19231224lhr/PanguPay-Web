@@ -316,6 +316,27 @@ describe('foundation components', () => {
     expect(mobileNavigation.get('button').text()).toContain('我的')
   })
 
+  it('derives the utility navigation label from the translated item', () => {
+    const TestIcon = markRaw(defineComponent({ template: '<span aria-hidden="true" />' }))
+    const wrapper = mount(AppShell, {
+      props: {
+        items: [],
+        utilityItems: [{ label: 'Settings', icon: TestIcon, to: '/wallet/settings' }],
+        navigationLabel: 'Wallet navigation',
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-sidebar-utilities]').attributes('aria-label')).toBe('Settings')
+  })
+
   it('gives wallet access flows a dedicated brand plane and form plane', () => {
     const wrapper = mount(WalletAccessFrame, {
       slots: {
