@@ -60,8 +60,8 @@ async function waitForJSON(file, timeoutMillis) {
   )
 }
 
-function requireEnvironment(name, fallback) {
-  const value = process.env[name]?.trim() || fallback
+function requireEnvironment(name) {
+  const value = process.env[name]?.trim()
   if (!value) throw new Error(`missing ${name}; the real suite will not invent a LightArea target`)
   return value
 }
@@ -100,7 +100,7 @@ async function startBackend() {
     '-ControlDir',
     controlDir,
     '-LightAreaHost',
-    process.env.PANGU_REAL_E2E_LIGHT_GRPC_HOST || '47.243.174.71',
+    requireEnvironment('PANGU_REAL_E2E_LIGHT_GRPC_HOST'),
   ]
   backend = spawn('powershell.exe', args, {
     cwd: backendRoot,
@@ -166,7 +166,7 @@ try {
   process.stdout.write(`[real-e2e] run directory: ${runDir}\n`)
   process.stdout.write('[real-e2e] starting fresh backend\n')
   const ready = await startBackend()
-  process.stdout.write(`[real-e2e] backend ready: ${ready.gatewayBase}\n`)
+  process.stdout.write('[real-e2e] backend ready\n')
   await createFixture(ready)
   process.stdout.write('[real-e2e] private fixture created\n')
 
@@ -177,14 +177,8 @@ try {
     PANGU_REAL_E2E_BASE_URL: process.env.PANGU_REAL_E2E_BASE_URL || 'http://127.0.0.1:5174',
     PANGU_REAL_E2E_GATEWAY: ready.gatewayBase,
     PANGU_REAL_E2E_GROUP_ID: ready.groupID,
-    PANGU_REAL_E2E_LIGHT_RECIPIENT: requireEnvironment(
-      'PANGU_REAL_E2E_LIGHT_RECIPIENT',
-      '0x742d35cc6634c0532925a3b844bc454e4438f44e',
-    ),
-    PANGU_REAL_E2E_LIGHT_RPC: requireEnvironment(
-      'PANGU_REAL_E2E_LIGHT_RPC',
-      'http://47.243.174.71:36054',
-    ),
+    PANGU_REAL_E2E_LIGHT_RECIPIENT: requireEnvironment('PANGU_REAL_E2E_LIGHT_RECIPIENT'),
+    PANGU_REAL_E2E_LIGHT_RPC: requireEnvironment('PANGU_REAL_E2E_LIGHT_RPC'),
     PANGU_REAL_E2E_SOAK_COUNT: full ? '500' : process.env.PANGU_REAL_E2E_SOAK_COUNT || '30',
     PANGU_REAL_E2E_CONTROL_DIR: externalBackend
       ? process.env.PANGU_REAL_E2E_CONTROL_DIR || ''

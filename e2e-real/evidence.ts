@@ -61,7 +61,7 @@ export async function sanitizeHar(harPath: string): Promise<void> {
     return {
       startedDateTime: entry.startedDateTime,
       time: entry.time,
-      request: { method: entry.request?.method, url: `${requestURL.origin}${requestURL.pathname}` },
+      request: { method: entry.request?.method, url: requestURL.pathname },
       response: { status: entry.response?.status, statusText: entry.response?.statusText },
     }
   })

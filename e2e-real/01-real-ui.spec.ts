@@ -87,10 +87,10 @@ test.describe.serial('PanguPay real visible browser acceptance', () => {
     expect(env.lightRecipient).toMatch(/^0x[a-fA-F0-9]{40}$/)
     await lightBalance()
     await writeEvidence(testInfo, 'preflight', {
-      gateway: env.gatewayBase,
+      gatewayReachable: health.ok,
       groupID: env.groupID,
       gqnc: status.status,
-      lightRecipient: env.lightRecipient,
+      lightAreaReachable: true,
     })
   })
 

@@ -77,9 +77,11 @@ export function assertSoakThresholds(summary: SoakSummary): void {
 
 const secretKey = /(password|private.?key|root.?seed|raw.?transaction|ciphertext|recovery)/i
 const payloadKey = /^(postData|body|requestBody|responseBody|content)$/i
+const deploymentKey = /^(gateway|gatewayBase|baseURL|origin|lightRecipient)$/i
 
 export function redactEvidence(value: unknown, key = ''): unknown {
   if (secretKey.test(key)) return '[REDACTED]'
+  if (deploymentKey.test(key)) return '[REDACTED]'
   if (payloadKey.test(key)) return undefined
   if (Array.isArray(value)) return value.map((item) => redactEvidence(item))
   if (!value || typeof value !== 'object') return value

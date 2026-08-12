@@ -53,7 +53,7 @@ export function loadRealEnvironment(): RealEnvironment {
     lightUnitsPerPGC: BigInt(
       process.env.PANGU_REAL_E2E_LIGHT_UNITS_PER_PGC || '1000000000000000000',
     ),
-    password: process.env.PANGU_REAL_E2E_WALLET_PASSWORD || 'pangu-real-e2e-123456',
+    password: required('PANGU_REAL_E2E_WALLET_PASSWORD'),
     runDir: required('PANGU_REAL_E2E_RUN_DIR'),
     fixture,
     headless: process.env.PANGU_REAL_E2E_HEADLESS === '1',

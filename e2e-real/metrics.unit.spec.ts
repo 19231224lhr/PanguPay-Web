@@ -51,4 +51,16 @@ describe('real E2E evidence helpers', () => {
     expect(value.request).toEqual({ method: 'POST', path: '/api/v1/test' })
     expect(value.response).toEqual({ status: 200 })
   })
+
+  it('redacts deployment endpoints and test recipient addresses', () => {
+    const value = redactEvidence({
+      gateway: 'https://example.invalid:9443',
+      lightRecipient: `0x${'1'.repeat(40)}`,
+      nested: { gatewayBase: 'https://gateway.example.invalid' },
+    }) as Record<string, unknown>
+
+    expect(value.gateway).toBe('[REDACTED]')
+    expect(value.lightRecipient).toBe('[REDACTED]')
+    expect(value.nested).toEqual({ gatewayBase: '[REDACTED]' })
+  })
 })

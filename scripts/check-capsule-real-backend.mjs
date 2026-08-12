@@ -10,20 +10,24 @@ function argument(name, fallback = '') {
 
 const fixturePath = argument('--fixture')
 const outputPath = argument('--output')
-const baseURL = argument('--base-url', 'http://127.0.0.1:64972')
+const baseURL = argument('--base-url') || process.env.PANGU_REAL_E2E_BASE_URL?.trim()
 
 if (!fixturePath) throw new Error('missing --fixture')
+if (!baseURL) throw new Error('missing --base-url or PANGU_REAL_E2E_BASE_URL')
 
 const fixture = JSON.parse(await readFile(fixturePath, 'utf8'))
-const password = 'capsule-final-validation-password'
+const password = process.env.PANGU_REAL_E2E_WALLET_PASSWORD?.trim()
+if (!password) throw new Error('missing PANGU_REAL_E2E_WALLET_PASSWORD')
 const report = {
   startedAt: new Date().toISOString(),
-  baseURL,
-  gatewayBase: fixture.gatewayBase,
   groupID: fixture.groupID,
   capsules: {},
   transfers: [],
   consoleErrors: [],
+}
+
+function redactText(value) {
+  return String(value).replace(/https?:\/\/[^\s/]+/gi, '[origin]')
 }
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
@@ -32,18 +36,16 @@ async function newWalletPage(name) {
   const context = await browser.newContext({ acceptDownloads: true })
   const page = await context.newPage()
   page.on('console', (message) => {
-    if (message.type() === 'error') report.consoleErrors.push(`${name}: ${message.text()}`)
+    if (message.type() === 'error')
+      report.consoleErrors.push(`${name}: ${redactText(message.text())}`)
   })
-  page.on('pageerror', (error) => report.consoleErrors.push(`${name}: ${error.message}`))
+  page.on('pageerror', (error) =>
+    report.consoleErrors.push(`${name}: ${redactText(error.message)}`),
+  )
   page.on('response', async (response) => {
     if (response.status() < 400) return
-    let body = ''
-    try {
-      body = await response.text()
-    } catch {
-      // The status and URL still identify the failed boundary.
-    }
-    report.consoleErrors.push(`${name}: HTTP ${response.status()} ${response.url()} ${body}`.trim())
+    const path = new URL(response.url()).pathname
+    report.consoleErrors.push(`${name}: HTTP ${response.status()} ${path}`)
   })
   return { context, page }
 }
@@ -263,7 +265,7 @@ try {
 } catch (error) {
   report.completedAt = new Date().toISOString()
   report.passed = false
-  report.error = error instanceof Error ? (error.stack ?? error.message) : String(error)
+  report.error = redactText(error instanceof Error ? (error.stack ?? error.message) : String(error))
   throw error
 } finally {
   await Promise.all([alice.context.close(), bob.context.close(), retail.context.close()])
