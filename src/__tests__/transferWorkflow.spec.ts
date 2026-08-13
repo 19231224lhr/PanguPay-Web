@@ -284,6 +284,22 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
+  it('keeps the spend-ready timing visible when the signed timestamp is second-precision', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'draft-second-precision',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '1',
+      recipient: 'b'.repeat(40),
+      phase: 'spend-ready',
+      backendAcceptedAt: 10_418,
+      backendSpendReadyAt: 10_000,
+      updatedAt: 20_180,
+    })
+
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 <1 s')
+  })
+
   it('shows only the authoritative backend GQNC consensus time', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-settlement-timing',

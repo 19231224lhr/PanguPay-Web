@@ -164,8 +164,10 @@ function durationLabel(elapsed?: number): string | undefined {
 }
 
 function observedDuration(startedAt?: number, completedAt?: number): string | undefined {
-  if (!startedAt || !completedAt || completedAt < startedAt) return undefined
-  return durationLabel(completedAt - startedAt)
+  if (!startedAt || !completedAt) return undefined
+  const elapsed = completedAt - startedAt
+  if (elapsed < 0) return elapsed > -1_000 ? '<1 s' : undefined
+  return durationLabel(elapsed)
 }
 
 function shortHash(value?: string): string | undefined {
