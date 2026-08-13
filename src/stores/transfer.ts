@@ -8,6 +8,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
 import {
   buildTransferTransaction,
+  ACCEPTED_TRANSFER_MONITOR_LIMIT_MS,
   classifyAssignTransactionStatus,
   clearTransferReservation,
   crossChainProgressUpdate,
@@ -21,6 +22,7 @@ import {
   parseAssignBackendTiming,
   parseCrossChainTransferStatus,
   parseSchedulerDAGReceipts,
+  parseTXCerSpendReadyStatus,
   reconcileTransferChainScope,
   loadTransferJournal,
   recordTransferProgress,
@@ -311,7 +313,7 @@ export const useTransferStore = defineStore('transfer', () => {
     let nextSettlementCheckAt = 0
     let firstPass = true
     try {
-      const monitorLimit = progress.mode === 'cross' ? 10 * 60_000 : 90_000
+      const monitorLimit = ACCEPTED_TRANSFER_MONITOR_LIMIT_MS
       while (startedInEpoch === monitorEpoch && Date.now() - monitorStartedAt < monitorLimit) {
         if (!firstPass) {
           const elapsed = Date.now() - monitorStartedAt
@@ -360,7 +362,7 @@ export const useTransferStore = defineStore('transfer', () => {
                 currentProgress.value = progress
               refreshHistory()
             }
-            if (state === 'spend-ready') {
+            if (state === 'spend-ready' && progress.mode !== 'quick') {
               progress = recordTransferProgress(wallet.accountId, {
                 draftID: progress.draftID,
                 phase: 'spend-ready',
@@ -371,6 +373,42 @@ export const useTransferStore = defineStore('transfer', () => {
               if (currentProgress.value?.draftID === progress.draftID)
                 currentProgress.value = progress
               refreshHistory()
+            }
+            if (progress.mode === 'quick') {
+              try {
+                const readiness = parseTXCerSpendReadyStatus(
+                  await gateway.value.txCerSpendReadyStatus(progress.groupID ?? '', progress.txID),
+                )
+                if (readiness.txID !== progress.txID.toLowerCase())
+                  throw new Error('TXCer spend-ready TXID mismatch')
+                if (readiness.state === 'failed') {
+                  const failed = recordTransferProgress(wallet.accountId, {
+                    draftID: progress.draftID,
+                    phase: 'failed',
+                    error: readiness.lastError || 'TXCer registration failed',
+                    updatedAt: observedAt,
+                  })
+                  if (currentProgress.value?.draftID === progress.draftID)
+                    currentProgress.value = failed
+                  clearTransferReservation(wallet.accountId, progress.draftID)
+                  refreshHistory()
+                  return
+                }
+                if (readiness.state === 'spend-ready') {
+                  progress = recordTransferProgress(wallet.accountId, {
+                    draftID: progress.draftID,
+                    phase: 'spend-ready',
+                    backendAcceptedAt: backendTiming.acceptedAt,
+                    backendSpendReadyAt: readiness.spendReadyAt,
+                    updatedAt: observedAt,
+                  })
+                  if (currentProgress.value?.draftID === progress.draftID)
+                    currentProgress.value = progress
+                  refreshHistory()
+                }
+              } catch {
+                // Registration may not exist on the first polls; keep monitoring Assign and GQNC.
+              }
             }
           }
 

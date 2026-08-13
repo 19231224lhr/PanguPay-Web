@@ -245,6 +245,12 @@ export class GatewayClient {
     )
   }
 
+  txCerSpendReadyStatus(groupID: string, txID: string): Promise<unknown> {
+    return this.request(
+      `/api/v1/${encodeURIComponent(groupID)}/aggr/txcer-spend-ready/${encodeURIComponent(txID)}`,
+    )
+  }
+
   schedulerDAGEvents(groupID: string, txID: string, afterSeq = 0, limit = 100): Promise<unknown> {
     const query = new URLSearchParams({
       txID,

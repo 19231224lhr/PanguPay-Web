@@ -24,6 +24,7 @@ const routes = [
   ['GET', '/api/v1/{groupID}/assign/certifiers'],
   ['POST', '/api/v1/{groupID}/assign/submit-tx'],
   ['GET', '/api/v1/{groupID}/assign/tx-status/{txID}'],
+  ['GET', '/api/v1/{groupID}/aggr/txcer-spend-ready/{txID}'],
   ['GET', '/api/v1/committee/gqnc/status'],
   ['GET', '/api/v1/committee/gqnc/certified-block/{height}'],
   ['POST', '/api/v1/com/submit-noguargroup-tx'],
