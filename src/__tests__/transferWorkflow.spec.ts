@@ -284,7 +284,7 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
-  it('keeps the spend-ready timing visible when the signed timestamp is second-precision', () => {
+  it('does not present a precision interval as an exact spend-ready duration', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-second-precision',
       txID: 'a'.repeat(64),
@@ -297,7 +297,7 @@ describe('transfer submission workflow', () => {
       updatedAt: 20_180,
     })
 
-    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 <1000 ms')
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBeUndefined()
   })
 
   it('shows only the authoritative backend GQNC consensus time', () => {

@@ -166,7 +166,7 @@ function durationLabel(elapsed?: number): string | undefined {
 function observedDuration(startedAt?: number, completedAt?: number): string | undefined {
   if (!startedAt || !completedAt) return undefined
   const elapsed = completedAt - startedAt
-  if (elapsed < 0) return elapsed > -1_000 ? '<1000 ms' : undefined
+  if (elapsed < 0) return undefined
   return durationLabel(elapsed)
 }
 
