@@ -297,7 +297,7 @@ describe('transfer submission workflow', () => {
       updatedAt: 20_180,
     })
 
-    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 <1 s')
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 <1000 ms')
   })
 
   it('shows only the authoritative backend GQNC consensus time', () => {
