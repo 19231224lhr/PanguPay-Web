@@ -91,7 +91,8 @@ const rules: TransferIssueRule[] = [
     },
   },
   {
-    pattern: /recipient is not registered|seed metadata|来源地址|地址登记服务|地址.*未.*登记/i,
+    pattern:
+      /recipient is not registered|seed metadata|resource conflict: hard seed_step|来源地址|地址登记服务|地址.*未.*登记/i,
     issue: {
       action: 'retry',
       actionLabel: '重新同步',

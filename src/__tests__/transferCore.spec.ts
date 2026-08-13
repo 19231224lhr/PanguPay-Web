@@ -84,7 +84,7 @@ describe('transfer core', () => {
     ).toThrow('insufficient')
   })
 
-  it('sweeps every UTXO that shares an address seed step and anchor', () => {
+  it('sweeps every UTXO that shares an address seed step, even when anchors differ', () => {
     const seededUTXO = (id: string, amount: string, step: number, anchorByte: number) => ({
       id,
       address: 'alice',
@@ -106,15 +106,16 @@ describe('transfer core', () => {
       utxos: [
         seededUTXO('u-1', '4', 1000, 1),
         seededUTXO('u-2', '3', 1000, 1),
+        seededUTXO('u-4', '2', 1000, 9),
         seededUTXO('u-3', '8', 999, 2),
       ],
       txCers: [],
     }
 
     expect(selectSpendableInputs(seeded, { coinType: 0, amount: '2' })).toMatchObject({
-      utxoIDs: ['u-1', 'u-2'],
-      total: '7',
-      change: '5',
+      utxoIDs: ['u-1', 'u-2', 'u-4'],
+      total: '9',
+      change: '7',
     })
     expect(
       selectSpendableInputs(seeded, {

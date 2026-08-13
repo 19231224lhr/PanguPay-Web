@@ -133,7 +133,9 @@ export function utxoSeedSweepKey(utxo: SpendableUTXO): string {
   const step = Number(output?.SeedChainStep)
   const anchor = decodeBackendBytes(output?.SeedAnchor as never)
   if (!Number.isSafeInteger(step) || step <= 0 || anchor.length === 0) return `utxo:${utxo.id}`
-  return `${utxo.address.toLowerCase()}:${utxo.coinType}:${step}:${bytesToBase64(anchor)}`
+  // The backend's hard conflict key is address + seed step. Different anchors at
+  // the same step must therefore be swept together in one transaction.
+  return `${utxo.address.toLowerCase()}:${step}`
 }
 
 function selectableUTXOGroups(

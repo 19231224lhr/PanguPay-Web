@@ -14,6 +14,12 @@ describe('transfer issue presentation', () => {
     ],
     ['invalid light-compute address', 'recipient-invalid', '收款地址需要检查', '0x'],
     ['Failed to fetch', 'network', '暂时无法连接服务', '填写内容'],
+    [
+      'resource conflict: hard seed_step:address:998',
+      'address-state',
+      '地址状态尚未就绪',
+      '重新同步',
+    ],
     ['signature is invalid', 'signing', '交易签名未完成', '重新解锁'],
   ])('classifies %s without exposing backend text', (raw, code, title, detail) => {
     const issue = describeTransferIssue(raw)
