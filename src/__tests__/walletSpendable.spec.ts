@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { GatewayClient } from '@/services/gatewayClient'
+import { selectSpendableInputs } from '@/transfer/core'
 import { loadWalletSpendableSnapshot, normalizeWalletSpendableSnapshot } from '@/wallet/spendable'
 
 function quoteUnsafeJsonIntegers(input: string): string {
@@ -345,6 +346,66 @@ describe('wallet spendable snapshot', () => {
         isolated: false,
       }),
     ])
+  })
+
+  it('does not spend a cached TXCer that is absent from the authoritative lifecycle', async () => {
+    const client = new GatewayClient({
+      baseURL: 'http://gateway.test',
+      fetcher: async (input) => {
+        const url = String(input)
+        if (url.endsWith('/api/v1/re-online'))
+          return response({ UserID: userID, IsInGroup: true, GuarantorGroupID: 'group-target' })
+        if (url.endsWith('/api/v1/com/query-address')) return response(addressResponse())
+        if (url.includes('/assign/txcer-statuses')) return response({ statuses: [] })
+        if (url.includes('/aggr/txcer-issuance-records')) return response({ records: [] })
+        if (url.includes('/assign/poll-cross-org-txcers'))
+          return response({ success: true, txcers: [] })
+        if (url.includes('/group-info'))
+          return response({
+            GroupID: 'group-source',
+            AssiID: 'assign-source',
+            AggrID: 'aggregation',
+            AssignPublicKeyNew: evidence.publicKey,
+            AggrPublicKeyNew: evidence.publicKey,
+          })
+        if (url.includes('/certifiers'))
+          return response({
+            certifiers: [
+              { CertifierID: 'certifier', PublicKeyNew: evidence.publicKey },
+              { CertifierID: 'certifier-v2', PublicKeyNew: evidence.publicKey },
+            ],
+          })
+        throw new Error(`unexpected request ${url}`)
+      },
+    })
+    const cachedDelivery = {
+      ToAddress: address,
+      TXCer: evidence.txCer,
+      IssuanceRecordID: evidence.issuanceRecord.RecordID,
+      IssuanceStatus: 'Delivered',
+      IssuanceProof: evidence.issueProof,
+      IssuanceRecord: { ...evidence.issuanceRecord, Status: 'Active', Ack: evidence.assignAck },
+      IssueBatchID: evidence.issuanceRecord.BatchID,
+      LiabilityReceipt: evidence.liabilityReceipt,
+    }
+
+    const snapshot = await loadWalletSpendableSnapshot(client, {
+      userID,
+      addresses: [address],
+      reOnlineMessage: { UserID: userID },
+      receivedTXCers: [cachedDelivery],
+    })
+
+    expect(snapshot.receivedTXCers).toHaveLength(1)
+    expect(snapshot.txCers[0]?.lifecycle).toBe('Unknown')
+    const selection = selectSpendableInputs(snapshot, {
+      coinType: 0,
+      amount: '1',
+      address,
+      preferTXCer: true,
+    })
+    expect(selection.txCerIDs).toEqual([])
+    expect(selection.utxoIDs).toEqual(['utxo-source-0'])
   })
 
   it('fails closed when the authoritative UTXO source transaction is absent', () => {

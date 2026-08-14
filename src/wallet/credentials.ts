@@ -277,8 +277,10 @@ export function normalizeCredentialSummaries(
   return records
     .map((item) => {
       const txCerID = text(item.TXCerID)
-      const lifecycle =
-        lifecycles.get(txCerID) || text(first(item, 'Status', 'status')) || 'Unknown'
+      // Spendability is authoritative only when the current Assign lifecycle
+      // names this certificate. Persisted issuance metadata may belong to a
+      // previous backend chain and must never revive it after a fresh reset.
+      const lifecycle = lifecycles.get(txCerID) || 'Unknown'
       const security = evaluateTXCerSecurity(
         {
           issuanceRecord: item,
