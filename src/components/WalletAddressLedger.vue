@@ -37,7 +37,7 @@ const copied = ref('')
 const archiveAddress = ref('')
 
 const typeOptions = [
-  { value: '0', label: 'PGC', description: 'Pangu Coin · Transfer Area' },
+  { value: '0', label: 'CAL', description: 'CAL · Transfer Area' },
   { value: '1', label: 'BTC', description: 'Bitcoin · Transfer Area' },
   { value: '2', label: 'ETH', description: 'Ethereum · Transfer Area' },
 ]

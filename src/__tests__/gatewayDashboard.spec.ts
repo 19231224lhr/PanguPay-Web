@@ -37,7 +37,7 @@ describe('dashboard spendable UTXO normalization', () => {
   }
 
   it('excludes a source output that is awaiting TXCer exchange', () => {
-    const addresses = normalizeAddressState([{ address, type: 'PGC' }], response, {
+    const addresses = normalizeAddressState([{ address, type: 'CAL' }], response, {
       statuses: [
         {
           txCerID: 'certificate-1',
@@ -54,7 +54,7 @@ describe('dashboard spendable UTXO normalization', () => {
   })
 
   it('includes the output once the TXCer is converted to UTXO', () => {
-    const addresses = normalizeAddressState([{ address, type: 'PGC' }], response, {
+    const addresses = normalizeAddressState([{ address, type: 'CAL' }], response, {
       statuses: [
         {
           txCerID: 'certificate-1',

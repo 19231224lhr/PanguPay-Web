@@ -33,7 +33,7 @@ export interface TransferTimelineItem {
   label: string
   detail?: string
   meta?: string
-  state: 'complete' | 'active' | 'pending' | 'error'
+  state: 'complete' | 'active' | 'pending' | 'unknown' | 'error'
 }
 
 export class TransferSubmissionRejectedError extends Error {
@@ -184,9 +184,14 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
   const failed = progress.phase === 'failed'
   const accepted =
     Boolean(progress.acceptedAt) ||
-    ['accepted', 'spend-ready', 'local-certified', 'target-accepted', 'settled'].includes(
-      progress.phase,
-    ) ||
+    [
+      'accepted',
+      'registered',
+      'spend-ready',
+      'local-certified',
+      'target-accepted',
+      'settled',
+    ].includes(progress.phase) ||
     receipts.length > 0
   const localCertified =
     Boolean(progress.certifiedHeight) ||
@@ -297,9 +302,14 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     Boolean(progress?.acceptedAt) ||
     Boolean(
       progress &&
-      ['accepted', 'spend-ready', 'local-certified', 'target-accepted', 'settled'].includes(
-        progress.phase,
-      ),
+      [
+        'accepted',
+        'registered',
+        'spend-ready',
+        'local-certified',
+        'target-accepted',
+        'settled',
+      ].includes(progress.phase),
     ) ||
     receipts.length > 0
   const guaranteeStarted =
@@ -310,10 +320,14 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
   const guaranteeComplete =
     events.has('verify_passed') ||
     events.has('aggr_confirmed') ||
+    Boolean(progress?.registeredAt) ||
     Boolean(progress?.spendReadyAt) ||
     Boolean(progress?.settledAt)
   const organizationComplete =
-    events.has('aggr_confirmed') || Boolean(progress?.spendReadyAt) || Boolean(progress?.settledAt)
+    events.has('aggr_confirmed') ||
+    Boolean(progress?.registeredAt) ||
+    Boolean(progress?.spendReadyAt) ||
+    Boolean(progress?.settledAt)
   const spendReady = Boolean(progress?.spendReadyAt) || progress?.phase === 'spend-ready'
   const settled = Boolean(progress?.settledAt) || progress?.phase === 'settled'
   const guaranteeFailed = failure?.eventType === 'verify_failed'
@@ -330,7 +344,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     ? `可用耗时 ${backendSpendReadyDuration}`
     : undefined
   const settlementDuration = durationLabel(progress?.backendConsensusMillis)
-  const settlementTiming = settlementDuration ? `结算耗时 ${settlementDuration}` : undefined
+  const settlementTiming = settlementDuration ? `共识阶段耗时 ${settlementDuration}` : undefined
 
   return [
     {
@@ -358,6 +372,9 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     {
       id: 'organization',
       label: '组织确认',
+      meta: progress?.registeredAt
+        ? `登记确认耗时 ${observedDuration(progress.backendAcceptedAt, progress.registeredAt) ?? '未知'}`
+        : undefined,
       detail: organizationFailed
         ? failure?.reason || '担保组织未能完成确认。'
         : organizationComplete
@@ -375,11 +392,15 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     },
     {
       id: 'recipient-ready',
-      label: isQuick ? '收款方可用' : '收款方到账',
+      label: isQuick ? (spendReady ? '收款方可用' : '收款方可用（未确认）') : '收款方到账',
       detail: isQuick
         ? spendReady
           ? 'TXCer 已完成原子登记，收款方现在即可再次支付。'
-          : '等待收款方完成到账登记。'
+          : settled
+            ? '交易已结算；接收钱包同步状态未回传。'
+            : progress?.registeredAt
+              ? 'TXCer 已完成组织登记；接收钱包同步状态未回传。'
+              : '等待 TXCer 完成组织登记。'
         : settled
           ? '交易已结算到收款地址。'
           : '等待后台结算完成。',
@@ -390,9 +411,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
           : isQuick
             ? spendReady
               ? 'complete'
-              : organizationComplete
-                ? 'active'
-                : 'pending'
+              : 'unknown'
             : settled
               ? 'complete'
               : organizationComplete
@@ -405,7 +424,13 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
       detail: settled ? '交易已获得 GQNC 认证并完成结算。' : 'GQNC 在后台认证，不阻塞快速可用。',
       meta: settled ? settlementTiming : undefined,
       state:
-        failed && !failure ? 'error' : settled ? 'complete' : spendReady ? 'active' : 'pending',
+        failed && !failure
+          ? 'error'
+          : settled
+            ? 'complete'
+            : spendReady || progress?.registeredAt
+              ? 'active'
+              : 'pending',
     },
   ]
 }

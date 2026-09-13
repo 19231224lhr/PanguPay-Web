@@ -25,7 +25,7 @@ const dashboard = useDashboardStore()
       <dl class="wallet-detail-list">
         <div>
           <dt>可立即支付</dt>
-          <dd>{{ dashboard.current.security.spendReady }} PGC</dd>
+          <dd>{{ dashboard.current.security.spendReady }} CAL</dd>
         </div>
         <div>
           <dt>安全凭证</dt>
@@ -74,7 +74,7 @@ const dashboard = useDashboardStore()
         <header>
           <span>
             <small>TXCer</small>
-            <b>{{ credential.amount }} PGC</b>
+            <b>{{ credential.amount }} CAL</b>
           </span>
           <StatusLabel
             :tone="
@@ -131,7 +131,7 @@ const dashboard = useDashboardStore()
             </div>
             <div v-for="share in credential.exposureShares" :key="share.leafId">
               <dt>{{ share.rootId }}</dt>
-              <dd>{{ share.amount }} PGC · {{ share.leafId }}</dd>
+              <dd>{{ share.amount }} CAL · {{ share.leafId }}</dd>
             </div>
           </dl>
         </details>

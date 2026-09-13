@@ -38,7 +38,7 @@ const short = (value: string) =>
     <ul>
       <li v-for="share in normalized" :key="share.leafId">
         <span aria-hidden="true" />
-        <b>{{ share.amount }} PGC</b>
+        <b>{{ share.amount }} CAL</b>
         <small :title="share.rootId">Root {{ short(share.rootId) }}</small>
       </li>
     </ul>

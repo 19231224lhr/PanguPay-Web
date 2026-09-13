@@ -26,6 +26,6 @@ describe('TransferRoutePreview', () => {
     const wrapper = mount(TransferRoutePreview, { props: { mode: 'cross', member: true } })
 
     expect(wrapper.text()).toContain('轻计算网络')
-    expect(wrapper.text()).toContain('整数 PGC')
+    expect(wrapper.text()).toContain('整数 CAL')
   })
 })

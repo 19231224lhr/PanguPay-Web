@@ -1,35 +1,109 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-
 import ActivityProgress from '@/components/ActivityProgress.vue'
+import type { TransferProgress } from '@/transfer/journal'
+import { buildTransferTimeline } from '@/transfer/workflow'
+
+const progress = (extra: Partial<TransferProgress> = {}): TransferProgress => ({
+  draftID: 'test',
+  txID: 'a'.repeat(64),
+  mode: 'quick',
+  phase: 'registered',
+  amount: '1',
+  recipient: 'recipient',
+  acceptedAt: 1789277256321,
+  backendAcceptedAt: 1789277256321,
+  registeredAt: 1789277256381,
+  updatedAt: 1789277256400,
+  ...extra,
+})
 
 describe('ActivityProgress', () => {
-  it('separates quick availability from background settlement', () => {
-    const wrapper = mount(ActivityProgress, { props: { mode: 'quick', phase: 'spend-ready' } })
-    const states = wrapper
-      .findAll('[data-activity-step]')
-      .map((item) => item.attributes('data-state'))
-
-    expect(wrapper.text()).toContain('TXCer 可支付')
-    expect(wrapper.text()).toContain('后台结算')
-    expect(states).toEqual(['complete', 'complete', 'pending'])
+  it.each(['accepted', 'registered', 'spend-ready', 'settled', 'failed'] as const)(
+    'uses the send-page timeline for %s',
+    (phase) => {
+      const p = progress({ phase })
+      const wrapper = mount(ActivityProgress, { props: { progress: p } })
+      expect(
+        wrapper.findAll('[data-activity-step]').map((el) => el.attributes('data-state')),
+      ).toEqual(buildTransferTimeline(p).map((step) => step.state))
+    },
+  )
+  it('shows registration and timing without claiming receiver availability', () => {
+    const wrapper = mount(ActivityProgress, { props: { progress: progress() } })
+    expect(wrapper.text()).not.toContain('等待入口确认')
+    expect(wrapper.text()).toContain('登记确认耗时 60 ms')
+    expect(wrapper.text()).toContain('TXCer 登记时间')
+    expect(wrapper.text()).toContain('收款方可用时间未回传')
+    expect(wrapper.findAll('[data-activity-step]')[0]?.attributes('data-state')).toBe('complete')
   })
-
-  it('does not invent transfer phases for an opaque backend activity', () => {
+  it('does not manufacture recipient time from settlement', () => {
+    const wrapper = mount(ActivityProgress, {
+      props: {
+        progress: progress({
+          phase: 'settled',
+          settledAt: 1789277346400,
+        }),
+      },
+    })
+    expect(wrapper.text()).toContain('收款方可用时间未回传')
+    expect(wrapper.text()).toContain('本机观察到结算的时间')
+    expect(wrapper.findAll('[data-activity-step]')[3]?.attributes('data-state')).not.toBe(
+      'complete',
+    )
+  })
+  it('renders recorded spend-readiness and its elapsed time', () => {
+    const wrapper = mount(ActivityProgress, {
+      props: {
+        progress: progress({
+          phase: 'spend-ready',
+          spendReadyAt: 1789277256450,
+          backendSpendReadyAt: 1789277256421,
+        }),
+      },
+    })
+    expect(wrapper.text()).toContain('100 ms')
+    expect(wrapper.text()).not.toContain('收款方可用时间未回传')
+  })
+  it('keeps opaque backend activity opaque', () => {
     const wrapper = mount(ActivityProgress, { props: { status: 'Confirmed' } })
-
     expect(wrapper.findAll('[data-activity-step]')).toHaveLength(1)
     expect(wrapper.text()).toContain('Confirmed')
+    expect(wrapper.find('.activity-times').exists()).toBe(false)
   })
-
-  it('shows cross-chain target finality instead of TXCer availability', () => {
+  it('shows cross-chain target finality separately', () => {
     const wrapper = mount(ActivityProgress, {
-      props: { mode: 'cross', phase: 'target-accepted' },
+      props: {
+        progress: progress({
+          mode: 'cross',
+          phase: 'target-accepted',
+          lightTxHash: 'b'.repeat(64),
+        }),
+      },
     })
-
-    expect(wrapper.text()).toContain('本地 GQNC 已认证')
-    expect(wrapper.text()).toContain('轻计算区已接收')
     expect(wrapper.text()).toContain('目标链到账')
     expect(wrapper.text()).not.toContain('TXCer')
   })
 })
+
+it.each(['registered', 'settled'] as const)(
+  'shows missing recipient evidence as unknown for %s',
+  (phase) => {
+    const wrapper = mount(ActivityProgress, {
+      props: {
+        progress: progress({
+          phase,
+          settledAt: phase === 'settled' ? 1789277346400 : undefined,
+          backendConsensusMillis: 66,
+        }),
+      },
+    })
+    const recipient = wrapper.findAll('[data-activity-step]')[3]!
+    expect(recipient.attributes('data-state')).toBe('unknown')
+    expect(recipient.text()).toContain('收款方可用（未确认）')
+    if (phase === 'settled') {
+      expect(wrapper.text()).toContain('共识阶段耗时 66 ms')
+      expect(wrapper.text()).not.toContain('结算耗时')
+    }
+  },
+)

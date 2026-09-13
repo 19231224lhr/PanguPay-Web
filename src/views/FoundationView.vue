@@ -104,13 +104,13 @@ const timeline = computed(() => [
           label="Source address"
           :options="[
             {
-              label: 'PGC · Primary address',
+              label: 'CAL · Primary address',
               description: '8f42…ab90',
               value: 'pgc-primary',
               monospace: true,
             },
             {
-              label: 'PGC · Reserve address',
+              label: 'CAL · Reserve address',
               description: 'a712…3c41',
               value: 'pgc-reserve',
               monospace: true,

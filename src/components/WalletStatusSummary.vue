@@ -33,7 +33,7 @@ const state = computed(() => {
   return {
     icon: CheckCircle,
     title: '资金状态正常',
-    detail: `可立即支付 ${props.security.spendReady} PGC · ${props.security.pendingAudits} 项后台审计中`,
+    detail: `可立即支付 ${props.security.spendReady} CAL · ${props.security.pendingAudits} 项后台审计中`,
     tone: 'success',
   }
 })

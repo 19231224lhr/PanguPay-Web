@@ -4,6 +4,7 @@ export type TransferPhase =
   | 'review'
   | 'submitting'
   | 'accepted'
+  | 'registered'
   | 'spend-ready'
   | 'local-certified'
   | 'target-accepted'
@@ -36,6 +37,7 @@ export interface TransferProgress {
   phase: TransferPhase
   error?: string
   acceptedAt?: number
+  registeredAt?: number
   spendReadyAt?: number
   backendAcceptedAt?: number
   backendSpendReadyAt?: number
@@ -62,10 +64,11 @@ const rank: Record<Exclude<TransferPhase, 'failed'>, number> = {
   review: 0,
   submitting: 1,
   accepted: 2,
-  'spend-ready': 3,
-  'local-certified': 4,
-  'target-accepted': 5,
-  settled: 6,
+  registered: 3,
+  'spend-ready': 4,
+  'local-certified': 5,
+  'target-accepted': 6,
+  settled: 7,
 }
 
 function key(accountID: string): string {
@@ -118,9 +121,14 @@ function hasMonitorContext(progress: TransferProgress): boolean {
 export function loadResumableTransferProgress(accountID: string): TransferProgress[] {
   return loadTransferJournal(accountID).filter(
     (progress) =>
-      ['submitting', 'accepted', 'spend-ready', 'local-certified', 'target-accepted'].includes(
-        progress.phase,
-      ) && hasMonitorContext(progress),
+      [
+        'submitting',
+        'accepted',
+        'registered',
+        'spend-ready',
+        'local-certified',
+        'target-accepted',
+      ].includes(progress.phase) && hasMonitorContext(progress),
   )
 }
 

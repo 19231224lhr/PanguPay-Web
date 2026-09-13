@@ -222,8 +222,8 @@ export function assertTransferDraft(draft: TransferDraft): void {
   if (draft.mode !== 'cross') return
   if (draft.membership !== 'member')
     throw new Error('cross-chain transfer requires a guarantor organization')
-  if (draft.coinType !== 0) throw new Error('cross-chain transfer supports PGC only')
-  if (!isWholeAmount(draft.amount)) throw new Error('cross-chain transfer requires whole PGC')
+  if (draft.coinType !== 0) throw new Error('cross-chain transfer supports CAL only')
+  if (!isWholeAmount(draft.amount)) throw new Error('cross-chain transfer requires whole CAL')
   if (draft.usesTXCer) throw new Error('cross-chain transfer cannot use TXCer')
   if (!/^0x[0-9a-f]{40}$/i.test(draft.recipient)) throw new Error('invalid light-compute address')
 }

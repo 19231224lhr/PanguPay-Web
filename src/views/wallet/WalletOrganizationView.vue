@@ -59,7 +59,7 @@ function groupedAmount(value?: string): string {
   const digits = (integer ?? '').replace(/^-/, '')
   return `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${
     fraction === undefined ? '' : `.${fraction}`
-  } PGC`
+  } CAL`
 }
 
 function nodeStatus(status?: string): string {

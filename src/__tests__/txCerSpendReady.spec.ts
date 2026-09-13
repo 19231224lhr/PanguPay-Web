@@ -29,3 +29,29 @@ describe('TXCer spend-ready authority', () => {
     expect(ACCEPTED_TRANSFER_MONITOR_LIMIT_MS).toBeGreaterThan(90_000)
   })
 })
+
+describe('Hong Kong registration contract', () => {
+  const response = {
+    metric_name: 'assign_ack_ready',
+    tx_id: 'a'.repeat(64),
+    state: 'ready',
+    issued_count: 2,
+    registered_count: 2,
+    assign_ack_ready_at_unix_ms: 1789277256381,
+  }
+  it('accepts actual registration response without claiming wallet spend-readiness', () => {
+    const parsed = parseTXCerSpendReadyStatus(response)
+    expect(parsed.state).toBe('registered')
+    expect(parsed.registeredAt).toBe(1789277256381)
+    expect(parsed.spendReadyAt).toBeUndefined()
+  })
+  it.each([
+    { registered_count: 1 },
+    { issued_count: 0, registered_count: 0 },
+    { assign_ack_ready_at_unix_ms: undefined },
+    { assign_ack_ready_at_unix_ms: -1 },
+    { metric_name: 'unknown' },
+  ])('rejects incomplete or unrecognized registration evidence %j', (override) => {
+    expect(() => parseTXCerSpendReadyStatus({ ...response, ...override })).toThrow()
+  })
+})

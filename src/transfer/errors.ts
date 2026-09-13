@@ -73,10 +73,11 @@ const rules: TransferIssueRule[] = [
     },
   },
   {
-    pattern: /requires whole PGC|supports PGC only|cannot use TXCer|跨链转账仅支持/i,
+    pattern:
+      /requires whole (?:PGC|CAL)|supports (?:PGC|CAL) only|cannot use TXCer|跨链转账仅支持/i,
     issue: {
       code: 'cross-chain-constraint',
-      message: '跨链仅支持整数 PGC，且不能使用 TXCer 作为输入。',
+      message: '跨链仅支持整数 CAL，且不能使用 TXCer 作为输入。',
       title: '跨链金额需要调整',
       tone: 'warning',
     },

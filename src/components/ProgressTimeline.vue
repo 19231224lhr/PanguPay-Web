@@ -4,7 +4,7 @@ export interface TimelineItem {
   label: string
   detail?: string
   meta?: string
-  state: 'complete' | 'active' | 'pending' | 'error'
+  state: 'complete' | 'active' | 'pending' | 'unknown' | 'error'
 }
 
 defineProps<{
@@ -126,5 +126,10 @@ defineProps<{
     justify-content: start;
     gap: 0.08rem;
   }
+}
+.timeline__item--unknown .timeline__dot {
+  border-style: dashed;
+  border-color: var(--text-muted);
+  background: var(--surface);
 }
 </style>

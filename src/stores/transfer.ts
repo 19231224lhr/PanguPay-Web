@@ -86,7 +86,7 @@ function humanize(cause: unknown): string {
     [/insufficient spendable balance/i, '当前可用余额不足。'],
     [/quick transfer requires/i, '快速转账需要先加入担保组织。'],
     [/cross-chain transfer requires a guarantor/i, '跨链转账需要先加入担保组织。'],
-    [/requires whole PGC/i, '跨链转账仅支持整数 PGC。'],
+    [/requires whole (?:PGC|CAL)/i, '跨链转账仅支持整数 CAL。'],
     [/invalid light-compute address/i, '请输入有效的 0x 轻计算地址。'],
     [/recipient is not registered/i, '收款地址尚未在转账区登记。'],
     [/seed metadata/i, '地址的可验证种子信息不完整，请重新同步后再试。'],
@@ -393,6 +393,18 @@ export const useTransferStore = defineStore('transfer', () => {
                   clearTransferReservation(wallet.accountId, progress.draftID)
                   refreshHistory()
                   return
+                }
+                if (readiness.state === 'registered' && !progress.registeredAt) {
+                  progress = recordTransferProgress(wallet.accountId, {
+                    draftID: progress.draftID,
+                    phase: 'registered',
+                    registeredAt: readiness.registeredAt,
+                    backendAcceptedAt: backendTiming.acceptedAt,
+                    updatedAt: observedAt,
+                  })
+                  if (currentProgress.value?.draftID === progress.draftID)
+                    currentProgress.value = progress
+                  refreshHistory()
                 }
                 if (readiness.state === 'spend-ready') {
                   progress = recordTransferProgress(wallet.accountId, {

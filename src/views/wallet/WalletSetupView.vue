@@ -382,7 +382,7 @@ async function importWallet(): Promise<void> {
                   <FormField
                     id="legacy-root"
                     v-model="legacyRootSeed"
-                    label="PGC 地址 RootSeed（64 位十六进制）"
+                    label="CAL 地址 RootSeed（64 位十六进制）"
                     autocomplete="off"
                     help="只有账户私钥、没有 RootSeed 时不能恢复旧地址。"
                   />

@@ -39,17 +39,17 @@ const assuranceSteps = computed(() => [
 ])
 
 const assets = [
-  { symbol: 'PGC', name: 'Pangu Coin', balance: '1,080.50000000', tone: 'blue' },
+  { symbol: 'CAL', name: 'CAL', balance: '1,080.50000000', tone: 'blue' },
   { symbol: 'BTC', name: 'Bitcoin', balance: '0.00420000', tone: 'orange' },
   { symbol: 'ETH', name: 'Ethereum', balance: '0.36000000', tone: 'violet' },
 ]
 
 const activities = computed(() => [
-  { title: 'Bob', detail: '12.00000000 PGC', status: t('ledger.spendReady'), type: 'out' },
-  { title: 'Carol', detail: '28.50000000 PGC', status: t('ledger.certified'), type: 'in' },
+  { title: 'Bob', detail: '12.00000000 CAL', status: t('ledger.spendReady'), type: 'out' },
+  { title: 'Carol', detail: '28.50000000 CAL', status: t('ledger.certified'), type: 'in' },
   {
     title: 'TXCer #8f596e7f',
-    detail: '5.00000000 PGC',
+    detail: '5.00000000 CAL',
     status: t('ledger.pendingAudit'),
     type: 'in',
   },
@@ -70,7 +70,7 @@ const activities = computed(() => [
       <section class="balance-panel" aria-labelledby="balance-title">
         <div class="balance-panel__amount">
           <p id="balance-title">{{ t('ledger.portfolio') }}</p>
-          <strong class="tabular">1,284.50 <small>PGC</small></strong>
+          <strong class="tabular">1,284.50 <small>CAL</small></strong>
           <span><i aria-hidden="true" />{{ t('ledger.available') }}</span>
         </div>
         <div class="balance-panel__actions">

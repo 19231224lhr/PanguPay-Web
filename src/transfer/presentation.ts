@@ -9,6 +9,8 @@ export function transferModeLabel(mode: TransferMode): string {
 
 export function transferResultTitle(mode: TransferMode, phase?: TransferPhase): string {
   if (mode === 'cross') return phase === 'settled' ? '跨链到账完成' : '跨链交易处理中'
+  if (mode === 'quick' && phase === 'registered') return 'TXCer 已登记，后台结算中'
+  if (mode === 'quick' && phase === 'spend-ready') return '收款方可用，后台结算中'
   const label = transferModeLabel(mode)
   return phase === 'settled' ? `${label}已完成` : `${label}处理中`
 }
@@ -28,6 +30,7 @@ export function transferActivityStatus(
   }
   if (mode === 'quick') {
     if (phase === 'settled') return '后台已结算'
+    if (phase === 'registered') return 'TXCer 已登记'
     if (phase === 'spend-ready') return '收款方可用'
   } else if (phase === 'settled') {
     return '已完成'

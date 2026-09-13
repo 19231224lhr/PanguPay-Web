@@ -38,8 +38,8 @@ describe('credential visualizations', () => {
   it('renders exact exposure amounts with bounded proportional weights', () => {
     const wrapper = mount(ExposureShareBar, { props: { shares: credential.exposureShares } })
 
-    expect(wrapper.text()).toContain('9 PGC')
-    expect(wrapper.text()).toContain('3 PGC')
+    expect(wrapper.text()).toContain('9 CAL')
+    expect(wrapper.text()).toContain('3 CAL')
     expect(wrapper.get('[data-share="leaf-a"]').attributes('style')).toContain(
       '--share-weight: 7500',
     )

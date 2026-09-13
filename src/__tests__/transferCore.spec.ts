@@ -41,7 +41,7 @@ describe('transfer core', () => {
     expect(result.change).toBe('3')
   })
 
-  it('rejects cross-chain drafts that use certificates or fractional PGC', () => {
+  it('rejects cross-chain drafts that use certificates or fractional CAL', () => {
     expect(() =>
       assertTransferDraft({
         mode: 'cross',
@@ -51,7 +51,7 @@ describe('transfer core', () => {
         recipient: '0x0000000000000000000000000000000000000001',
         usesTXCer: false,
       }),
-    ).toThrow('whole PGC')
+    ).toThrow('whole CAL')
 
     expect(() =>
       assertTransferDraft({

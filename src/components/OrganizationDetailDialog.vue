@@ -69,7 +69,7 @@ function groupedAmount(value?: string): string {
   const sign = integer?.startsWith('-') ? '-' : ''
   const digits = (integer ?? '').replace(/^-/, '')
   const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${grouped}${fraction === undefined ? '' : `.${fraction}`} PGC`
+  return `${sign}${grouped}${fraction === undefined ? '' : `.${fraction}`} CAL`
 }
 
 function close(): void {

@@ -22,7 +22,7 @@ describe('wallet dashboard normalization', () => {
     })
 
     expect(snapshot.assets[0]).toMatchObject({
-      symbol: 'PGC',
+      symbol: 'CAL',
       utxoAvailable: '90071992.54740994',
       txCerSpendable: '2',
       total: '90071994.54740994',
@@ -30,7 +30,7 @@ describe('wallet dashboard normalization', () => {
     expect(snapshot.security.isolatedCount).toBe(1)
   })
 
-  it('keeps PGC, BTC and ETH balances in separate asset ledgers', () => {
+  it('keeps CAL, BTC and ETH balances in separate asset ledgers', () => {
     const snapshot = buildDashboardSnapshot({
       accountId: '68740417',
       displayName: '6874 0417',
@@ -61,8 +61,8 @@ describe('wallet dashboard normalization', () => {
 
     expect(snapshot.assets).toEqual([
       {
-        symbol: 'PGC',
-        name: 'Pangu Coin',
+        symbol: 'CAL',
+        name: 'CAL',
         total: '13.75',
         utxoAvailable: '12.5',
         txCerSpendable: '1.25',

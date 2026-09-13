@@ -48,7 +48,7 @@ const updatedLabel = computed(() => {
 
       <strong class="wallet-balance-field__amount tabular">
         {{ total }}
-        <small>{{ asset?.symbol ?? 'PGC' }}</small>
+        <small>{{ asset?.symbol ?? 'CAL' }}</small>
       </strong>
 
       <div class="wallet-balance-field__composition" aria-label="资产可用组成">

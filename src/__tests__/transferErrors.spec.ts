@@ -30,7 +30,7 @@ describe('transfer issue presentation', () => {
   })
 
   it('keeps cross-chain constraints specific and recoverable', () => {
-    expect(describeTransferIssue('cross-chain transfer requires whole PGC')).toMatchObject({
+    expect(describeTransferIssue('cross-chain transfer requires whole CAL')).toMatchObject({
       code: 'cross-chain-constraint',
       title: '跨链金额需要调整',
       tone: 'warning',

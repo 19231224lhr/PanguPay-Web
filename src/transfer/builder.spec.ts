@@ -379,7 +379,7 @@ describe('transfer builder', () => {
     },
   )
 
-  it('builds cross-chain TXType=6 only for whole PGC, one cross output and UTXO inputs', () => {
+  it('builds cross-chain TXType=6 only for whole CAL, one cross output and UTXO inputs', () => {
     const result = buildTransferTransaction({
       wallet,
       guarantorGroupID: 'group-member',

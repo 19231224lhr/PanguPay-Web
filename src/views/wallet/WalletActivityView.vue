@@ -13,6 +13,7 @@ import {
   type TransferMode,
   type TransferPhase,
 } from '@/transfer'
+import type { TransferProgress } from '@/transfer/journal'
 import type { WalletActivity } from '@/wallet/types'
 
 const dashboard = useDashboardStore()
@@ -22,6 +23,7 @@ onMounted(() => void transfer.synchronizeHistory(true))
 
 interface ActivityRow extends WalletActivity {
   txID: string
+  progress?: TransferProgress
   mode?: TransferMode
   phase?: TransferPhase
   lightTxHash?: string
@@ -30,7 +32,9 @@ interface ActivityRow extends WalletActivity {
 }
 
 const assetSymbol = (coinType?: number, explicit?: string) =>
-  explicit || ['PGC', 'BTC', 'ETH'][coinType ?? 0] || `Asset ${coinType ?? 0}`
+  (explicit === 'PGC' ? 'CAL' : explicit) ||
+  ['CAL', 'BTC', 'ETH'][coinType ?? 0] ||
+  `Asset ${coinType ?? 0}`
 
 const formatTime = (value: number) =>
   value
@@ -52,7 +56,8 @@ const activities = computed<ActivityRow[]>(() => {
       coinType: item.coinType,
       asset: assetSymbol(item.coinType),
       status: transferActivityStatus(item.mode, item.phase, item.crossChainError),
-      timestamp: item.updatedAt,
+      timestamp: item.backendAcceptedAt ?? item.acceptedAt ?? item.updatedAt,
+      progress: item,
       txID: item.txID,
       direction: 'out',
       mode: item.mode,
@@ -105,14 +110,7 @@ const statusTone = (item: ActivityRow) =>
               <CaretDown class="activity-caret" :size="17" aria-hidden="true" />
             </summary>
             <div class="activity-detail">
-              <ActivityProgress
-                :mode="item.mode"
-                :phase="item.phase"
-                :status="item.status"
-                :light-tx-hash="item.lightTxHash"
-                :target-block="item.targetBlock"
-                :cross-chain-error="item.crossChainError"
-              />
+              <ActivityProgress :progress="item.progress" :status="item.status" />
               <dl>
                 <div>
                   <dt>方向</dt>

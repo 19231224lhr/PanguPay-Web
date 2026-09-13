@@ -254,14 +254,14 @@ describe('transfer submission workflow', () => {
       '交易已接收',
       '担保验证',
       '组织确认',
-      '收款方可用',
+      '收款方可用（未确认）',
       '后台结算',
     ])
     expect(timeline.map((item) => item.state)).toEqual([
       'complete',
       'complete',
       'active',
-      'pending',
+      'unknown',
       'pending',
     ])
   })
@@ -315,7 +315,7 @@ describe('transfer submission workflow', () => {
       updatedAt: 13_450,
     })
 
-    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('结算耗时 28 ms')
+    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('共识阶段耗时 28 ms')
   })
 
   it('uses five cross-chain milestones and waits for a successful target receipt', () => {

@@ -35,13 +35,13 @@ const selectedRecord = computed(() =>
   wallet.addresses.find((address) => address.address === selected.value),
 )
 const selectedAsset = computed(
-  () => ['PGC', 'BTC', 'ETH'][Number(selectedRecord.value?.type ?? 0)] ?? '未知币种',
+  () => ['CAL', 'BTC', 'ETH'][Number(selectedRecord.value?.type ?? 0)] ?? '未知币种',
 )
 const organization = computed(() => dashboard.current.organization)
 const addressOptions = computed(() =>
   wallet.addresses.map((address, index) => ({
     description: address.address,
-    label: `${['PGC', 'BTC', 'ETH'][Number(address.type)] ?? `币种 ${address.type}`} · 地址 ${index + 1}`,
+    label: `${['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `币种 ${address.type}`} · 地址 ${index + 1}`,
     monospace: true,
     value: address.address,
   })),

@@ -21,7 +21,7 @@ export interface RawDashboardInput {
 }
 
 const assetTypes: Record<string, { symbol: string; name: string; network: string }> = {
-  '0': { symbol: 'PGC', name: 'Pangu Coin', network: 'Transfer Area' },
+  '0': { symbol: 'CAL', name: 'CAL', network: 'Transfer Area' },
   '1': { symbol: 'BTC', name: 'Bitcoin', network: 'Transfer Area' },
   '2': { symbol: 'ETH', name: 'Ethereum', network: 'Transfer Area' },
 }

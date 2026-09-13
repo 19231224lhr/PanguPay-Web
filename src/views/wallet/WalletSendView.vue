@@ -39,7 +39,7 @@ const sourceRecord = computed(() => wallet.addresses.find((item) => item.address
 const coinType = computed(() => Number(sourceRecord.value?.type ?? 0))
 const asset = computed(() =>
   dashboard.current.assets.find((item) => {
-    const symbol = ['PGC', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`
+    const symbol = ['CAL', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`
     return item.symbol === symbol
   }),
 )
@@ -49,7 +49,7 @@ const isMember = computed(() => !!organization.value && !['0', '1'].includes(org
 const sourceOptions = computed(() =>
   wallet.addresses.map((address, index) => ({
     description: address.address,
-    label: `${['PGC', 'BTC', 'ETH'][Number(address.type)] ?? `资产 ${address.type}`} · 地址 ${index + 1}`,
+    label: `${['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `资产 ${address.type}`} · 地址 ${index + 1}`,
     monospace: true,
     value: address.address,
   })),
@@ -161,8 +161,8 @@ function startAnother(): void {
         id="send-amount"
         v-model="amount"
         label="金额"
-        :currency="asset?.symbol ?? 'PGC'"
-        :help="`当前可支付 ${available} ${asset?.symbol ?? 'PGC'}`"
+        :currency="asset?.symbol ?? 'CAL'"
+        :help="`当前可支付 ${available} ${asset?.symbol ?? 'CAL'}`"
       />
       <InlineNotice v-if="!isMember" title="当前为独立账户" tone="info">
         你仍可使用普通转账；快速和跨链功能需要先在“担保组织”中加入组织。
@@ -190,7 +190,7 @@ function startAnother(): void {
       <div class="review-amount">
         <span>将发送</span>
         <strong class="tabular">{{ transfer.review.amount }}</strong>
-        <b>{{ asset?.symbol ?? 'PGC' }}</b>
+        <b>{{ asset?.symbol ?? 'CAL' }}</b>
       </div>
       <dl class="review-details">
         <div>
@@ -218,7 +218,7 @@ function startAnother(): void {
         <div>
           <dt>找零</dt>
           <dd class="tabular">
-            {{ transfer.review.selection.change }} {{ asset?.symbol ?? 'PGC' }}
+            {{ transfer.review.selection.change }} {{ asset?.symbol ?? 'CAL' }}
           </dd>
         </div>
         <div>

@@ -18,7 +18,7 @@ const route = computed(() => {
     return {
       label: '跨链路径',
       nodes: ['本地签名', '担保组织', '跨链出口', '轻计算网络'],
-      note: '当前仅支持整数 PGC、单一轻计算收款地址。',
+      note: '当前仅支持整数 CAL、单一轻计算收款地址。',
       background: false,
     }
   }
