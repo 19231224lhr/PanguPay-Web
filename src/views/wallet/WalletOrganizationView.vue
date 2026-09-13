@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import { PhCaretRight as CaretRight } from '@phosphor-icons/vue'
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -39,10 +41,40 @@ const nodeGroupDefinitions: Array<{
   title: string
   description: string
 }> = [
-  { role: 'assign', title: 'Assign 节点', description: '账户接入与 TXCer 原子登记' },
-  { role: 'aggregation', title: 'Aggregation 节点', description: '责任聚合与签发调度' },
-  { role: 'txcer', title: 'TXCer 审计节点', description: 'Certifier / CFAA 后台证明' },
-  { role: 'guarantor', title: 'GuarNode', description: '担保责任与交易确认' },
+  {
+    role: 'assign',
+    get title() {
+      return wt('w67')
+    },
+    get description() {
+      return wt('w68')
+    },
+  },
+  {
+    role: 'aggregation',
+    get title() {
+      return wt('w69')
+    },
+    get description() {
+      return wt('w70')
+    },
+  },
+  {
+    role: 'txcer',
+    get title() {
+      return wt('w71')
+    },
+    get description() {
+      return wt('w72')
+    },
+  },
+  {
+    role: 'guarantor',
+    title: 'GuarNode',
+    get description() {
+      return wt('w73')
+    },
+  },
 ]
 
 const nodeGroups = computed(() =>
@@ -53,7 +85,7 @@ const nodeGroups = computed(() =>
 )
 
 function groupedAmount(value?: string): string {
-  if (!value) return '未公开'
+  if (!value) return wt('w74')
   const [integer, fraction] = value.split('.', 2)
   const sign = integer?.startsWith('-') ? '-' : ''
   const digits = (integer ?? '').replace(/^-/, '')
@@ -63,11 +95,11 @@ function groupedAmount(value?: string): string {
 }
 
 function nodeStatus(status?: string): string {
-  if (!status) return '已登记'
+  if (!status) return wt('w75')
   const normalized = status.toLowerCase()
-  if (['active', 'online', 'ready'].includes(normalized)) return '运行中'
-  if (['standby', 'pending'].includes(normalized)) return '备用'
-  if (['disabled', 'revoked', 'offline'].includes(normalized)) return '已停用'
+  if (['active', 'online', 'ready'].includes(normalized)) return wt('w76')
+  if (['standby', 'pending'].includes(normalized)) return wt('w77')
+  if (['disabled', 'revoked', 'offline'].includes(normalized)) return wt('w78')
   return status
 }
 
@@ -75,7 +107,7 @@ async function loadOrganizations(): Promise<void> {
   if (dashboard.current.organization || loading.value) return
   const service = getWalletEntryService()
   if (!service) {
-    error.value = '组织服务尚未连接。'
+    error.value = wt('w79')
     return
   }
   loading.value = true
@@ -83,7 +115,7 @@ async function loadOrganizations(): Promise<void> {
   try {
     organizations.value = await service.listOrganizations()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法读取担保组织。'
+    error.value = cause instanceof Error ? cause.message : wt('w80')
   } finally {
     loading.value = false
   }
@@ -98,7 +130,7 @@ async function join(): Promise<void> {
     await service.join(selected.value)
     await dashboard.sync(true)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '加入担保组织失败。'
+    error.value = cause instanceof Error ? cause.message : wt('w81')
   } finally {
     loading.value = false
   }
@@ -114,7 +146,7 @@ async function loadOrganizationDetail(): Promise<void> {
   try {
     organizationDetail.value = await service.organization(organization.id, organization.name)
   } catch (cause) {
-    detailError.value = cause instanceof Error ? cause.message : '无法读取组织详情。'
+    detailError.value = cause instanceof Error ? cause.message : wt('w82')
   } finally {
     detailBusy.value = false
   }
@@ -145,7 +177,7 @@ function inspectExit(): void {
   } catch {
     exitDecision.value = {
       allowed: false,
-      reasons: ['本地交易状态无法完整读取，请先修复或重新同步钱包数据'],
+      reasons: [wt('w83')],
     }
   }
   exitStage.value = 'confirm'
@@ -160,13 +192,12 @@ async function leaveOrganization(): Promise<void> {
   try {
     await service.leave(current.id)
     await dashboard.sync(true)
-    if (dashboard.current.organization)
-      throw new Error('退出已提交，但归属状态尚未更新，请稍后同步。')
+    if (dashboard.current.organization) throw new Error(wt('w84'))
     exitStage.value = 'idle'
     organizationDetail.value = undefined
     await loadOrganizations()
   } catch (cause) {
-    exitError.value = cause instanceof Error ? cause.message : '退出担保组织失败。'
+    exitError.value = cause instanceof Error ? cause.message : wt('w85')
   } finally {
     exitBusy.value = false
   }
@@ -186,41 +217,38 @@ onMounted(() => void loadOrganizations())
 
 <template>
   <div class="wallet-page organization-page">
-    <WalletPageHeader
-      title="担保组织"
-      description="普通转账可以独立使用；加入组织后可使用 TXCer 快速转账与跨链。"
-    />
+    <WalletPageHeader :title="wt('w86')" :description="wt('w87')" />
 
     <section v-if="dashboard.current.organization" class="member-organization">
       <header class="member-organization__hero">
         <div>
-          <span>当前归属</span>
+          <span> {{ wt('w88') }} </span>
           <h2>{{ dashboard.current.organization.name }}</h2>
-          <p class="mono">组织 ID {{ dashboard.current.organization.id }}</p>
+          <p class="mono">{{ wt('w47') }} {{ dashboard.current.organization.id }}</p>
         </div>
-        <b>快速能力已启用</b>
+        <b> {{ wt('w89') }} </b>
       </header>
 
-      <div v-if="detailBusy" class="organization-loading" role="status">正在同步组织登记…</div>
-      <InlineNotice v-else-if="detailError" title="组织详情暂时不可用" tone="danger">
+      <div v-if="detailBusy" class="organization-loading" role="status">{{ wt('w90') }}</div>
+      <InlineNotice v-else-if="detailError" :title="wt('w91')" tone="danger">
         {{ detailError }}
       </InlineNotice>
       <template v-else-if="organizationDetail">
         <dl class="organization-metrics">
           <div>
-            <dt>担保额度</dt>
+            <dt>{{ wt('w92') }}</dt>
             <dd>{{ groupedAmount(organizationDetail.pledgeAmount) }}</dd>
           </div>
           <div>
-            <dt>担保节点</dt>
-            <dd>{{ organizationDetail.guarantorCount }} 个</dd>
+            <dt>{{ wt('w93') }}</dt>
+            <dd>{{ organizationDetail.guarantorCount }} {{ wt('w94') }}</dd>
           </div>
           <div>
-            <dt>审计节点</dt>
-            <dd>{{ organizationDetail.certifierCount }} 个</dd>
+            <dt>{{ wt('w95') }}</dt>
+            <dd>{{ organizationDetail.certifierCount }} {{ wt('w94') }}</dd>
           </div>
           <div>
-            <dt>当前角色</dt>
+            <dt>{{ wt('w96') }}</dt>
             <dd>{{ dashboard.current.organization.role }}</dd>
           </div>
         </dl>
@@ -228,11 +256,11 @@ onMounted(() => void loadOrganizations())
         <section class="organization-roster" aria-labelledby="organization-roster-title">
           <div class="wallet-section__heading">
             <div>
-              <span>权威登记</span>
-              <h2 id="organization-roster-title">服务与责任节点</h2>
+              <span> {{ wt('w97') }} </span>
+              <h2 id="organization-roster-title">{{ wt('w98') }}</h2>
             </div>
             <AppButton variant="ghost" :loading="detailBusy" @click="loadCurrentOrganization">
-              刷新节点
+              {{ wt('w99') }}
             </AppButton>
           </div>
           <div class="organization-roster__grid">
@@ -254,20 +282,20 @@ onMounted(() => void loadOrganizations())
                   <span>{{ nodeStatus(node.status) }}</span>
                 </li>
               </ul>
-              <p v-else class="organization-roster__empty">暂未登记</p>
+              <p v-else class="organization-roster__empty">{{ wt('w100') }}</p>
             </article>
           </div>
         </section>
 
         <details class="organization-technical">
-          <summary>技术信息</summary>
+          <summary>{{ wt('w101') }}</summary>
           <dl>
             <div v-if="organizationDetail.peerGroupId">
-              <dt>通信组</dt>
+              <dt>{{ wt('w102') }}</dt>
               <dd class="mono">{{ organizationDetail.peerGroupId }}</dd>
             </div>
             <div v-if="organizationDetail.pledgeAddress">
-              <dt>质押地址</dt>
+              <dt>{{ wt('w103') }}</dt>
               <dd class="mono">{{ organizationDetail.pledgeAddress }}</dd>
             </div>
             <div v-if="organizationDetail.assignEndpoint">
@@ -284,32 +312,32 @@ onMounted(() => void loadOrganizations())
 
       <section class="organization-exit" aria-labelledby="organization-exit-title">
         <div>
-          <h2 id="organization-exit-title">退出担保组织</h2>
-          <p>退出前会确认没有可用 TXCer、待审计责任或进行中的交易。</p>
+          <h2 id="organization-exit-title">{{ wt('w104') }}</h2>
+          <p>{{ wt('w105') }}</p>
         </div>
         <AppButton v-if="exitStage === 'idle'" variant="danger" @click="inspectExit">
-          检查退出条件
+          {{ wt('w106') }}
         </AppButton>
         <div v-else class="organization-exit__confirmation">
           <ul v-if="exitDecision.reasons.length">
             <li v-for="reason in exitDecision.reasons" :key="reason">{{ reason }}</li>
           </ul>
-          <p v-else>条件检查已通过。再次确认后将退出当前组织，普通转账仍可继续使用。</p>
+          <p v-else>{{ wt('w107') }}</p>
           <div>
-            <AppButton variant="ghost" :disabled="exitBusy" @click="exitStage = 'idle'"
-              >取消</AppButton
-            >
+            <AppButton variant="ghost" :disabled="exitBusy" @click="exitStage = 'idle'">
+              {{ wt('w108') }}
+            </AppButton>
             <AppButton
               variant="danger"
               :disabled="!exitDecision.allowed"
               :loading="exitBusy"
               @click="leaveOrganization"
             >
-              确认退出组织
+              {{ wt('w109') }}
             </AppButton>
           </div>
         </div>
-        <InlineNotice v-if="exitError" title="退出未完成" tone="danger">{{
+        <InlineNotice v-if="exitError" :title="wt('w110')" tone="danger">{{
           exitError
         }}</InlineNotice>
       </section>
@@ -317,11 +345,11 @@ onMounted(() => void loadOrganizations())
 
     <section v-else class="organization-chooser" aria-labelledby="available-organizations-heading">
       <div class="wallet-section__heading">
-        <h2 id="available-organizations-heading">选择担保组织</h2>
-        <span>可稍后加入</span>
+        <h2 id="available-organizations-heading">{{ wt('w111') }}</h2>
+        <span> {{ wt('w112') }} </span>
       </div>
-      <p class="organization-copy">你目前以独立账户使用普通转账。加入不会更换账户或地址。</p>
-      <div v-if="organizations.length" class="organization-options" aria-label="可加入的担保组织">
+      <p class="organization-copy">{{ wt('w113') }}</p>
+      <div v-if="organizations.length" class="organization-options" :aria-label="wt('w46')">
         <article
           v-for="item in organizations"
           :key="item.id"
@@ -332,27 +360,31 @@ onMounted(() => void loadOrganizations())
             <span class="organization-option__indicator" aria-hidden="true" />
             <span class="organization-option__copy">
               <strong>{{ item.name }}</strong>
-              <small>组织 ID {{ item.id }}</small>
-              <span><b>快速转账</b><b>跨链</b></span>
+              <small> {{ wt('w47') }} {{ item.id }}</small>
+              <span
+                ><b> {{ wt('w48') }} </b><b> {{ wt('w49') }} </b></span
+              >
             </span>
           </label>
           <button
             type="button"
             class="organization-option__detail"
-            :aria-label="`查看${item.name}详情`"
+            :aria-label="wt('w50', [item.name])"
             @click="showOrganizationDetail(item)"
           >
-            查看详情 <CaretRight :size="15" />
+            {{ wt('w51') }} <CaretRight :size="15" />
           </button>
         </article>
       </div>
-      <div v-else-if="!loading" class="wallet-empty">当前没有可加入的担保组织。</div>
-      <InlineNotice v-if="error" title="无法完成组织连接" tone="danger">{{ error }}</InlineNotice>
+      <div v-else-if="!loading" class="wallet-empty">{{ wt('w114') }}</div>
+      <InlineNotice v-if="error" :title="wt('w115')" tone="danger">{{ wl(error) }}</InlineNotice>
       <div class="organization-actions">
-        <AppButton variant="secondary" :loading="loading" @click="loadOrganizations"
-          >刷新列表</AppButton
-        >
-        <AppButton :disabled="!selected" :loading="loading" @click="join">确认加入</AppButton>
+        <AppButton variant="secondary" :loading="loading" @click="loadOrganizations">
+          {{ wt('w116') }}
+        </AppButton>
+        <AppButton :disabled="!selected" :loading="loading" @click="join">
+          {{ wt('w117') }}
+        </AppButton>
       </div>
     </section>
 

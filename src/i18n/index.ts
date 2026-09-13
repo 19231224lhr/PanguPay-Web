@@ -1,9 +1,11 @@
+import { walletMessages } from './walletMessages'
 import { createI18n } from 'vue-i18n'
 
 import { getInitialLocale } from '@/composables/usePreferences'
 
 const messages = {
   'zh-CN': {
+    walletText: walletMessages['zh-CN'],
     brand: 'PanguPay',
     common: {
       demo: '演示数据',
@@ -131,6 +133,7 @@ const messages = {
     },
   },
   'en-US': {
+    walletText: walletMessages['en-US'],
     brand: 'PanguPay',
     common: {
       demo: 'Demo data',

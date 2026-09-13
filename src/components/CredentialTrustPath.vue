@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { computed } from 'vue'
 
 import type { WalletCredentialSummary } from '@/wallet/types'
@@ -17,18 +19,20 @@ const steps = computed(() => {
         : 'pending'
   const cfaa = props.credential.cfaaAuditStatus.toLowerCase() as TrustState
   return [
-    { key: 'fast', label: '快速证据', detail: 'FastEvidence', state: fast },
-    { key: 'liability', label: '责任确认', detail: 'AssignAck + Receipt', state: liability },
-    { key: 'cfaa', label: '后台审计', detail: 'CFAA', state: cfaa },
+    { key: 'fast', label: wt('w310'), detail: 'FastEvidence', state: fast },
+    { key: 'liability', label: wt('w311'), detail: 'AssignAck + Receipt', state: liability },
+    { key: 'cfaa', label: wt('w186'), detail: 'CFAA', state: cfaa },
   ]
 })
 
 const stateLabel = (state: TrustState) =>
-  ({ verified: '已验证', pending: '处理中', failed: '失败', unavailable: '暂不可用' })[state]
+  ({ verified: wt('w312'), pending: wt('w313'), failed: wt('w314'), unavailable: wt('w315') })[
+    state
+  ]
 </script>
 
 <template>
-  <div class="trust-path" aria-label="TXCer 安全凭证链">
+  <div class="trust-path" :aria-label="wt('w316')">
     <template v-for="(step, index) in steps" :key="step.key">
       <span v-if="index" class="trust-path__line" aria-hidden="true" />
       <div :data-trust-step="step.key" :data-state="step.state" class="trust-path__step">
@@ -45,7 +49,7 @@ const stateLabel = (state: TrustState) =>
         credential.cfaaAuditStatus === 'Pending' || credential.cfaaAuditStatus === 'Unavailable'
       "
     >
-      后台审计不阻塞可支付；快速证据明确失败时才会隔离 TXCer。
+      {{ wt('w317') }}
     </p>
   </div>
 </template>

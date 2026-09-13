@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import {
   PhArrowLeft as ArrowLeft,
   PhKey as Key,
@@ -25,9 +27,8 @@ const localError = ref('')
 const revealClear = ref(false)
 
 const passwordError = computed(() => {
-  if (password.value && new TextEncoder().encode(password.value).length < 12)
-    return '新密码至少需要 12 个字符。'
-  if (passwordConfirm.value && password.value !== passwordConfirm.value) return '两次密码不一致。'
+  if (password.value && new TextEncoder().encode(password.value).length < 12) return wt('w156')
+  if (passwordConfirm.value && password.value !== passwordConfirm.value) return wt('w157')
   return ''
 })
 
@@ -40,7 +41,7 @@ async function readRecoveryKit(event: Event): Promise<void> {
     localError.value = ''
   } catch {
     recoveryValue.value = undefined
-    localError.value = '无法读取恢复材料。请确认选择的是 PanguPay recovery.json。'
+    localError.value = wt('w158')
   }
 }
 
@@ -48,12 +49,12 @@ async function recoverWallet(): Promise<void> {
   localError.value = ''
   if (passwordError.value || !passwordConfirm.value) return
   try {
-    if (!recoveryValue.value) throw new Error('请先选择独立恢复材料。')
+    if (!recoveryValue.value) throw new Error(wt('w159'))
     await wallet.recoverFromKit(recoveryValue.value, password.value)
     dashboard.reset()
     await router.replace('/wallet/entry')
   } catch (cause) {
-    localError.value = cause instanceof Error ? cause.message : '无法使用恢复材料重建钱包。'
+    localError.value = cause instanceof Error ? cause.message : wt('w160')
   }
 }
 
@@ -64,7 +65,7 @@ async function clearLocalWallet(): Promise<void> {
     dashboard.reset()
     await router.replace('/wallet/setup')
   } catch (cause) {
-    localError.value = cause instanceof Error ? cause.message : '清除本地钱包失败。'
+    localError.value = cause instanceof Error ? cause.message : wt('w161')
   }
 }
 </script>
@@ -74,28 +75,28 @@ async function clearLocalWallet(): Promise<void> {
     <section class="access-panel recovery-panel">
       <template v-if="!revealClear">
         <Key class="recovery-mark" :size="34" weight="regular" />
-        <h1>重新获得钱包访问</h1>
-        <p>使用创建钱包时下载的恢复材料，设置一个新的本地密码。</p>
+        <h1>{{ wt('w162') }}</h1>
+        <p>{{ wt('w163') }}</p>
 
         <form class="access-form recovery-form" @submit.prevent="recoverWallet">
           <label class="file-picker">
             <input type="file" accept=".json,application/json" @change="readRecoveryKit" />
             <UploadSimple :size="20" />
-            <span>{{ recoveryFileName || '选择 recovery.json' }}</span>
+            <span>{{ recoveryFileName || wt('w164') }}</span>
           </label>
           <FormField
             id="recovery-password"
             v-model="password"
-            label="设置新钱包密码"
+            :label="wt('w165')"
             type="password"
             autocomplete="new-password"
-            help="至少 12 个字符，用于加密新建的本地 keystore。"
+            :help="wt('w166')"
             :error="passwordError"
           />
           <FormField
             id="recovery-password-confirm"
             v-model="passwordConfirm"
-            label="确认新密码"
+            :label="wt('w167')"
             type="password"
             autocomplete="new-password"
             :error="passwordError"
@@ -106,42 +107,41 @@ async function clearLocalWallet(): Promise<void> {
             :loading="wallet.busy"
             :disabled="!recoveryValue || !passwordConfirm || !!passwordError"
           >
-            重建并进入钱包
+            {{ wt('w168') }}
           </AppButton>
         </form>
 
         <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
 
-        <div class="recovery-divider"><span>没有恢复材料</span></div>
+        <div class="recovery-divider">
+          <span> {{ wt('w169') }} </span>
+        </div>
         <AppButton
           class="clear-wallet-entry"
           size="large"
           variant="secondary"
           @click="revealClear = true"
         >
-          <template #icon><Trash :size="17" /></template>
-          清除本地钱包并重新开始
+          <template #icon><Trash :size="17" /></template> {{ wt('w170') }}
         </AppButton>
         <RouterLink class="back-link" to="/wallet/unlock">
-          <ArrowLeft :size="16" />
-          返回解锁
+          <ArrowLeft :size="16" /> {{ wt('w171') }}
         </RouterLink>
       </template>
 
       <template v-else>
         <Trash class="clear-mark" :size="34" weight="regular" />
-        <h1>清除此设备上的钱包？</h1>
-        <p>这里只会删除本机的加密钱包与缓存，不会撤销链上资产。</p>
+        <h1>{{ wt('w172') }}</h1>
+        <p>{{ wt('w173') }}</p>
         <div class="clear-summary">
-          <strong>如果没有其他备份或恢复材料，你将永久失去这些地址的控制权。</strong>
-          <span>确认后将返回钱包创建与导入页面。</span>
+          <strong> {{ wt('w174') }} </strong>
+          <span> {{ wt('w175') }} </span>
         </div>
         <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
         <div class="clear-actions">
-          <AppButton variant="ghost" @click="revealClear = false">取消</AppButton>
+          <AppButton variant="ghost" @click="revealClear = false"> {{ wt('w108') }} </AppButton>
           <AppButton variant="danger" :loading="wallet.busy" @click="clearLocalWallet">
-            <template #icon><Trash :size="17" /></template>
-            再次点击，确认清除
+            <template #icon><Trash :size="17" /></template> {{ wt('w176') }}
           </AppButton>
         </div>
       </template>

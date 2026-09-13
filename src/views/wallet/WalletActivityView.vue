@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl, walletLocale } from '@/i18n/walletText'
+
 import { PhCaretDown as CaretDown } from '@phosphor-icons/vue'
 import { computed, onMounted } from 'vue'
 
@@ -38,12 +40,12 @@ const assetSymbol = (coinType?: number, explicit?: string) =>
 
 const formatTime = (value: number) =>
   value
-    ? new Intl.DateTimeFormat('zh-CN', {
+    ? new Intl.DateTimeFormat(walletLocale(), {
         dateStyle: 'medium',
         timeStyle: 'medium',
         hour12: false,
       }).format(value)
-    : '时间未知'
+    : wt('w0')
 
 const activities = computed<ActivityRow[]>(() => {
   const merged = new Map<string, ActivityRow>()
@@ -80,18 +82,13 @@ const statusTone = (item: ActivityRow) =>
 
 <template>
   <div class="wallet-page">
-    <WalletPageHeader
-      title="活动记录"
-      description="入口接收、快速可用和后台结算分开显示；记录来自真实账户状态与本机提交日志。"
-    />
+    <WalletPageHeader :title="wt('w1')" :description="wt('w2')" />
     <section class="wallet-section activity-ledger" aria-labelledby="activity-list-heading">
       <div class="wallet-section__heading">
-        <h2 id="activity-list-heading">全部活动</h2>
-        <span>{{ activities.length }} 条</span>
+        <h2 id="activity-list-heading">{{ wt('w3') }}</h2>
+        <span>{{ activities.length }} {{ wt('w4') }} </span>
       </div>
-      <div v-if="!activities.length" class="wallet-empty">
-        还没有可显示的真实活动。完成一笔转账后，入口、快速可用与后台结算会分别记录。
-      </div>
+      <div v-if="!activities.length" class="wallet-empty">{{ wt('w5') }}</div>
       <ol v-else>
         <li v-for="item in activities" :key="`${item.id}-${item.status}`">
           <details>
@@ -101,7 +98,7 @@ const statusTone = (item: ActivityRow) =>
                 <small>{{ formatTime(item.timestamp) }}</small>
               </span>
               <StatusLabel class="activity-status" :tone="statusTone(item)">
-                {{ item.status }}
+                {{ wl(item.status) }}
               </StatusLabel>
               <span class="activity-amount">
                 <b class="tabular">{{ item.direction === 'out' ? '−' : '+' }}{{ item.amount }}</b>
@@ -113,17 +110,17 @@ const statusTone = (item: ActivityRow) =>
               <ActivityProgress :progress="item.progress" :status="item.status" />
               <dl>
                 <div>
-                  <dt>方向</dt>
-                  <dd>{{ item.direction === 'out' ? '转出' : '转入' }}</dd>
+                  <dt>{{ wt('w6') }}</dt>
+                  <dd>{{ item.direction === 'out' ? wt('w7') : wt('w8') }}</dd>
                 </div>
                 <div v-if="item.mode">
-                  <dt>路径</dt>
+                  <dt>{{ wt('w9') }}</dt>
                   <dd>
                     {{ transferModeLabel(item.mode) }}
                   </dd>
                 </div>
                 <div>
-                  <dt>完整交易 ID</dt>
+                  <dt>{{ wt('w10') }}</dt>
                   <dd class="mono">{{ item.txID }}</dd>
                 </div>
               </dl>

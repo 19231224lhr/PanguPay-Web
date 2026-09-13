@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, walletLocale } from '@/i18n/walletText'
+
 import { computed } from 'vue'
 
 import type { TransferProgress } from '@/transfer/journal'
@@ -12,39 +14,39 @@ const props = defineProps<{
 const steps = computed(() =>
   props.progress
     ? buildTransferTimeline(props.progress)
-    : [{ label: '后端记录', detail: props.status || '状态未知', state: 'pending' }],
+    : [{ label: wt('w294'), detail: props.status || wt('w295'), state: 'pending' }],
 )
 
 const formatTime = (value?: number) =>
   value
-    ? new Intl.DateTimeFormat('zh-CN', {
+    ? new Intl.DateTimeFormat(walletLocale(), {
         dateStyle: 'medium',
         timeStyle: 'medium',
         hour12: false,
       }).format(value)
-    : '未记录'
+    : wt('w296')
 
 const milestones = computed(() => {
   const p = props.progress
   if (!p) return []
-  const result = [{ label: '入口接收时间', value: formatTime(p.backendAcceptedAt ?? p.acceptedAt) }]
+  const result = [{ label: wt('w297'), value: formatTime(p.backendAcceptedAt ?? p.acceptedAt) }]
   if (p.mode === 'quick') {
-    result.push({ label: 'TXCer 登记时间', value: formatTime(p.registeredAt) })
+    result.push({ label: wt('w298'), value: formatTime(p.registeredAt) })
     result.push({
-      label: '收款方可用时间',
-      value: p.spendReadyAt ? formatTime(p.backendSpendReadyAt ?? p.spendReadyAt) : '未回传',
+      label: wt('w299'),
+      value: p.spendReadyAt ? formatTime(p.backendSpendReadyAt ?? p.spendReadyAt) : wt('w300'),
     })
   }
   if (p.mode === 'cross') {
-    result.push({ label: '目标链到账时间', value: formatTime(p.targetConfirmedAt) })
+    result.push({ label: wt('w301'), value: formatTime(p.targetConfirmedAt) })
   }
-  result.push({ label: '本机观察到结算的时间', value: formatTime(p.settledAt) })
+  result.push({ label: wt('w302'), value: formatTime(p.settledAt) })
   return result
 })
 </script>
 
 <template>
-  <ol class="activity-progress" aria-label="交易处理进度">
+  <ol class="activity-progress" :aria-label="wt('w303')">
     <li v-for="step in steps" :key="step.label" data-activity-step :data-state="step.state">
       <span aria-hidden="true" />
       <div>
@@ -54,7 +56,7 @@ const milestones = computed(() => {
       </div>
     </li>
   </ol>
-  <dl v-if="milestones.length" class="activity-times" aria-label="交易阶段时间">
+  <dl v-if="milestones.length" class="activity-times" :aria-label="wt('w304')">
     <div v-for="item in milestones" :key="item.label">
       <dt>{{ item.label }}</dt>
       <dd>{{ item.value }}</dd>

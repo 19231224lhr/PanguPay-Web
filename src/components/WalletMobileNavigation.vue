@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { PhUserCircle as UserCircle } from '@phosphor-icons/vue'
 
 import type { AppShellItem } from './AppShell.vue'
@@ -9,7 +11,7 @@ withDefaults(
     label: string
     moreLabel?: string
   }>(),
-  { moreLabel: '我的' },
+  { moreLabel: wt('w309') },
 )
 
 defineEmits<{ more: [] }>()

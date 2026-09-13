@@ -1,3 +1,4 @@
+import { wt } from '@/i18n/walletText'
 import type { BuiltTransferTransaction } from './builder'
 import { GatewayRequestError } from '@/services/gatewayClient'
 import type { TransferDAGReceipt, TransferProgress } from './journal'
@@ -58,9 +59,7 @@ function text(value: unknown): string {
 }
 
 function submissionError(value: UnknownRecord): string {
-  return (
-    text(value.error_reason) || text(value.error) || text(value.message) || '后端未接受这笔交易。'
-  )
+  return text(value.error_reason) || text(value.error) || text(value.message) || wt('w441')
 }
 
 export function classifyAssignTransactionStatus(value: unknown): AssignTransactionState {
@@ -152,7 +151,7 @@ export function schedulerDAGFailure(receipts: TransferDAGReceipt[]): string | un
     .reverse()
     .find((receipt) => schedulerFailureEvents.has(receipt.eventType))
   if (!failed) return undefined
-  return failed.reason || `担保组织内部处理失败（${failed.eventType}）。`
+  return failed.reason || wt('w442', [failed.eventType])
 }
 
 function durationLabel(elapsed?: number): string | undefined {
@@ -210,7 +209,7 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
   const lightHash = shortHash(progress.lightTxHash)
   const total = observedDuration(progress.acceptedAt, progress.targetConfirmedAt)
   const targetMeta = targetConfirmed
-    ? [`区块 ${progress.targetBlock}`, total ? `跨链总耗时 ${total}` : '']
+    ? [wt('w443', [progress.targetBlock]), total ? wt('w444', [total]) : '']
         .filter(Boolean)
         .join(' · ')
     : undefined
@@ -218,18 +217,14 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
   return [
     {
       id: 'received',
-      label: '跨链交易已接收',
-      detail: accepted ? '交易与签名已通过源区入口校验。' : '正在提交跨链交易。',
+      label: wt('w432'),
+      detail: accepted ? wt('w445') : wt('w446'),
       state: failed ? 'error' : accepted ? 'complete' : 'active',
     },
     {
       id: 'guarantee',
-      label: '担保验证',
-      detail: failure
-        ? failure.reason || '担保组织拒绝了这笔跨链交易。'
-        : guaranteeComplete
-          ? '担保节点已完成跨链约束验证。'
-          : '正在验证输入、签名与跨链约束。',
+      label: wt('w447'),
+      detail: failure ? failure.reason || wt('w448') : guaranteeComplete ? wt('w449') : wt('w450'),
       state: failure
         ? 'error'
         : guaranteeComplete
@@ -240,11 +235,9 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
     },
     {
       id: 'local-certified',
-      label: '本地 GQNC 已认证',
-      detail: localCertified
-        ? '源区交易已经终局认证，正在提交轻计算区。'
-        : '等待源区 GQNC 完成 3-of-4 认证。',
-      meta: progress.certifiedHeight ? `认证高度 ${progress.certifiedHeight}` : undefined,
+      label: wt('w451'),
+      detail: localCertified ? wt('w452') : wt('w453'),
+      meta: progress.certifiedHeight ? wt('w454', [progress.certifiedHeight]) : undefined,
       state: progress.crossChainError
         ? 'error'
         : localCertified
@@ -255,12 +248,12 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
     },
     {
       id: 'target-accepted',
-      label: '轻计算区已接收',
+      label: wt('w455'),
       detail: progress.crossChainError
-        ? `跨链投递需要人工恢复：${progress.crossChainError}`
+        ? wt('w456', [progress.crossChainError])
         : lightAccepted
-          ? '轻计算区交易池已接收，正在等待目标链出块。'
-          : '等待轻计算区确认接收。',
+          ? wt('w457')
+          : wt('w458'),
       meta: lightAccepted ? lightHash : undefined,
       state: progress.crossChainError
         ? 'error'
@@ -272,12 +265,8 @@ function buildCrossChainTimeline(progress: TransferProgress): TransferTimelineIt
     },
     {
       id: 'target-confirmed',
-      label: '目标链到账',
-      detail: targetConfirmed
-        ? '目标链回执成功，跨链到账完成。'
-        : lightAccepted
-          ? '等待目标链将交易写入区块。'
-          : '等待轻计算区接收交易。',
+      label: wt('w459'),
+      detail: targetConfirmed ? wt('w460') : lightAccepted ? wt('w461') : wt('w462'),
       meta: targetMeta,
       state: progress.crossChainError
         ? 'error'
@@ -341,26 +330,26 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     progress?.backendSpendReadyAt,
   )
   const spendReadyTiming = backendSpendReadyDuration
-    ? `可用耗时 ${backendSpendReadyDuration}`
+    ? wt('w463', [backendSpendReadyDuration])
     : undefined
   const settlementDuration = durationLabel(progress?.backendConsensusMillis)
-  const settlementTiming = settlementDuration ? `共识阶段耗时 ${settlementDuration}` : undefined
+  const settlementTiming = settlementDuration ? wt('w464', [settlementDuration]) : undefined
 
   return [
     {
       id: 'received',
-      label: '交易已接收',
-      detail: accepted ? '交易与签名已通过入口校验。' : '正在提交交易。',
+      label: wt('w465'),
+      detail: accepted ? wt('w466') : wt('w467'),
       state: accepted ? 'complete' : failed ? 'error' : 'active',
     },
     {
       id: 'guarantee',
-      label: '担保验证',
+      label: wt('w447'),
       detail: guaranteeFailed
-        ? failure?.reason || '担保节点拒绝了这笔交易。'
+        ? failure?.reason || wt('w468')
         : guaranteeComplete
-          ? '担保节点已完成安全验证。'
-          : '正在验证输入、签名与担保约束。',
+          ? wt('w469')
+          : wt('w470'),
       state: guaranteeFailed
         ? 'error'
         : guaranteeComplete
@@ -371,17 +360,19 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     },
     {
       id: 'organization',
-      label: '组织确认',
+      label: wt('w471'),
       meta: progress?.registeredAt
-        ? `登记确认耗时 ${observedDuration(progress.backendAcceptedAt, progress.registeredAt) ?? '未知'}`
+        ? wt('w472', [
+            observedDuration(progress.backendAcceptedAt, progress.registeredAt) ?? wt('w0'),
+          ])
         : undefined,
       detail: organizationFailed
-        ? failure?.reason || '担保组织未能完成确认。'
+        ? failure?.reason || wt('w473')
         : organizationComplete
-          ? '担保组织已确认并登记处理结果。'
+          ? wt('w474')
           : guaranteeComplete
-            ? '担保验证已通过，正在完成组织确认。'
-            : '等待担保验证完成。',
+            ? wt('w475')
+            : wt('w476'),
       state: organizationFailed
         ? 'error'
         : organizationComplete
@@ -392,18 +383,18 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     },
     {
       id: 'recipient-ready',
-      label: isQuick ? (spendReady ? '收款方可用' : '收款方可用（未确认）') : '收款方到账',
+      label: isQuick ? (spendReady ? wt('w436') : wt('w477')) : wt('w478'),
       detail: isQuick
         ? spendReady
-          ? 'TXCer 已完成原子登记，收款方现在即可再次支付。'
+          ? wt('w479')
           : settled
-            ? '交易已结算；接收钱包同步状态未回传。'
+            ? wt('w480')
             : progress?.registeredAt
-              ? 'TXCer 已完成组织登记；接收钱包同步状态未回传。'
-              : '等待 TXCer 完成组织登记。'
+              ? wt('w481')
+              : wt('w482')
         : settled
-          ? '交易已结算到收款地址。'
-          : '等待后台结算完成。',
+          ? wt('w483')
+          : wt('w484'),
       meta: isQuick && spendReady ? spendReadyTiming : undefined,
       state:
         failed && !guaranteeFailed && !organizationFailed
@@ -420,8 +411,8 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
     },
     {
       id: 'settlement',
-      label: '后台结算',
-      detail: settled ? '交易已获得 GQNC 认证并完成结算。' : 'GQNC 在后台认证，不阻塞快速可用。',
+      label: wt('w485'),
+      detail: settled ? wt('w486') : wt('w487'),
       meta: settled ? settlementTiming : undefined,
       state:
         failed && !failure
@@ -450,7 +441,7 @@ function assertSubmissionAccepted(response: unknown): void {
       status,
     )
   )
-    throw new TransferSubmissionRejectedError('后端响应没有确认已接收交易。')
+    throw new TransferSubmissionRejectedError(wt('w488'))
 }
 
 export function gqncCertifiedHeight(value: unknown): number {

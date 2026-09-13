@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, walletLocale } from '@/i18n/walletText'
+
 import {
   PhArrowClockwise as ArrowClockwise,
   PhArrowDown as ArrowDown,
@@ -29,8 +31,8 @@ const props = withDefaults(
 const emit = defineEmits<{ refresh: []; sweepEnd: [] }>()
 const total = computed(() => props.asset?.total ?? '0')
 const updatedLabel = computed(() => {
-  if (!props.updatedAt) return '尚未取得真实账户快照'
-  return `${props.offline ? '缓存于' : '同步于'} ${new Date(props.updatedAt).toLocaleTimeString()}`
+  if (!props.updatedAt) return wt('w378')
+  return `${props.offline ? wt('w380') : wt('w126')} · ${new Date(props.updatedAt).toLocaleTimeString(walletLocale())}`
 })
 </script>
 
@@ -42,8 +44,8 @@ const updatedLabel = computed(() => {
   >
     <div class="wallet-balance-field__main">
       <div class="wallet-balance-field__label">
-        <p id="wallet-total-assets">总资产</p>
-        <span v-if="offline">离线快照</span>
+        <p id="wallet-total-assets">{{ wt('w379') }}</p>
+        <span v-if="offline"> {{ wt('w380') }} </span>
       </div>
 
       <strong class="wallet-balance-field__amount tabular">
@@ -51,13 +53,13 @@ const updatedLabel = computed(() => {
         <small>{{ asset?.symbol ?? 'CAL' }}</small>
       </strong>
 
-      <div class="wallet-balance-field__composition" aria-label="资产可用组成">
+      <div class="wallet-balance-field__composition" :aria-label="wt('w381')">
         <span>
-          <small>UTXO 可用</small>
+          <small> {{ wt('w205') }} </small>
           <b class="tabular">{{ asset?.utxoAvailable ?? '0' }}</b>
         </span>
         <span>
-          <small>TXCer 可支付</small>
+          <small> {{ wt('w206') }} </small>
           <b class="tabular">{{ asset?.txCerSpendable ?? '0' }}</b>
         </span>
       </div>
@@ -66,19 +68,17 @@ const updatedLabel = computed(() => {
         <span>{{ updatedLabel }}</span>
         <button type="button" :aria-busy="loading || undefined" @click="emit('refresh')">
           <ArrowClockwise :class="{ 'is-spinning': loading }" :size="16" aria-hidden="true" />
-          {{ loading ? '同步中' : '同步' }}
+          {{ loading ? wt('w382') : wt('w383') }}
         </button>
       </div>
     </div>
 
-    <div class="wallet-balance-field__actions" aria-label="钱包操作">
+    <div class="wallet-balance-field__actions" :aria-label="wt('w384')">
       <AppButton to="/wallet/send" size="large">
-        <PaperPlaneTilt :size="18" weight="bold" aria-hidden="true" />
-        发送
+        <PaperPlaneTilt :size="18" weight="bold" aria-hidden="true" /> {{ wt('w210') }}
       </AppButton>
       <AppButton to="/wallet/receive" size="large" variant="secondary">
-        <ArrowDown :size="18" weight="bold" aria-hidden="true" />
-        收款
+        <ArrowDown :size="18" weight="bold" aria-hidden="true" /> {{ wt('w139') }}
       </AppButton>
     </div>
 

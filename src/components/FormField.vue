@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wl } from '@/i18n/walletText'
+
 import { ref } from 'vue'
 
 defineOptions({ inheritAttrs: false })
@@ -57,7 +59,7 @@ defineExpose({ focus })
       <slot name="suffix" />
     </div>
     <p v-if="help" :id="`${id}-help`" class="form-field__help">{{ help }}</p>
-    <p v-if="error" :id="`${id}-error`" class="form-field__error" role="alert">{{ error }}</p>
+    <p v-if="error" :id="`${id}-error`" class="form-field__error" role="alert">{{ wl(error) }}</p>
   </div>
 </template>
 

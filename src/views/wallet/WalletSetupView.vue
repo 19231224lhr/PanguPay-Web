@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import {
   PhCheckCircle as CheckCircle,
   PhDownloadSimple as DownloadSimple,
@@ -40,8 +42,8 @@ const backupImportFailed = ref(false)
 const importPasswordField = ref<{ focus: () => void }>()
 
 function newPasswordError(password: string, confirmation: string): string {
-  if (password && new TextEncoder().encode(password).length < 12) return '密码至少需要 12 个字符。'
-  if (confirmation && password !== confirmation) return '两次密码不一致。'
+  if (password && new TextEncoder().encode(password).length < 12) return wt('w240')
+  if (confirmation && password !== confirmation) return wt('w157')
   return ''
 }
 
@@ -52,22 +54,19 @@ const recoveryPasswordError = computed(() =>
   newPasswordError(recoveryPassword.value, recoveryPasswordConfirm.value),
 )
 const setupTitle = computed(() => {
-  if (mode.value === 'create') return '建立你的钱包'
-  return importMethod.value === 'backup' ? '导入加密备份' : '使用密钥恢复'
+  if (mode.value === 'create') return wt('w241')
+  return importMethod.value === 'backup' ? wt('w242') : wt('w243')
 })
 const setupDescription = computed(() => {
-  if (mode.value === 'create') return '密钥只在本机生成并加密，PanguPay 不会保存你的密码。'
-  if (importMethod.value === 'backup')
-    return '选择已有的 wallet.json，并使用这份备份原来的密码解锁。'
-  return '使用完整的账户私钥与地址 RootSeed，建立一个新的本地加密钱包。'
+  if (mode.value === 'create') return wt('w244')
+  if (importMethod.value === 'backup') return wt('w245')
+  return wt('w246')
 })
 const verificationTitle = computed(() =>
-  importMethod.value === 'backup' ? '正在验证加密备份' : '正在建立加密钱包',
+  importMethod.value === 'backup' ? wt('w247') : wt('w248'),
 )
 const verificationDescription = computed(() =>
-  importMethod.value === 'backup'
-    ? '正在本机解密并核对 wallet.json 的完整性。'
-    : '正在本机验证密钥并加密新的 keystore。',
+  importMethod.value === 'backup' ? wt('w249') : wt('w250'),
 )
 
 watch(backupPassword, (password) => {
@@ -104,7 +103,7 @@ async function createWallet(): Promise<void> {
     backupDownloaded.value = true
     recoveryDownloaded.value = true
   } catch (cause) {
-    localError.value = cause instanceof Error ? cause.message : '创建钱包失败'
+    localError.value = cause instanceof Error ? cause.message : wt('w251')
   }
 }
 
@@ -122,7 +121,7 @@ async function enterCreatedWallet(): Promise<void> {
       'replace',
     )
   } catch (cause) {
-    localError.value = cause instanceof Error ? cause.message : '保存钱包失败'
+    localError.value = cause instanceof Error ? cause.message : wt('w252')
   }
 }
 
@@ -138,7 +137,7 @@ async function readFile(event: Event): Promise<void> {
     backupImportFailed.value = false
   } catch {
     importValue.value = undefined
-    localError.value = '无法读取 wallet.json。'
+    localError.value = wt('w253')
   }
 }
 
@@ -157,7 +156,7 @@ async function importWallet(): Promise<void> {
   if (importMethod.value === 'keys') {
     if (recoveryPasswordError.value || !recoveryPasswordConfirm.value) return
   } else if (!importValue.value || !backupPassword.value) {
-    localError.value = !importValue.value ? '请先选择 wallet.json。' : '请输入备份原密码。'
+    localError.value = !importValue.value ? wt('w254') : wt('w255')
     return
   }
   await showVerificationStage()
@@ -183,9 +182,9 @@ async function importWallet(): Promise<void> {
     if (importMethod.value === 'backup') {
       backupPassword.value = ''
       backupImportFailed.value = true
-      localError.value = '无法验证备份，请检查原密码，或确认 wallet.json 未被修改。'
+      localError.value = wt('w256')
     } else {
-      localError.value = '无法使用这些密钥恢复钱包，请检查私钥、RootSeed 与新密码。'
+      localError.value = wt('w257')
     }
     importStage.value = 'form'
     await nextTick()
@@ -207,10 +206,10 @@ async function importWallet(): Promise<void> {
         <div class="verification-mark" aria-hidden="true">
           <LockKey :size="30" weight="regular" />
         </div>
-        <span class="verification-eyebrow">本机安全验证</span>
+        <span class="verification-eyebrow"> {{ wt('w258') }} </span>
         <h1>{{ verificationTitle }}</h1>
         <p>{{ verificationDescription }}</p>
-        <small>密码和密钥不会离开当前设备。</small>
+        <small> {{ wt('w259') }} </small>
       </section>
 
       <section v-else key="form" class="access-panel">
@@ -225,10 +224,10 @@ async function importWallet(): Promise<void> {
 
         <SegmentedControl
           v-model="mode"
-          label="钱包设置方式"
+          :label="wt('w260')"
           :options="[
-            { label: '创建', value: 'create' },
-            { label: '导入', value: 'import' },
+            { label: wt('w261'), value: 'create' },
+            { label: wt('w262'), value: 'import' },
           ]"
         />
 
@@ -244,16 +243,16 @@ async function importWallet(): Promise<void> {
               <FormField
                 id="create-password"
                 v-model="createPassword"
-                label="钱包密码"
+                :label="wt('w263')"
                 type="password"
                 autocomplete="new-password"
-                help="至少 12 个字符，仅用于解锁本机加密钱包。"
+                :help="wt('w264')"
                 :error="createPasswordError"
               />
               <FormField
                 id="create-password-confirm"
                 v-model="createPasswordConfirm"
-                label="确认密码"
+                :label="wt('w265')"
                 type="password"
                 autocomplete="new-password"
                 :error="createPasswordError"
@@ -265,33 +264,30 @@ async function importWallet(): Promise<void> {
                 :loading="wallet.busy"
                 :disabled="!!createPasswordError || !createPasswordConfirm"
               >
-                创建钱包并下载备份
-                <template #icon><DownloadSimple :size="18" /></template>
+                {{ wt('w266') }} <template #icon><DownloadSimple :size="18" /></template>
               </AppButton>
-              <section v-if="backupDownloaded" class="backup-files" aria-label="钱包备份说明">
+              <section v-if="backupDownloaded" class="backup-files" :aria-label="wt('w267')">
                 <header>
-                  <strong>两份备份已下载</strong>
+                  <strong> {{ wt('w268') }} </strong>
                 </header>
                 <div>
                   <LockKey :size="19" weight="regular" />
                   <span>
                     <b>wallet.json</b>
-                    <small>加密备份；日常导入使用，仍需要当前密码。</small>
+                    <small> {{ wt('w269') }} </small>
                   </span>
                 </div>
                 <div>
                   <Key :size="19" weight="regular" />
                   <span>
                     <b>PanguPay-recovery.json</b>
-                    <small>紧急恢复材料；无需原密码，必须离线保密。</small>
+                    <small> {{ wt('w270') }} </small>
                   </span>
                 </div>
               </section>
               <label v-if="recoveryDownloaded" class="backup-confirm">
                 <input v-model="backupConfirmed" type="checkbox" />
-                <span
-                  >我已分别安全保存加密 wallet.json 与独立恢复材料，并理解恢复材料必须保密。</span
-                >
+                <span> {{ wt('w271') }} </span>
               </label>
               <AppButton
                 v-if="backupDownloaded"
@@ -301,7 +297,7 @@ async function importWallet(): Promise<void> {
                 :loading="wallet.busy"
                 @click="enterCreatedWallet"
               >
-                进入钱包
+                {{ wt('w272') }}
               </AppButton>
             </form>
 
@@ -314,10 +310,10 @@ async function importWallet(): Promise<void> {
             >
               <SegmentedControl
                 v-model="importMethod"
-                label="导入来源"
+                :label="wt('w273')"
                 :options="[
                   { label: 'wallet.json', value: 'backup' },
-                  { label: '私钥与 RootSeed', value: 'keys' },
+                  { label: wt('w274'), value: 'keys' },
                 ]"
               />
 
@@ -327,19 +323,15 @@ async function importWallet(): Promise<void> {
                     <input
                       type="file"
                       accept=".json,application/json"
-                      aria-label="选择 wallet.json"
+                      :aria-label="wt('w275')"
                       @change="readFile"
                     />
                     <CheckCircle v-if="importValue" :size="21" weight="fill" />
                     <UploadSimple v-else :size="20" />
                     <span class="file-picker__copy">
-                      <strong>{{ fileName || '选择 wallet.json' }}</strong>
+                      <strong>{{ fileName || wt('w275') }}</strong>
                       <small>
-                        {{
-                          importValue
-                            ? '文件已读取，输入备份原密码即可验证。'
-                            : '选择由 PanguPay 导出的加密备份。'
-                        }}
+                        {{ importValue ? wt('w276') : wt('w277') }}
                       </small>
                     </span>
                   </label>
@@ -347,10 +339,10 @@ async function importWallet(): Promise<void> {
                     ref="importPasswordField"
                     id="import-password"
                     v-model="backupPassword"
-                    label="wallet.json 原密码"
+                    :label="wt('w278')"
                     type="password"
                     autocomplete="current-password"
-                    help="这是已有备份的密码，不是在设置新密码。"
+                    :help="wt('w279')"
                     :invalid="backupImportFailed"
                     described-by="import-feedback"
                   />
@@ -360,7 +352,7 @@ async function importWallet(): Promise<void> {
                     :loading="wallet.busy"
                     :disabled="!importValue || !backupPassword"
                   >
-                    验证并导入
+                    {{ wt('w280') }}
                   </AppButton>
                   <div id="import-feedback" class="import-feedback">
                     <Transition name="import-error">
@@ -376,29 +368,29 @@ async function importWallet(): Promise<void> {
                   <FormField
                     id="legacy-scalar"
                     v-model="legacyScalar"
-                    label="账户私钥（64 位十六进制）"
+                    :label="wt('w281')"
                     autocomplete="off"
                   />
                   <FormField
                     id="legacy-root"
                     v-model="legacyRootSeed"
-                    label="CAL 地址 RootSeed（64 位十六进制）"
+                    :label="wt('w282')"
                     autocomplete="off"
-                    help="只有账户私钥、没有 RootSeed 时不能恢复旧地址。"
+                    :help="wt('w283')"
                   />
                   <FormField
                     id="recovery-new-password"
                     v-model="recoveryPassword"
-                    label="设置新钱包密码"
+                    :label="wt('w165')"
                     type="password"
                     autocomplete="new-password"
-                    help="至少 12 个字符，用于加密新建的本地 keystore。"
+                    :help="wt('w166')"
                     :error="recoveryPasswordError"
                   />
                   <FormField
                     id="recovery-new-password-confirm"
                     v-model="recoveryPasswordConfirm"
-                    label="确认新密码"
+                    :label="wt('w167')"
                     type="password"
                     autocomplete="new-password"
                     :error="recoveryPasswordError"
@@ -414,7 +406,7 @@ async function importWallet(): Promise<void> {
                       !!recoveryPasswordError
                     "
                   >
-                    恢复并进入钱包
+                    {{ wt('w284') }}
                   </AppButton>
                 </div>
               </Transition>
@@ -427,7 +419,7 @@ async function importWallet(): Promise<void> {
           class="access-error"
           role="alert"
         >
-          {{ localError || '操作未完成，请检查输入后重试。' }}
+          {{ localError || wt('w285') }}
         </p>
       </section>
     </Transition>

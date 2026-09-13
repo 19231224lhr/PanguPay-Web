@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import { PhArrowDown as ArrowDown } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
 
@@ -32,8 +34,8 @@ async function refresh(): Promise<void> {
   <div class="wallet-page overview">
     <WalletPageHeader
       variant="compact"
-      :title="`你好，${dashboard.current.displayName}`"
-      :description="dashboard.offline ? '当前显示上次同步的账户快照。' : undefined"
+      :title="wt('w118', [dashboard.current.displayName])"
+      :description="dashboard.offline ? wt('w119') : undefined"
     />
 
     <WalletBalanceField
@@ -50,24 +52,27 @@ async function refresh(): Promise<void> {
 
     <WalletAddressLedger />
 
-    <nav class="overview-shortcuts" aria-label="钱包扩展功能">
+    <nav class="overview-shortcuts" :aria-label="wt('w120')">
       <RouterLink to="/wallet/organization"
-        ><span>担保组织</span><small>成员关系与服务节点</small></RouterLink
+        ><span> {{ wt('w86') }} </span><small> {{ wt('w121') }} </small></RouterLink
       >
       <RouterLink to="/wallet/blockchain"
-        ><span>区块链</span><small>认证区块与委员会状态</small></RouterLink
+        ><span> {{ wt('w122') }} </span><small> {{ wt('w123') }} </small></RouterLink
       >
     </nav>
 
     <div class="overview-ledger">
       <section class="ledger-section assets" aria-labelledby="assets-heading">
         <div class="ledger-section__heading">
-          <h2 id="assets-heading">资产</h2>
+          <h2 id="assets-heading">{{ wt('w124') }}</h2>
           <StatusLabel :tone="dashboard.offline ? 'warning' : 'success'">
-            {{ dashboard.offline ? '离线' : '已同步' }}
+            {{ dashboard.offline ? wt('w125') : wt('w126') }}
           </StatusLabel>
         </div>
-        <div class="asset-head"><span>资产</span><span>可用组成</span><span>总额</span></div>
+        <div class="asset-head">
+          <span> {{ wt('w124') }} </span><span> {{ wt('w127') }} </span
+          ><span> {{ wt('w128') }} </span>
+        </div>
         <div v-for="asset in dashboard.current.assets" :key="asset.symbol" class="asset-row">
           <span class="asset-identity">
             <i>{{ asset.symbol.slice(0, 1) }}</i>
@@ -86,25 +91,25 @@ async function refresh(): Promise<void> {
 
       <section class="ledger-section activity" aria-labelledby="activity-heading">
         <div class="ledger-section__heading">
-          <h2 id="activity-heading">最近活动</h2>
-          <RouterLink to="/wallet/activity">全部</RouterLink>
+          <h2 id="activity-heading">{{ wt('w129') }}</h2>
+          <RouterLink to="/wallet/activity"> {{ wt('w130') }} </RouterLink>
         </div>
         <ul v-if="dashboard.current.activities.length">
           <li v-for="item in dashboard.current.activities.slice(0, 5)" :key="item.id">
             <ArrowDown :size="17" aria-hidden="true" />
             <span>
               <b>{{ item.title }}</b>
-              <small>{{ item.status }}</small>
+              <small>{{ wl(item.status) }}</small>
             </span>
             <b class="tabular">{{ item.amount }}</b>
           </li>
         </ul>
-        <div v-else class="wallet-empty">这里会显示真实账户活动。当前没有可展示记录。</div>
+        <div v-else class="wallet-empty">{{ wt('w131') }}</div>
       </section>
     </div>
 
     <p v-if="dashboard.error" class="wallet-notice wallet-notice--warning">
-      无法取得最新快照：{{ dashboard.error }}。当前显示内容会明确保留缓存时间。
+      {{ wt('w132') }} {{ wl(dashboard.error) }} {{ wt('w133') }}
     </p>
   </div>
 </template>

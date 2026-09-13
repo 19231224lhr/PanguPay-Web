@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { useRouter } from 'vue-router'
 
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
@@ -36,15 +38,15 @@ async function returnHome(): Promise<void> {
         <ValueFoldField
           :intro="false"
           :active="fieldActive"
-          label="PanguPay 价值折叠场"
+          :label="wt('w351')"
           transition-name="pangu-value-fold"
         />
         <div class="wallet-access__statement">
           <BrandMark :size="34" />
           <p>PanguPay</p>
           <strong>
-            <span>计算，为了无法计算的</span>
-            <span>价值。</span>
+            <span> {{ wt('w352') }} </span>
+            <span> {{ wt('w353') }} </span>
           </strong>
         </div>
       </aside>

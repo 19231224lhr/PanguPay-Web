@@ -1,3 +1,4 @@
+import { wt } from '@/i18n/walletText'
 import { parseAmount } from '@/protocol-v2/amount'
 
 export interface AddressArchiveState {
@@ -86,12 +87,12 @@ export function resolveAddressArchiveActivity(
 
 export function evaluateAddressArchive(state: AddressArchiveState): AddressArchiveDecision {
   const reasons: string[] = []
-  if (state.isLastActive) reasons.push('至少保留一个可用地址')
-  if (parseAmount(state.utxoBalance) > 0n) reasons.push('地址仍有 UTXO 余额')
-  if (parseAmount(state.txCerBalance) > 0n) reasons.push('地址仍有 TXCer 余额')
-  if (state.hasReservedInputs) reasons.push('地址仍有被交易占用的输入')
-  if (state.hasPendingTransfers) reasons.push('仍有交易正在处理中')
-  if (state.ownershipUnknown) reasons.push('无法确认该地址的归档安全状态')
+  if (state.isLastActive) reasons.push(wt('w489'))
+  if (parseAmount(state.utxoBalance) > 0n) reasons.push(wt('w490'))
+  if (parseAmount(state.txCerBalance) > 0n) reasons.push(wt('w491'))
+  if (state.hasReservedInputs) reasons.push(wt('w492'))
+  if (state.hasPendingTransfers) reasons.push(wt('w493'))
+  if (state.ownershipUnknown) reasons.push(wt('w494'))
   return {
     allowed: reasons.length === 0,
     reasons,

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import {
   PhArchive as Archive,
   PhCheck as Check,
@@ -50,7 +52,7 @@ const rows = computed(() =>
     return {
       ...record,
       ...asset,
-      label: metadata?.label || `${asset.symbol} 地址`,
+      label: metadata?.label || wt('w357', [asset.symbol]),
       archived: metadata?.archived ?? false,
       registration: metadata?.registration ?? 'active',
       registrationError: metadata?.error,
@@ -129,7 +131,7 @@ async function copyAddress(address: string): Promise<void> {
 
 async function register(address: string): Promise<void> {
   const service = getWalletEntryService()
-  if (!service) throw new Error('地址登记服务尚未连接。')
+  if (!service) throw new Error(wt('w358'))
   await service.registerAddress(address, dashboard.current.organization?.id)
   await wallet.setAddressMetadata(address, { registration: 'active', error: undefined })
 }
@@ -145,14 +147,14 @@ async function createAddress(): Promise<void> {
     try {
       await register(address.address)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : '地址登记失败。'
+      const message = cause instanceof Error ? cause.message : wt('w359')
       await wallet.setAddressMetadata(address.address, { registration: 'failed', error: message })
       throw cause
     }
     creating.value = false
     await dashboard.sync(true)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法新建地址。'
+    error.value = cause instanceof Error ? cause.message : wt('w360')
   } finally {
     createBusy.value = false
   }
@@ -165,7 +167,7 @@ async function retryRegistration(address: string): Promise<void> {
     await register(address)
     await dashboard.sync(true)
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : '地址登记失败。'
+    const message = cause instanceof Error ? cause.message : wt('w359')
     await wallet.setAddressMetadata(address, { registration: 'failed', error: message })
     error.value = message
   }
@@ -180,14 +182,14 @@ async function confirmArchive(): Promise<void> {
   try {
     if (decision.requiresNetworkUnbind) {
       const service = getWalletEntryService()
-      if (!service) throw new Error('地址解绑服务尚未连接。')
+      if (!service) throw new Error(wt('w361'))
       await service.unbindAddress(row.address, dashboard.current.organization?.id)
     }
     await wallet.setAddressMetadata(row.address, { archived: true })
     archiveAddress.value = ''
     await dashboard.sync(true)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法归档地址。'
+    error.value = cause instanceof Error ? cause.message : wt('w362')
   } finally {
     archiveBusy.value = false
   }
@@ -198,28 +200,33 @@ async function confirmArchive(): Promise<void> {
   <section class="address-ledger" aria-labelledby="address-ledger-heading">
     <header>
       <div>
-        <p>地址账本</p>
-        <h2 id="address-ledger-heading">你的收款地址</h2>
+        <p>{{ wt('w363') }}</p>
+        <h2 id="address-ledger-heading">{{ wt('w364') }}</h2>
       </div>
       <AppButton variant="secondary" @click="creating = !creating">
-        {{ creating ? '收起' : '新建地址' }}
+        {{ creating ? wt('w365') : wt('w366') }}
         <template #icon><Close v-if="creating" :size="16" /><Plus v-else :size="16" /></template>
       </AppButton>
     </header>
 
     <Transition name="ledger-reveal">
       <form v-if="creating" class="address-create" @submit.prevent="createAddress">
-        <AppSelect id="new-address-type" v-model="type" label="币种" :options="typeOptions" />
+        <AppSelect
+          id="new-address-type"
+          v-model="type"
+          :label="wt('w367')"
+          :options="typeOptions"
+        />
         <FormField
           id="new-address-password"
           v-model="password"
-          label="钱包密码"
+          :label="wt('w263')"
           type="password"
           autocomplete="current-password"
-          help="用于重新加密包含新 RootSeed 的本地 keystore。"
+          :help="wt('w368')"
         />
         <AppButton type="submit" :loading="createBusy" :disabled="password.length < 12">
-          生成并登记
+          {{ wt('w369') }}
         </AppButton>
       </form>
     </Transition>
@@ -239,31 +246,37 @@ async function confirmArchive(): Promise<void> {
         </div>
         <div class="address-identifier">
           <code>{{ row.address }}</code>
-          <button type="button" :aria-label="`复制 ${row.label}`" @click="copyAddress(row.address)">
+          <button
+            type="button"
+            :aria-label="wt('w370', [row.label])"
+            @click="copyAddress(row.address)"
+          >
             <Check v-if="copied === row.address" :size="17" />
             <Copy v-else :size="17" />
           </button>
         </div>
         <div class="address-state">
-          <span v-if="row.archived">已归档</span>
-          <span v-else-if="row.registration === 'active'" data-tone="success">已登记</span>
+          <span v-if="row.archived"> {{ wt('w371') }} </span>
+          <span v-else-if="row.registration === 'active'" data-tone="success">
+            {{ wt('w75') }}
+          </span>
           <button
             v-else-if="row.registration === 'failed'"
             type="button"
             data-tone="danger"
             @click="retryRegistration(row.address)"
           >
-            登记失败 · 重试
+            {{ wt('w372') }}
           </button>
-          <span v-else>登记中</span>
+          <span v-else> {{ wt('w373') }} </span>
           <button
             v-if="!row.archived"
             type="button"
             class="archive-trigger"
-            :aria-label="`归档 ${row.label}`"
+            :aria-label="wt('w374', [row.label])"
             @click="openArchive(row.address)"
           >
-            <Archive :size="16" /> 归档
+            <Archive :size="16" /> {{ wt('w375') }}
           </button>
         </div>
       </article>
@@ -272,27 +285,27 @@ async function confirmArchive(): Promise<void> {
     <Transition name="ledger-reveal">
       <div v-if="selectedArchive" class="archive-confirm" role="dialog" aria-modal="true">
         <div>
-          <strong>归档 {{ selectedArchive.label }}？</strong>
-          <p>密钥与 RootSeed 仍保留在加密备份中；归档后不会再用于收款或选币。</p>
+          <strong> {{ wt('w375') }} {{ selectedArchive.label }}？</strong>
+          <p>{{ wt('w376') }}</p>
           <ul v-if="archiveDecision?.reasons.length">
             <li v-for="reason in archiveDecision.reasons" :key="reason">{{ reason }}</li>
           </ul>
         </div>
         <div>
-          <AppButton variant="ghost" @click="archiveAddress = ''">取消</AppButton>
+          <AppButton variant="ghost" @click="archiveAddress = ''"> {{ wt('w108') }} </AppButton>
           <AppButton
             variant="danger"
             :disabled="archiveChecking || !archiveDecision?.allowed"
             :loading="archiveBusy || archiveChecking"
             @click="confirmArchive"
           >
-            确认归档
+            {{ wt('w377') }}
           </AppButton>
         </div>
       </div>
     </Transition>
 
-    <p v-if="error" class="address-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="address-error" role="alert">{{ wl(error) }}</p>
   </section>
 </template>
 

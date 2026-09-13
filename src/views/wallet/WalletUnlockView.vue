@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import {
   PhArrowRight as ArrowRight,
   PhLockKey as LockKey,
@@ -58,14 +60,14 @@ async function unlock(): Promise<void> {
   <WalletAccessFrame>
     <section class="access-panel">
       <LockKey class="unlock-mark" :size="34" weight="regular" />
-      <h1>欢迎回来</h1>
-      <p>钱包密钥仍在本机。输入密码后，秘密只会短暂存在于当前页面内存中。</p>
+      <h1>{{ wt('w286') }}</h1>
+      <p>{{ wt('w287') }}</p>
       <form class="access-form" @submit.prevent="unlock">
         <FormField
           ref="passwordField"
           id="unlock-password"
           v-model="password"
-          label="钱包密码"
+          :label="wt('w263')"
           type="password"
           autocomplete="current-password"
           autofocus
@@ -75,26 +77,24 @@ async function unlock(): Promise<void> {
         <div id="unlock-feedback" class="unlock-feedback">
           <Transition name="unlock-error">
             <span v-if="unlockFailed" role="alert">
-              <WarningCircle :size="16" weight="regular" />
-              无法解锁，请检查密码。
+              <WarningCircle :size="16" weight="regular" /> {{ wt('w288') }}
             </span>
           </Transition>
-          <RouterLink to="/wallet/recover">忘记密码？</RouterLink>
+          <RouterLink to="/wallet/recover"> {{ wt('w289') }} </RouterLink>
         </div>
         <AppButton type="submit" size="large" :loading="wallet.busy" :disabled="!password">
-          解锁钱包
-          <template #icon><ArrowRight :size="18" /></template>
+          {{ wt('w290') }} <template #icon><ArrowRight :size="18" /></template>
         </AppButton>
       </form>
-      <InlineNotice v-if="wallet.error && !unlockFailed" title="本地钱包不可用" tone="danger">
-        {{ wallet.error }}
+      <InlineNotice v-if="wallet.error && !unlockFailed" :title="wt('w291')" tone="danger">
+        {{ wl(wallet.error) }}
       </InlineNotice>
     </section>
     <Teleport to="body">
       <Transition name="unlock-transition">
         <div v-if="transitioning" class="unlock-transition" aria-live="polite">
-          <ValueFoldField :intro="false" active label="正在解锁 PanguPay 钱包" />
-          <p>正在解锁钱包</p>
+          <ValueFoldField :intro="false" active :label="wt('w292')" />
+          <p>{{ wt('w293') }}</p>
         </div>
       </Transition>
     </Teleport>

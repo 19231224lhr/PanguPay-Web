@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { computed } from 'vue'
 
 import { parseAmount } from '@/protocol-v2'
@@ -26,7 +28,7 @@ const short = (value: string) =>
 </script>
 
 <template>
-  <section v-if="normalized.length" class="exposure" aria-label="责任份额">
+  <section v-if="normalized.length" class="exposure" :aria-label="wt('w318')">
     <div class="exposure__bar" aria-hidden="true">
       <span
         v-for="share in normalized"

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { PhCheck as Check, PhCopy as Copy, PhShieldCheck as ShieldCheck } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
 
@@ -25,8 +27,18 @@ const generationError = ref('')
 const confirmationFresh = ref(false)
 const copied = ref(false)
 const modeOptions = [
-  { label: '原始地址', value: 'raw' },
-  { label: '胶囊地址', value: 'capsule' },
+  {
+    get label() {
+      return wt('w134')
+    },
+    value: 'raw',
+  },
+  {
+    get label() {
+      return wt('w135')
+    },
+    value: 'capsule',
+  },
 ]
 const displayedAddress = computed(() =>
   addressMode.value === 'raw' ? selected.value : capsule.value,
@@ -35,13 +47,16 @@ const selectedRecord = computed(() =>
   wallet.addresses.find((address) => address.address === selected.value),
 )
 const selectedAsset = computed(
-  () => ['CAL', 'BTC', 'ETH'][Number(selectedRecord.value?.type ?? 0)] ?? '未知币种',
+  () => ['CAL', 'BTC', 'ETH'][Number(selectedRecord.value?.type ?? 0)] ?? wt('w136'),
 )
 const organization = computed(() => dashboard.current.organization)
 const addressOptions = computed(() =>
   wallet.addresses.map((address, index) => ({
     description: address.address,
-    label: `${['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `币种 ${address.type}`} · 地址 ${index + 1}`,
+    label: wt('w137', [
+      ['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `Asset ${address.type}`,
+      index + 1,
+    ]),
     monospace: true,
     value: address.address,
   })),
@@ -71,7 +86,7 @@ async function generateCapsule(): Promise<void> {
     confirmationFresh.value = true
     setTimeout(() => (confirmationFresh.value = false), 900)
   } catch (cause) {
-    generationError.value = cause instanceof Error ? cause.message : '胶囊地址生成失败。'
+    generationError.value = cause instanceof Error ? cause.message : wt('w138')
   } finally {
     generating.value = false
   }
@@ -87,14 +102,11 @@ watch(selected, () => {
 
 <template>
   <div class="wallet-page receive-page">
-    <WalletPageHeader
-      title="收款"
-      description="原始地址与胶囊地址都可重复收款；胶囊只隐藏公开地址，不改变链上资金归属。"
-    />
+    <WalletPageHeader :title="wt('w139')" :description="wt('w140')" />
     <SegmentedControl
       v-model="addressMode"
       class="receive-mode"
-      label="收款地址形式"
+      :label="wt('w141')"
       :options="modeOptions"
     />
     <section class="receive-plane">
@@ -102,27 +114,23 @@ watch(selected, () => {
         <ReceiveAddressQR
           :key="`${addressMode}:${displayedAddress || 'empty'}`"
           :address="displayedAddress"
-          :empty-label="
-            addressMode === 'capsule'
-              ? '选择下方原始地址后生成一个可重复使用的胶囊别名。'
-              : '钱包中没有可用地址，暂时无法生成二维码。'
-          "
+          :empty-label="addressMode === 'capsule' ? wt('w142') : wt('w143')"
         />
       </Transition>
       <div class="receive-details">
         <AppSelect
           id="receive-address"
           v-model="selected"
-          label="收款地址"
+          :label="wt('w144')"
           :options="addressOptions"
-          empty-label="钱包中没有可用地址"
+          :empty-label="wt('w145')"
         />
         <Transition name="address-mode" mode="out-in">
           <div :key="addressMode" class="address-mode-content">
             <div v-if="addressMode === 'raw'" class="receive-address-block">
-              <span>{{ selectedAsset }} · {{ selectedRecord ? '原始地址' : '暂无地址' }}</span>
-              <output class="receive-address">{{ selected || '钱包中没有可用地址' }}</output>
-              <p>二维码仅编码公开地址，不包含私钥或 RootSeed。</p>
+              <span>{{ selectedAsset }} · {{ selectedRecord ? wt('w134') : wt('w146') }}</span>
+              <output class="receive-address">{{ selected || wt('w145') }}</output>
+              <p>{{ wt('w147') }}</p>
             </div>
             <div v-else class="capsule-content" :data-fresh="confirmationFresh || undefined">
               <template v-if="capsule">
@@ -130,24 +138,24 @@ watch(selected, () => {
                   <ShieldCheck :size="18" weight="fill" aria-hidden="true" />
                   <span>{{
                     capsuleSigner === 'organization'
-                      ? organization?.name || `担保组织 ${capsuleOrgID}`
-                      : '委员会签名'
+                      ? organization?.name || wt('w148', [capsuleOrgID])
+                      : wt('w149')
                   }}</span>
-                  <small>组织 ID {{ capsuleOrgID }}</small>
+                  <small> {{ wt('w47') }} {{ capsuleOrgID }}</small>
                 </div>
                 <output class="receive-address">{{ capsule }}</output>
-                <p>组织签名的隐私别名，可重复使用；原始地址仍然有效。</p>
+                <p>{{ wt('w150') }}</p>
               </template>
               <template v-else>
-                <strong>创建公开地址的签名别名</strong>
-                <p>胶囊会隐藏原始地址，付款方验签后仍向同一地址转账。</p>
+                <strong> {{ wt('w151') }} </strong>
+                <p>{{ wt('w152') }}</p>
                 <AppButton
                   variant="secondary"
                   :disabled="!selected"
                   :loading="generating"
                   @click="generateCapsule"
                 >
-                  生成胶囊地址
+                  {{ wt('w153') }}
                 </AppButton>
               </template>
             </div>
@@ -156,7 +164,9 @@ watch(selected, () => {
         <p v-if="generationError" class="capsule-error" role="alert">{{ generationError }}</p>
         <AppButton size="large" :disabled="!displayedAddress" @click="copyAddress">
           <component :is="copied ? Check : Copy" :size="19" />
-          {{ copied ? '已复制' : `复制${addressMode === 'capsule' ? '胶囊' : ''}地址` }}
+          {{
+            copied ? wt('w154') : wt('w155', [addressMode === 'capsule' ? wt('w135') : wt('w134')])
+          }}
         </AppButton>
       </div>
     </section>

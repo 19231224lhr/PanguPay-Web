@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import type { Component } from 'vue'
 import { PhCaretUpDown as CaretUpDown } from '@phosphor-icons/vue'
 import { ref } from 'vue'
@@ -35,12 +37,12 @@ withDefaults(
     accountItems: () => [],
     mobileItems: undefined,
     utilityItems: () => [],
-    accountMenuLabel: '打开账户菜单',
+    accountMenuLabel: wt('w307'),
     accountName: 'Wallet',
     accountId: '',
     accountAvatar: '',
-    lockLabel: '锁定钱包',
-    moreLabel: '我的',
+    lockLabel: wt('w308'),
+    moreLabel: wt('w309'),
   },
 )
 
@@ -138,6 +140,7 @@ const accountMenuOpen = ref(false)
     <WalletAccountMenu
       :open="accountMenuOpen"
       :account-name="accountName"
+      :account-avatar="accountAvatar"
       :account-id="accountId"
       :items="accountItems"
       :utility-items="utilityItems"
@@ -202,6 +205,7 @@ const accountMenuOpen = ref(false)
 }
 
 .app-shell__avatar {
+  overflow: hidden;
   display: grid;
   width: 38px;
   height: 38px;
@@ -220,6 +224,7 @@ const accountMenuOpen = ref(false)
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+  display: block;
 }
 
 .app-shell__account > span:nth-child(2) {
@@ -293,6 +298,8 @@ const accountMenuOpen = ref(false)
 }
 
 .app-shell__mobile-account {
+  padding: 0;
+  overflow: hidden;
   display: grid;
   width: 38px;
   height: 38px;
