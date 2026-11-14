@@ -10,9 +10,9 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
-import ValueFoldField from '@/components/ValueFoldField.vue'
+
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
-import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
+import { unlockPhase, resetUnlockAnimation, revealUnlockedPage } from '@/composables/useEntryUnlock'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveWalletArrival } from '@/wallet/entryService'
 
@@ -29,21 +29,19 @@ watch(password, () => {
 })
 
 async function unlock(): Promise<void> {
+  if (transitioning.value) return
   unlockFailed.value = false
   transitioning.value = true
+  unlockPhase.value = 'loading'
   await nextTick()
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   try {
     await wallet.unlock(password.value)
     password.value = ''
     const destination = await resolveWalletArrival(wallet.accountId)
-    await navigateWithSpatialTransition(
-      router,
-      destination,
-      destination === '/wallet' ? 'wallet' : 'access',
-      'replace',
-    )
+    await revealUnlockedPage(() => router.replace(destination))
   } catch {
+    resetUnlockAnimation()
     transitioning.value = false
     password.value = ''
     await nextTick()
@@ -55,7 +53,7 @@ async function unlock(): Promise<void> {
 </script>
 
 <template>
-  <WalletAccessFrame>
+  <WalletAccessFrame figure="key">
     <section class="access-panel">
       <LockKey class="unlock-mark" :size="34" weight="regular" />
       <h1>欢迎回来</h1>
@@ -90,14 +88,7 @@ async function unlock(): Promise<void> {
         {{ wallet.error }}
       </InlineNotice>
     </section>
-    <Teleport to="body">
-      <Transition name="unlock-transition">
-        <div v-if="transitioning" class="unlock-transition" aria-live="polite">
-          <ValueFoldField :intro="false" active label="正在解锁 PanguPay 钱包" />
-          <p>正在解锁钱包</p>
-        </div>
-      </Transition>
-    </Teleport>
+    <p v-if="transitioning" class="unlock-progress" role="status">正在解锁钱包…</p>
   </WalletAccessFrame>
 </template>
 
@@ -148,47 +139,14 @@ async function unlock(): Promise<void> {
   transform: translateY(3px);
 }
 
-.unlock-transition {
-  position: fixed;
-  z-index: 120;
-  inset: 0;
-  display: grid;
-  overflow: hidden;
-  background: var(--background);
-  place-items: center;
-}
-
-.unlock-transition :deep(.value-fold-field) {
-  width: min(720px, 78vw, 74dvh);
-}
-
-.unlock-transition p {
-  position: absolute;
-  bottom: max(2rem, 7vh);
-  margin: 0;
+.unlock-progress {
+  margin-top: 16px;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  font-size: 13px;
 }
-
-.unlock-transition-enter-active,
-.unlock-transition-leave-active {
-  transition: opacity 220ms var(--ease-standard);
-}
-
-.unlock-transition-enter-from,
-.unlock-transition-leave-to {
-  opacity: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .unlock-error-enter-active {
     transition: none;
-  }
-
-  .unlock-transition-enter-active,
-  .unlock-transition-leave-active {
-    transition-duration: 120ms;
   }
 }
 </style>

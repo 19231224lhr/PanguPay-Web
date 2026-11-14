@@ -1,0 +1,53 @@
+import { computed, onMounted } from 'vue'
+import { useDashboardStore } from '@/stores/dashboard'
+import { useTransferStore } from '@/stores/transfer'
+import {
+  transferActivityStatus,
+  transferModeLabel,
+  type TransferMode,
+  type TransferPhase,
+} from '@/transfer'
+import type { WalletActivity } from '@/wallet/types'
+
+export interface ActivityRow extends WalletActivity {
+  txID: string
+  mode?: TransferMode
+  phase?: TransferPhase
+  lightTxHash?: string
+  targetBlock?: number
+  crossChainError?: string
+}
+
+export const activityAssetSymbol = (coinType?: number, explicit?: string) =>
+  explicit || ['PGC', 'BTC', 'ETH'][coinType ?? 0] || `Asset ${coinType ?? 0}`
+
+/** Keep the overview and full ledger on the same account-scoped activity feed. */
+export function useWalletActivities() {
+  const dashboard = useDashboardStore()
+  const transfer = useTransferStore()
+  onMounted(() => void transfer.synchronizeHistory(true))
+
+  return computed<ActivityRow[]>(() => {
+    const merged = new Map<string, ActivityRow>()
+    for (const item of dashboard.current.activities) merged.set(item.id, { ...item, txID: item.id })
+    for (const item of transfer.history) {
+      merged.set(item.txID, {
+        id: item.txID,
+        title: transferModeLabel(item.mode),
+        amount: item.amount,
+        coinType: item.coinType,
+        asset: activityAssetSymbol(item.coinType),
+        status: transferActivityStatus(item.mode, item.phase, item.crossChainError),
+        timestamp: item.updatedAt,
+        txID: item.txID,
+        direction: 'out',
+        mode: item.mode,
+        phase: item.phase,
+        lightTxHash: item.lightTxHash,
+        targetBlock: item.targetBlock,
+        crossChainError: item.crossChainError,
+      })
+    }
+    return [...merged.values()].sort((left, right) => right.timestamp - left.timestamp)
+  })
+}

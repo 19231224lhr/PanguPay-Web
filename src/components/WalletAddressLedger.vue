@@ -20,6 +20,7 @@ import { evaluateAddressArchive, resolveAddressArchiveActivity } from '@/wallet/
 import { getWalletEntryService } from '@/wallet/entryService'
 import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
 import AppButton from './AppButton.vue'
+import WalletFigure from './WalletFigure.vue'
 import AppSelect from './AppSelect.vue'
 import FormField from './FormField.vue'
 
@@ -195,18 +196,108 @@ async function confirmArchive(): Promise<void> {
 </script>
 
 <template>
-  <section class="address-ledger" aria-labelledby="address-ledger-heading">
-    <header>
-      <div>
-        <p>地址账本</p>
-        <h2 id="address-ledger-heading">你的收款地址</h2>
-      </div>
-      <AppButton variant="secondary" @click="creating = !creating">
+  <section class="address-ledger" aria-label="收款地址明细">
+    <header class="ledger-heading">
+      <h2 tabindex="-1">完整收款地址账本</h2>
+      <span>{{ rows.length }} 个地址</span>
+    </header>
+    <p v-if="!rows.length" class="ledger-empty">暂无收款地址。</p>
+    <div v-else class="address-table">
+      <article
+        v-for="row in rows"
+        :key="row.address"
+        :data-address="row.address"
+        tabindex="-1"
+        :data-archived="row.archived || undefined"
+      >
+        <div class="ledger-record-body">
+          <div class="ledger-record-copy">
+            <div class="address-asset">
+              <div class="address-identity">
+                <strong>{{ row.label }}</strong>
+                <span v-if="row.archived" class="address-badge">已归档</span>
+                <span
+                  v-else-if="row.registration === 'active'"
+                  class="address-badge"
+                  data-tone="success"
+                  >已登记</span
+                >
+                <button
+                  v-else-if="row.registration === 'failed'"
+                  type="button"
+                  class="registration-retry"
+                  data-tone="danger"
+                  @click="retryRegistration(row.address)"
+                >
+                  登记失败 · 重试
+                </button>
+                <span v-else class="address-badge">登记中</span>
+              </div>
+              <small>{{ row.name }} · {{ row.network }}</small>
+            </div>
+            <div class="address-identifier">
+              <span class="field-label">收款地址</span><code>{{ row.address }}</code>
+            </div>
+            <dl class="address-balances">
+              <div>
+                <dt>地址余额</dt>
+                <dd class="tabular">
+                  {{ row.total }} <small>{{ row.symbol }}</small>
+                </dd>
+              </div>
+              <div>
+                <dt>UTXO</dt>
+                <dd class="tabular">{{ row.utxo }}</dd>
+              </div>
+              <div>
+                <dt>TXCer</dt>
+                <dd class="tabular">{{ row.txCer }}</dd>
+              </div>
+            </dl>
+            <p v-if="row.registrationError" class="registration-error">
+              {{ row.registrationError }}
+            </p>
+          </div>
+          <WalletFigure kind="format" :intensity="0.3" />
+        </div>
+        <div class="address-actions">
+          <button type="button" :aria-label="`复制 ${row.label}`" @click="copyAddress(row.address)">
+            <Check v-if="copied === row.address" :size="15" aria-hidden="true" /><Copy
+              v-else
+              :size="15"
+              aria-hidden="true"
+            />
+            <span>{{ copied === row.address ? '已复制' : '复制' }}</span>
+          </button>
+          <button
+            v-if="!row.archived"
+            type="button"
+            class="archive-trigger"
+            :aria-label="`归档 ${row.label}`"
+            @click="openArchive(row.address)"
+          >
+            <Archive :size="15" aria-hidden="true" />归档
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <footer class="ledger-toolbar">
+      <p class="ledger-counts">
+        <span
+          ><b>{{ activeCount }}</b> 个在用</span
+        ><span v-if="rows.length > activeCount">{{ rows.length - activeCount }} 个已归档</span>
+      </p>
+      <AppButton
+        class="create-toggle"
+        variant="secondary"
+        :aria-expanded="creating"
+        @click="creating = !creating"
+      >
         {{ creating ? '收起' : '新建地址' }}
         <template #icon><Close v-if="creating" :size="16" /><Plus v-else :size="16" /></template>
       </AppButton>
-    </header>
-
+    </footer>
     <Transition name="ledger-reveal">
       <form v-if="creating" class="address-create" @submit.prevent="createAddress">
         <AppSelect id="new-address-type" v-model="type" label="币种" :options="typeOptions" />
@@ -216,58 +307,12 @@ async function confirmArchive(): Promise<void> {
           label="钱包密码"
           type="password"
           autocomplete="current-password"
-          help="用于重新加密包含新 RootSeed 的本地 keystore。"
         />
         <AppButton type="submit" :loading="createBusy" :disabled="password.length < 12">
           生成并登记
         </AppButton>
       </form>
     </Transition>
-
-    <div class="address-table">
-      <article v-for="row in rows" :key="row.address" :data-archived="row.archived || undefined">
-        <div class="address-asset" :data-symbol="row.symbol">
-          <span>{{ row.symbol.slice(0, 1) }}</span>
-          <div>
-            <strong>{{ row.label }}</strong
-            ><small>{{ row.name }} · {{ row.network }}</small>
-          </div>
-        </div>
-        <div class="address-value">
-          <strong class="tabular">{{ row.total }} {{ row.symbol }}</strong>
-          <small>UTXO {{ row.utxo }} · TXCer {{ row.txCer }}</small>
-        </div>
-        <div class="address-identifier">
-          <code>{{ row.address }}</code>
-          <button type="button" :aria-label="`复制 ${row.label}`" @click="copyAddress(row.address)">
-            <Check v-if="copied === row.address" :size="17" />
-            <Copy v-else :size="17" />
-          </button>
-        </div>
-        <div class="address-state">
-          <span v-if="row.archived">已归档</span>
-          <span v-else-if="row.registration === 'active'" data-tone="success">已登记</span>
-          <button
-            v-else-if="row.registration === 'failed'"
-            type="button"
-            data-tone="danger"
-            @click="retryRegistration(row.address)"
-          >
-            登记失败 · 重试
-          </button>
-          <span v-else>登记中</span>
-          <button
-            v-if="!row.archived"
-            type="button"
-            class="archive-trigger"
-            :aria-label="`归档 ${row.label}`"
-            @click="openArchive(row.address)"
-          >
-            <Archive :size="16" /> 归档
-          </button>
-        </div>
-      </article>
-    </div>
 
     <Transition name="ledger-reveal">
       <div v-if="selectedArchive" class="archive-confirm" role="dialog" aria-modal="true">
@@ -299,137 +344,235 @@ async function confirmArchive(): Promise<void> {
 <style scoped>
 .address-ledger {
   display: grid;
-  gap: 1rem;
-  padding-block: 0.8rem 1.2rem;
-  border-bottom: 1px solid var(--hairline);
+  min-width: 0;
 }
-.address-ledger > header {
+.ledger-toolbar {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0.5rem 1.25rem;
+  border-top: 1px solid var(--hairline);
 }
-.address-ledger header p {
-  margin: 0 0 0.25rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-.address-ledger h2 {
+.ledger-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin: 0;
-  font-size: 1.2rem;
-  letter-spacing: -0.025em;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.ledger-counts b {
+  color: var(--text);
+  font-weight: 500;
+}
+.create-toggle {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
 }
 .address-create {
   display: grid;
-  grid-template-columns: minmax(160px, 0.55fr) minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.2fr) auto;
   align-items: end;
-  gap: 0.8rem;
+  gap: 1rem;
+  margin: 0 1.25rem;
   padding: 1rem 0;
-  border-block: 1px solid var(--hairline);
+  border-top: 1px solid var(--hairline);
 }
 .address-table {
   display: grid;
 }
 .address-table article {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(180px, 0.7fr) minmax(260px, 1.2fr) auto;
-  align-items: center;
-  gap: 1rem;
-  min-height: 86px;
+  scroll-margin-block: 5rem;
+  min-width: 0;
+  padding: 0.75rem 1.25rem;
   border-top: 1px solid var(--hairline);
+  outline: none;
+  --figure-plate: var(--overview-panel-surface, var(--surface));
 }
-.address-table article:first-child {
-  border-top: 0;
-}
-.address-table article[data-archived] {
-  opacity: 0.52;
-}
-.address-asset,
-.address-identifier,
-.address-state {
+.ledger-heading {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  min-height: 60px;
+}
+.ledger-heading h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.ledger-heading > span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.ledger-record-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--overview-figure-width, 112px);
+  gap: 1rem;
+  align-items: center;
+}
+.ledger-record-body > .wallet-figure {
+  width: var(--overview-figure-width, 112px);
+  justify-self: end;
+}
+.ledger-record-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+.address-balances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  max-width: 440px;
+}
+.address-balances dt,
+.field-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.address-balances dd {
+  margin: 0.3rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.registration-error {
+  color: var(--danger);
+  font-size: 0.75rem;
+  margin: 0;
+}
+.address-table article:last-child {
+  border-radius: 0 0 16px 16px;
+}
+.address-table article:focus {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.address-table article[data-archived] .address-asset,
+.address-table article[data-archived] .address-balances {
+  color: var(--text-muted);
+}
+.address-asset {
+  display: grid;
+  gap: 0.3rem;
   min-width: 0;
 }
-.address-asset > span {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
-  font-weight: 720;
-  place-items: center;
+.address-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 24px;
 }
-.address-asset div,
-.address-value {
-  display: grid;
-  gap: 0.15rem;
-  min-width: 0;
+.address-identity strong {
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 small {
   color: var(--text-muted);
   font-size: 0.7rem;
+  line-height: 1.5;
+}
+.address-badge {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border-radius: 6px;
+}
+.address-badge[data-tone='success'] {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+.registration-retry {
+  min-height: 36px;
+  padding: 0 0.4rem;
+  color: var(--danger);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+.address-identifier {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
 }
 .address-identifier code {
-  overflow: hidden;
-  color: var(--text-muted);
-  font: 0.72rem var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font: 0.75rem/1.6 var(--font-mono);
 }
-.address-identifier button,
-.address-state button {
+.address-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+.address-actions button {
   display: inline-flex;
-  min-width: 34px;
-  min-height: 34px;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  min-height: 36px;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
+  font-size: 0.7rem;
   cursor: pointer;
 }
-.address-state {
-  justify-content: flex-end;
-  font-size: 0.7rem;
-  white-space: nowrap;
+.address-actions button:hover {
+  color: var(--text);
+  background: var(--surface-hover);
 }
-.address-state [data-tone='success'] {
-  color: var(--success);
-}
-.address-state [data-tone='danger'] {
-  color: var(--danger);
-}
-.archive-trigger:hover {
+.address-actions .archive-trigger:hover {
   color: var(--danger);
 }
 .archive-confirm {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.2rem;
+  gap: 1rem;
+  margin: 0 1.25rem 1rem;
   padding: 1rem;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 7%, var(--surface-raised));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+}
+.archive-confirm strong {
+  font-size: 0.85rem;
 }
 .archive-confirm p,
 .archive-confirm ul {
-  margin: 0.25rem 0 0;
+  margin: 0.4rem 0 0;
   color: var(--text-muted);
   font-size: 0.75rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 .archive-confirm > div:last-child {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
+}
+.address-error,
+.ledger-empty {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 .address-error {
-  margin: 0;
   color: var(--danger);
-  font-size: 0.78rem;
 }
 .ledger-reveal-enter-active,
 .ledger-reveal-leave-active {
@@ -442,28 +585,9 @@ small {
   opacity: 0;
   transform: translateY(-4px);
 }
-@media (max-width: 980px) {
-  .address-table article {
-    grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr);
-    padding-block: 0.75rem;
-  }
-  .address-state {
-    justify-content: flex-start;
-  }
-}
-@media (max-width: 680px) {
+@container (max-width: 680px) {
   .address-create {
     grid-template-columns: 1fr;
-  }
-  .address-table article {
-    grid-template-columns: 1fr;
-    gap: 0.55rem;
-    padding-block: 1rem;
-  }
-  .address-value {
-    grid-template-columns: auto 1fr;
-    align-items: baseline;
-    gap: 0.5rem;
   }
   .archive-confirm {
     align-items: stretch;
@@ -474,10 +598,40 @@ small {
     grid-template-columns: 1fr 1fr;
   }
 }
+@container (max-width: 440px) {
+  .ledger-heading,
+  .ledger-toolbar,
+  .address-table article {
+    padding-inline: 1rem;
+  }
+  .address-table article {
+    gap: 0.75rem;
+  }
+  .ledger-record-body {
+    --overview-figure-width: 96px;
+    gap: 0.75rem;
+  }
+  .address-balances {
+    gap: 0.5rem;
+  }
+  .address-balances dd {
+    font-size: 1rem;
+  }
+  .address-create {
+    margin-inline: 1rem;
+  }
+}
+@media (pointer: coarse) {
+  .address-actions button,
+  .create-toggle,
+  .registration-retry {
+    min-height: 44px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .ledger-reveal-enter-active,
   .ledger-reveal-leave-active {
-    transition: opacity 120ms linear;
+    transition: none;
   }
   .ledger-reveal-enter-from,
   .ledger-reveal-leave-to {

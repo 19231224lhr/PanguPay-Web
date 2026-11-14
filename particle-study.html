@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>立体半色调 · 粒子实验</title
+  ><style>
+    body {
+      margin: 0;
+      background: #f4f4ef;
+      color: #252b25;
+      font: 14px system-ui;
+    }
+    main {
+      max-width: 1100px;
+      margin: auto;
+      padding: 32px;
+    }
+    header {
+      border-bottom: 1px solid #d4d9ce;
+      padding-bottom: 20px;
+    }
+    section {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      align-items: center;
+      gap: 30px;
+    }
+    canvas {
+      width: 100%;
+      height: 430px;
+    }
+    h1 {
+      font-size: 42px;
+      font-weight: 500;
+      letter-spacing: -1px;
+      line-height: 1.2;
+    }
+    p {
+      color: #626c5e;
+      line-height: 1.8;
+    }
+    nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 12px 16px;
+      background: transparent;
+      border: 1px solid #bec6b8;
+      border-radius: 8px;
+      cursor: pointer;
+      color: inherit;
+    }
+    button[aria-pressed='true'] {
+      background: #344d31;
+      color: white;
+    }
+    footer {
+      font-size: 12px;
+      color: #687060;
+      border-top: 1px solid #d4d9ce;
+      padding-top: 18px;
+    }
+    @media (max-width: 700px) {
+      section {
+        grid-template-columns: 1fr;
+      }
+      canvas {
+        height: 320px;
+      }
+      h1 {
+        font-size: 32px;
+      }
+    }
+  </style>
+  <main>
+    <header>PanguPay · 粒子形态实验 / 02</header>
+    <section>
+      <div>
+        <h1>让光影，<br />落在每一颗点上。</h1>
+        <p>曲面、厚度与明暗，一起变换。<br />点击不同形态，观察消散与重组。</p>
+        <nav>
+          <button data-shape="wallet" aria-pressed="true">钱包</button
+          ><button data-shape="key">登录</button><button data-shape="create">创建</button
+          ><button data-shape="import">导入</button><button data-shape="shield">验证</button>
+        </nav>
+      </div>
+      <canvas aria-label="立体粒子图标"></canvas>
+    </section>
+    <footer>原生程序化立体造型 · 黑白半色调 · 与正式入口共用同一动画</footer>
+  </main>
+  <script type="module">
+    import { createParticleScene } from '/src/graphics/entryParticles.ts'
+    const scene = createParticleScene(document.querySelector('canvas'), 'wallet')
+    document.querySelectorAll('button').forEach(
+      (b) =>
+        (b.onclick = () => {
+          scene.setShape(b.dataset.shape)
+          document
+            .querySelectorAll('button')
+            .forEach((el) => el.setAttribute('aria-pressed', el === b))
+        }),
+    )
+  </script>
+</html>

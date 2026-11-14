@@ -1,36 +1,18 @@
 <script setup lang="ts">
 import { PhCaretDown as CaretDown } from '@phosphor-icons/vue'
-import { computed, onMounted } from 'vue'
 
 import ActivityProgress from '@/components/ActivityProgress.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
-import { useDashboardStore } from '@/stores/dashboard'
-import { useTransferStore } from '@/stores/transfer'
+import WalletFigure from '@/components/WalletFigure.vue'
 import {
-  transferActivityStatus,
-  transferModeLabel,
-  type TransferMode,
-  type TransferPhase,
-} from '@/transfer'
-import type { WalletActivity } from '@/wallet/types'
+  activityAssetSymbol as assetSymbol,
+  useWalletActivities,
+  type ActivityRow,
+} from '@/composables/useWalletActivities'
+import { transferModeLabel } from '@/transfer'
 
-const dashboard = useDashboardStore()
-const transfer = useTransferStore()
-
-onMounted(() => void transfer.synchronizeHistory(true))
-
-interface ActivityRow extends WalletActivity {
-  txID: string
-  mode?: TransferMode
-  phase?: TransferPhase
-  lightTxHash?: string
-  targetBlock?: number
-  crossChainError?: string
-}
-
-const assetSymbol = (coinType?: number, explicit?: string) =>
-  explicit || ['PGC', 'BTC', 'ETH'][coinType ?? 0] || `Asset ${coinType ?? 0}`
+const activities = useWalletActivities()
 
 const formatTime = (value: number) =>
   value
@@ -41,30 +23,6 @@ const formatTime = (value: number) =>
       }).format(value)
     : '时间未知'
 
-const activities = computed<ActivityRow[]>(() => {
-  const merged = new Map<string, ActivityRow>()
-  for (const item of dashboard.current.activities) merged.set(item.id, { ...item, txID: item.id })
-  for (const item of transfer.history) {
-    merged.set(item.txID, {
-      id: item.txID,
-      title: transferModeLabel(item.mode),
-      amount: item.amount,
-      coinType: item.coinType,
-      asset: assetSymbol(item.coinType),
-      status: transferActivityStatus(item.mode, item.phase, item.crossChainError),
-      timestamp: item.updatedAt,
-      txID: item.txID,
-      direction: 'out',
-      mode: item.mode,
-      phase: item.phase,
-      lightTxHash: item.lightTxHash,
-      targetBlock: item.targetBlock,
-      crossChainError: item.crossChainError,
-    })
-  }
-  return [...merged.values()].sort((left, right) => right.timestamp - left.timestamp)
-})
-
 const statusTone = (item: ActivityRow) =>
   item.phase === 'failed' || item.crossChainError || /失败|恢复|rejected/i.test(item.status)
     ? 'danger'
@@ -74,18 +32,22 @@ const statusTone = (item: ActivityRow) =>
 </script>
 
 <template>
-  <div class="wallet-page">
+  <div class="wallet-page wallet-refined activity-page">
     <WalletPageHeader
       title="活动记录"
       description="入口接收、快速可用和后台结算分开显示；记录来自真实账户状态与本机提交日志。"
     />
     <section class="wallet-section activity-ledger" aria-labelledby="activity-list-heading">
-      <div class="wallet-section__heading">
-        <h2 id="activity-list-heading">全部活动</h2>
-        <span>{{ activities.length }} 条</span>
+      <div class="detail-page-intro">
+        <div class="detail-page-intro__copy">
+          <h2 id="activity-list-heading">全部活动</h2>
+          <span class="detail-page-caption">{{ activities.length }} 条记录</span>
+        </div>
+        <WalletFigure kind="drawer" />
       </div>
       <div v-if="!activities.length" class="wallet-empty">
-        还没有可显示的真实活动。完成一笔转账后，入口、快速可用与后台结算会分别记录。
+        <strong>还没有可显示的真实活动</strong>
+        <p>完成一笔转账后，入口、快速可用与后台结算会分别记录。</p>
       </div>
       <ol v-else>
         <li v-for="item in activities" :key="`${item.id}-${item.status}`">

@@ -81,6 +81,11 @@ export class GatewayClient {
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+    const readOnly =
+      !init.method ||
+      init.method === 'GET' ||
+      path === '/api/v1/com/query-address' ||
+      path === '/api/v1/com/query-address-group'
     const response = await this.fetcher(`${this.baseURL}${path}`, {
       ...init,
       headers: {
@@ -88,7 +93,9 @@ export class GatewayClient {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
-      signal: AbortSignal.timeout(6_000),
+      // Remote read-only snapshots may traverse a relayed private network.
+      // Keep transaction submission deadlines unchanged.
+      signal: AbortSignal.timeout(readOnly ? 15_000 : 6_000),
     })
     const contentType = response.headers.get('content-type') ?? ''
     const text = await response.text()

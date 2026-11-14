@@ -39,10 +39,11 @@ describe('foundation components', () => {
     expect(wrapper.emitted('click')).toBeUndefined()
   })
 
-  it('settles a sync halo into the existing top-right value field', async () => {
+  it('keeps the cached balance readable and identifies its offline state', async () => {
     const wrapper = mount(WalletBalanceField, {
       props: {
-        animate: true,
+        offline: true,
+        updatedAt: 1,
         asset: {
           name: 'Pangu Coin',
           network: 'Transfer Area',
@@ -59,12 +60,12 @@ describe('foundation components', () => {
       },
     })
 
-    expect(wrapper.classes()).toContain('wallet-balance-field--settle')
-    expect(wrapper.find('.wallet-balance-field__settle').exists()).toBe(true)
-    expect(wrapper.find('.wallet-balance-field__sweep').exists()).toBe(false)
-
-    await wrapper.get('.wallet-balance-field__settle').trigger('animationend')
-    expect(wrapper.emitted('sweepEnd')).toHaveLength(1)
+    expect(wrapper.get('.wallet-balance-field__amount').text()).toContain('12')
+    expect(wrapper.get('.balance-state').text()).toBe('离线快照')
+    expect(wrapper.get('.balance-sync').attributes('aria-label')).toContain('缓存于')
+    await wrapper.get('.balance-sync').trigger('click')
+    expect(wrapper.emitted('refresh')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('keeps a visible label and associates errors with the input', () => {
@@ -190,7 +191,7 @@ describe('foundation components', () => {
 
   it('uses the shared select for source addresses on the send page', () => {
     setActivePinia(createPinia())
-    const wrapper = mount(WalletSendView)
+    const wrapper = mount(WalletSendView, { global: { stubs: { WalletFigure: true } } })
 
     expect(wrapper.findComponent(AppSelect).exists()).toBe(true)
     expect(wrapper.find('.select-field').exists()).toBe(false)
@@ -337,7 +338,7 @@ describe('foundation components', () => {
     expect(wrapper.get('[data-sidebar-utilities]').attributes('aria-label')).toBe('Settings')
   })
 
-  it('gives wallet access flows a dedicated brand plane and form plane', () => {
+  it('keeps the access form available inside the shared entry scene', () => {
     const wrapper = mount(WalletAccessFrame, {
       slots: {
         default: '<section class="access-panel">Secure form</section>',
@@ -358,12 +359,9 @@ describe('foundation components', () => {
       },
     })
 
-    expect(wrapper.get('.wallet-access__visual').text()).toContain('PanguPay')
+    expect(wrapper.find('.wallet-access__visual').exists()).toBe(true)
     expect(wrapper.get('.wallet-access__form').text()).toContain('Secure form')
     expect(wrapper.findComponent({ name: 'PreferenceControls' }).exists()).toBe(false)
-    expect(wrapper.get('[data-access-fold]').attributes('data-intro')).toBe('false')
-    expect(wrapper.get('[data-access-fold]').attributes('data-transition-name')).toBe(
-      'pangu-value-fold',
-    )
+    expect(wrapper.find('[data-access-fold]').exists()).toBe(false)
   })
 })

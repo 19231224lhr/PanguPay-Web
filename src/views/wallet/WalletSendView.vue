@@ -16,6 +16,8 @@ import InlineNotice from '@/components/InlineNotice.vue'
 import ProgressTimeline from '@/components/ProgressTimeline.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletFigure from '@/components/WalletFigure.vue'
+import WalletMoneyFigure from '@/components/WalletMoneyFigure.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
@@ -114,63 +116,92 @@ function startAnother(): void {
       title="发送"
       :description="
         transfer.stage === 'compose'
-          ? '选择转账路径；签名前会展示真实输入、找零和完整交易 ID。'
+          ? '填写收款地址与金额，审核后确认发送。'
           : transfer.stage === 'review'
             ? '签名已经在本机生成，提交前请再次核对。'
             : '入口确认、快速可用与后台结算是三个独立状态。'
       "
     />
 
-    <form
-      v-if="transfer.stage === 'compose'"
-      class="wallet-form-plane send-form"
-      @submit.prevent="prepareReview"
-    >
-      <SegmentedControl v-model="mode" label="转账模式" :options="modeOptions" />
-      <AppSelect
-        id="send-source"
-        v-model="source"
-        label="来源地址"
-        :options="sourceOptions"
-        empty-label="钱包中没有可用地址"
-      />
-      <FormField
-        id="send-recipient"
-        v-model="recipient"
-        :label="mode === 'cross' ? '轻计算收款地址' : '收款地址'"
-        :placeholder="mode === 'cross' ? '0x…' : '40位原始地址或胶囊地址'"
-      />
-      <div
-        v-if="recipientLooksCapsule"
-        class="capsule-input-status"
-        :data-busy="transfer.busy || undefined"
-        role="status"
-      >
-        <span class="capsule-input-status__icon" aria-hidden="true">
-          <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
-        </span>
-        {{
-          mode === 'cross'
-            ? '跨链转账暂不支持胶囊地址，请使用原始地址。'
-            : transfer.busy
-              ? '正在获取签名公钥并验证胶囊地址…'
-              : '审核前会先验签并还原链上真实地址。'
-        }}
+    <form v-if="transfer.stage === 'compose'" class="send-form" @submit.prevent="prepareReview">
+      <div class="send-mode">
+        <h2>转账方式</h2>
+        <SegmentedControl v-model="mode" label="转账模式" :options="modeOptions" />
       </div>
-      <AmountField
-        id="send-amount"
-        v-model="amount"
-        label="金额"
-        :currency="asset?.symbol ?? 'PGC'"
-        :help="`当前可支付 ${available} ${asset?.symbol ?? 'PGC'}`"
-      />
-      <InlineNotice v-if="!isMember" title="当前为独立账户" tone="info">
-        你仍可使用普通转账；快速和跨链功能需要先在“担保组织”中加入组织。
-      </InlineNotice>
-      <AppButton type="submit" size="large" :loading="transfer.busy">
-        审核交易
-        <template #icon><ArrowRight :size="18" weight="bold" /></template>
-      </AppButton>
+      <div class="send-compose">
+        <section class="send-panel send-addresses" aria-labelledby="send-address-heading">
+          <header class="send-panel-heading">
+            <div>
+              <h2 id="send-address-heading">转账信息</h2>
+              <p>来源与收款地址</p>
+            </div>
+            <WalletFigure kind="settle" />
+          </header>
+          <AppSelect
+            id="send-source"
+            v-model="source"
+            label="来源地址"
+            :options="sourceOptions"
+            empty-label="钱包中没有可用地址"
+          />
+          <FormField
+            id="send-recipient"
+            v-model="recipient"
+            :label="mode === 'cross' ? '轻计算收款地址' : '收款地址'"
+            :placeholder="mode === 'cross' ? '0x…' : '40位原始地址或胶囊地址'"
+          />
+          <div
+            v-if="recipientLooksCapsule"
+            class="capsule-input-status"
+            :data-busy="transfer.busy || undefined"
+            role="status"
+          >
+            <span class="capsule-input-status__icon" aria-hidden="true">
+              <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
+            </span>
+            {{
+              mode === 'cross'
+                ? '跨链转账暂不支持胶囊地址，请使用原始地址。'
+                : transfer.busy
+                  ? '正在获取签名公钥并验证胶囊地址…'
+                  : '审核前会先验签并还原链上真实地址。'
+            }}
+          </div>
+        </section>
+        <section class="send-panel send-payment" aria-labelledby="send-payment-heading">
+          <header class="send-panel-heading">
+            <div>
+              <h2 id="send-payment-heading">支付资产</h2>
+              <p>{{ asset?.symbol ?? 'PGC' }}</p>
+            </div>
+            <WalletMoneyFigure />
+          </header>
+          <AmountField
+            id="send-amount"
+            v-model="amount"
+            label="金额"
+            :currency="asset?.symbol ?? 'PGC'"
+            placeholder="0.00"
+          />
+          <div class="send-available">
+            <span>当前可支付</span
+            ><strong class="tabular"
+              >{{ available }} <small>{{ asset?.symbol ?? 'PGC' }}</small></strong
+            >
+          </div>
+        </section>
+      </div>
+      <footer class="send-footer">
+        <div class="send-footer-copy">
+          <span>{{ transferModeLabel(mode) }}</span>
+          <p v-if="!isMember">你仍可使用普通转账；快速和跨链功能需要先在“担保组织”中加入组织。</p>
+          <p v-else>下一步核对收款地址、交易输入与找零。</p>
+        </div>
+        <AppButton type="submit" size="large" :loading="transfer.busy">
+          审核交易
+          <template #icon><ArrowRight :size="18" weight="bold" /></template>
+        </AppButton>
+      </footer>
       <InlineNotice
         v-if="transferIssue"
         class="transfer-error-notice"
@@ -263,11 +294,157 @@ function startAnother(): void {
 
 <style scoped>
 .send-page {
-  width: min(760px, 100%);
+  width: 100%;
+  gap: 20px;
+  --send-surface: color-mix(in srgb, var(--surface) 55%, var(--background));
+  container-type: inline-size;
 }
 .send-form {
   display: grid;
-  gap: 1.05rem;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--send-surface);
+  --figure-plate: var(--send-surface);
+}
+.send-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--hairline);
+}
+.send-mode > h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.send-mode :deep(.segmented-control) {
+  width: min(380px, 100%);
+  min-height: 44px;
+}
+.send-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+.send-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 24px 16px;
+}
+.send-panel + .send-panel {
+  border-left: 1px solid var(--hairline);
+}
+.send-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+}
+.send-panel-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.send-panel-heading p {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.send-panel-heading .wallet-figure {
+  width: 80px;
+}
+.send-payment :deep(.form-field__control) {
+  min-height: 56px;
+}
+.send-payment :deep(input) {
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+.send-available {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.send-available strong {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+.send-available small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.send-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--hairline);
+}
+.send-footer-copy {
+  min-width: 0;
+}
+.send-footer-copy > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.send-footer-copy p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  max-width: 48ch;
+}
+.send-footer :deep(.app-button) {
+  min-width: 176px;
+  flex-shrink: 0;
+}
+.send-form > .transfer-error-notice {
+  margin: 0 24px 20px;
+}
+@container (max-width: 640px) {
+  .send-compose {
+    grid-template-columns: 1fr;
+  }
+  .send-panel + .send-panel {
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .send-mode {
+    gap: 12px;
+    padding: 16px;
+  }
+  .send-panel {
+    padding: 12px 16px 20px;
+    gap: 16px;
+  }
+  .send-panel-heading {
+    min-height: 64px;
+  }
+  .send-panel-heading .wallet-figure {
+    width: 80px;
+  }
+  .send-footer {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .send-footer :deep(.app-button) {
+    width: 100%;
+  }
 }
 .capsule-input-status {
   display: flex;
@@ -319,10 +496,11 @@ function startAnother(): void {
 .result-plane {
   display: grid;
   gap: 1.35rem;
-  width: min(760px, 100%);
+  width: 100%;
   padding: clamp(1.1rem, 2.4vw, 1.6rem);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--send-surface);
 }
 .capsule-review-mark {
   display: flex;

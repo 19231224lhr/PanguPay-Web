@@ -3,6 +3,7 @@ import CredentialTrustPath from '@/components/CredentialTrustPath.vue'
 import ExposureShareBar from '@/components/ExposureShareBar.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletFigure from '@/components/WalletFigure.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { isActiveCredentialFailure } from '@/wallet/credentials'
 
@@ -10,22 +11,25 @@ const dashboard = useDashboardStore()
 </script>
 
 <template>
-  <div class="wallet-page">
+  <div class="wallet-page wallet-refined security-page">
     <WalletPageHeader
       title="凭证与安全"
       description="面向日常使用的状态保持简洁；需要审计时，可在这里查看 TXCer、证据和责任份额。"
     />
-    <section class="wallet-section">
-      <div class="wallet-section__heading">
-        <h2>安全摘要</h2>
-        <StatusLabel :tone="dashboard.current.security.isolatedCount ? 'danger' : 'success'">
-          {{ dashboard.current.security.isolatedCount ? '存在隔离项' : '正常' }}
-        </StatusLabel>
+    <section class="wallet-section" aria-labelledby="security-summary-heading">
+      <div class="detail-page-intro">
+        <div class="detail-page-intro__copy">
+          <h2 id="security-summary-heading">安全摘要</h2>
+          <StatusLabel :tone="dashboard.current.security.isolatedCount ? 'danger' : 'success'">
+            {{ dashboard.current.security.isolatedCount ? '存在隔离项' : '正常' }}
+          </StatusLabel>
+        </div>
+        <WalletFigure kind="stack" :intensity="0.3" />
       </div>
-      <dl class="wallet-detail-list">
+      <dl class="security-metrics">
         <div>
           <dt>可立即支付</dt>
-          <dd>{{ dashboard.current.security.spendReady }} PGC</dd>
+          <dd class="tabular">{{ dashboard.current.security.spendReady }} PGC</dd>
         </div>
         <div>
           <dt>安全凭证</dt>
@@ -35,11 +39,14 @@ const dashboard = useDashboardStore()
         </div>
         <div>
           <dt>后台审计</dt>
-          <dd>{{ dashboard.current.security.pendingAudits }} 项处理中；不阻塞快速可用</dd>
+          <dd class="tabular">
+            {{ dashboard.current.security.pendingAudits }} 项处理中
+            <small>不阻塞快速可用</small>
+          </dd>
         </div>
         <div>
           <dt>暂停支付</dt>
-          <dd>{{ dashboard.current.security.isolatedCount }} 项</dd>
+          <dd class="tabular">{{ dashboard.current.security.isolatedCount }} 项</dd>
         </div>
       </dl>
       <details class="protocol-summary">
@@ -60,10 +67,14 @@ const dashboard = useDashboardStore()
         </dl>
       </details>
     </section>
-    <section class="wallet-section">
-      <div class="wallet-section__heading"><h2>TXCer 凭证</h2></div>
+    <section class="wallet-section" aria-labelledby="security-credentials-heading">
+      <div class="wallet-section__heading">
+        <h2 id="security-credentials-heading">TXCer 凭证</h2>
+        <span class="detail-page-caption">{{ dashboard.current.credentials.length }} 条记录</span>
+      </div>
       <div v-if="!dashboard.current.credentials.length" class="wallet-empty">
-        当前没有可展示的权威签发记录。证据接口不可用时不会伪造已验证状态。
+        <strong>当前没有可展示的权威签发记录</strong>
+        <p>证据接口不可用时不会伪造已验证状态。</p>
       </div>
       <article
         v-for="credential in dashboard.current.credentials"
@@ -137,8 +148,11 @@ const dashboard = useDashboardStore()
         </details>
       </article>
     </section>
-    <section class="wallet-section">
-      <div class="wallet-section__heading"><h2>地址与责任视图</h2></div>
+    <section class="wallet-section security-addresses" aria-labelledby="security-addresses-heading">
+      <div class="wallet-section__heading">
+        <h2 id="security-addresses-heading">地址与责任视图</h2>
+        <span class="detail-page-caption">{{ dashboard.current.addresses.length }} 个地址</span>
+      </div>
       <details v-for="address in dashboard.current.addresses" :key="address.address">
         <summary>{{ address.address }}</summary>
         <dl class="wallet-detail-list">

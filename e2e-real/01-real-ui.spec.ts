@@ -8,6 +8,7 @@ import { openRealSession, type RealSession } from './session'
 import {
   appURL,
   chooseRetail,
+  continueSending,
   createWallet,
   generateCapsule,
   importFixtureWallet,
@@ -41,7 +42,11 @@ async function reopenUnlocked(
 ): Promise<RealSession> {
   const session = await openRealSession(env, testInfo, profile, viewport)
   await session.page.goto(appURL(env, '/wallet'))
-  if (session.page.url().endsWith('/wallet/unlock')) await unlockWallet(session.page, env.password)
+  const onDashboard = session.page.locator('a[href="/wallet/settings"]:visible')
+  const unlockButton = session.page.getByRole('button', { name: '解锁钱包' })
+  const onEntry = session.page.getByRole('heading', { name: '选择你的使用方式' })
+  await expect(onDashboard.or(unlockButton).or(onEntry).first()).toBeVisible({ timeout: 60_000 })
+  if (await unlockButton.isVisible()) await unlockWallet(session.page, env.password)
   if (session.page.url().endsWith('/wallet/entry')) await chooseRetail(session.page)
   await session.page.waitForURL(/\/wallet$/)
   await expect(session.page.locator('a[href="/wallet/settings"]:visible')).toBeVisible({
@@ -139,7 +144,7 @@ test.describe.serial('PanguPay real visible browser acceptance', () => {
       await session.close()
     }
 
-    session = await openRealSession(env, testInfo, 'lifecycle-recover', undefined, false)
+    session = await openRealSession(env, testInfo, 'lifecycle', undefined, false)
     try {
       await session.page.goto(appURL(env, '/wallet/recover'))
       await session.page.locator('input[type="file"]').setInputFiles(lifecycleBackups.recovery)
@@ -147,6 +152,7 @@ test.describe.serial('PanguPay real visible browser acceptance', () => {
       await session.page.getByLabel('确认新密码').fill(env.password)
       await session.page.getByRole('button', { name: '重建并进入钱包' }).click()
       await session.page.waitForURL(/\/wallet(?:\/entry)?$/, { timeout: 120_000 })
+      await session.page.reload()
       await session.page.goto(appURL(env, '/wallet/recover'))
       await session.page.getByRole('button', { name: '清除本地钱包并重新开始' }).click()
       await session.page.getByRole('button', { name: '再次点击，确认清除' }).click()
@@ -237,19 +243,22 @@ test.describe.serial('PanguPay real visible browser acceptance', () => {
     const alice = await reopenUnlocked('alice', testInfo)
     let bob: RealSession | undefined
     try {
+      bob = await reopenUnlocked('bob', testInfo)
       const issued = await submitTransfer(alice.page, env, '快速', bobAddress, '12')
       const readyText = await waitForTimelineStep(alice.page, '收款方可用')
-      expect(readyText).toMatch(/后端可用|可继续支付/)
+      expect(readyText).toMatch(/后端可用|可继续支付|即可再次支付/)
       await writeEvidence(testInfo, 'quick-issue', { ...issued, readyText })
 
-      bob = await reopenUnlocked('bob', testInfo)
       await synchronizeDashboard(bob.page, env)
       const returned = await submitTransfer(bob.page, env, '快速', aliceAddress, '5')
+      await writeEvidence(testInfo, 'txcer-return', returned)
       expect(returned.normalInputs).toBe(0)
       expect(returned.txCerInputs).toBeGreaterThan(0)
       await waitForTimelineStep(bob.page, '收款方可用')
 
+      await continueSending(bob.page)
       const mixed = await submitTransfer(bob.page, env, '快速', aliceAddress, '8')
+      await writeEvidence(testInfo, 'mixed-spend', mixed)
       expect(mixed.normalInputs).toBeGreaterThan(0)
       expect(mixed.txCerInputs).toBeGreaterThan(0)
       await waitForTimelineStep(bob.page, '后台结算')

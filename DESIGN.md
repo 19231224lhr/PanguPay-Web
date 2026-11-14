@@ -89,7 +89,12 @@
 - 桌面主导航提供总览、发送、活动、安全、担保组织和区块链；设置固定在侧栏底部，主题与语言只在设置页管理。
 - 桌面账户菜单只保留账户信息和锁定；移动端“我的”提供担保组织、区块链、设置和锁定入口，总览同时提供紧凑快捷入口。
 - 钱包页面不默认包裹通用卡片。标题、留白和 hairline 负责分组，实体 surface 只用于表单或异常。
-- 总览采用“余额价值场 → 资金状态摘要 → 资产 7 列 / 活动 5 列”的单一纵向平面。
+- 总览采用“资产 / 凭证摘要 → 最近活动 / 收款地址 → 担保组织 / 认证链”的三组双栏摘要布局。
+- 凭证、活动、组织和认证链明细入口直接导航到对应页面，总览不展开这些明细；完整收款地址账本在页面底部默认完整显示，不提供折叠。
+- 收款区展示全部已登记的活动地址，每个地址可点击，滚动并聚焦底部账本中的对应记录。保留动态手机线稿，移除重复二维码按钮和常驻操作提醒。
+- 状态错误和离线信息按真实状态显示；装饰插画不代表真实凭证或节点数量。
+- 总览按内容容器宽度适配：680px 以下各组改为单栏。侧栏占用空间计入适配，不仅依赖视口宽度。
+- 认证链通过独立只读请求获取，页面可见时每 30 秒刷新；失败时展示不可用和缺省值，不保留正常状态标签，不阻塞余额同步。
 - 手机端保留 UTXO 与 TXCer 组成，底部导航为总览、发送、活动和我的。
 - 钱包内部路由位移不超过 6px；同步、复制、余额变化以一次性反馈代替循环动画。
 
@@ -147,13 +152,24 @@
 
 ### 地址、组织与认证链
 
-- 总览中的地址账本使用连续表格平面，展示币种、网络、UTXO/TXCer 组成、完整地址和登记状态。
+- 总览中的地址账本沿用摘要区的深色面板、16px 圆角与细边框，默认完整展示，不折叠。
+- 每条记录采用与摘要一致的左右结构：左侧显示名称、状态、币种网络、完整地址、地址余额和 UTXO/TXCer 组成，右侧放置 Format 动态文件线稿。复制与归档位于记录下方，新建地址操作保留在账本底部。
+- 从摘要定位到账本时保留可访问焦点，并用轻微背景色和内侧细线标识当前记录。
 - 新建地址是就地展开的受控操作；归档前必须检查最后地址、余额、输入 reservation 和待处理交易，任何不确定状态均禁止归档。
 - 担保组织页使用与选择详情一致的信息密度，Assign、Aggregation、TXCer 审计和 GuarNode 各自形成完整节点单元；退出组织必须经过条件检查和第二次确认。
 - 区块链页只展示真实 certified block、QC 和委员会状态。新区块到达时允许一次轻量链路脉冲，静止高度不得持续动画。
 - 区块链页是只读研究视图，不提供投票、治理、赔付或节点控制；其 GQNC 观测请求不属于余额和交易快路径。
 - 区块、交易和签名者 ID 使用等宽数字与安全截断；点击区块后在同一平面展示完整交易内容，不使用漂浮卡片瀑布。
 - 用户头像与显示名是本地公共偏好，不与账户 ID、签名身份或加密秘密混淆。
+
+### 总览插画试用
+
+- 最近活动为空时使用 Hairline Drawer；组织摘要使用 Settle 装饰插画，不对应真实节点数量或在线状态。
+- 指针强度分别为 0.35 / 0.30，不自动播放。减少动态效果偏好和无悬停设备保持静态；离开组件时销毁动画实例。
+- 插画沿用主题的中性色细线，不改变资产、凭证或网络数据语义，不为装饰增加大型区域。
+- 总览采用三组双栏信息面板，共用标题、正文、底部操作的间距；正文左侧展示数据，右侧固定 112px 插画区，小屏为 96px。低于 680px 内容宽度改为单栏。
+- 资产组成并入余额区域，单币种不重复展示，多币种逐项保留总额和 UTXO/TXCer 组成。金额使用硬币与纸币线稿，指针只影响插画，不影响金额。
+- 移除标题前的重复小图标和 PGC 字母圆标。凭证使用 Stack、认证链使用 Branches，均为装饰示意；收款区域右侧使用 Phone 动态线稿，仅作为地址展示插画；二维码由余额区的“收款”入口访问。
 
 ## 反模式
 
@@ -162,3 +178,21 @@
 - 伪造实时余额、法币价格、TPS 或延迟。
 - 同一页面出现多个品牌强调色。
 - 按钮只有图形但没有可访问名称。
+
+## Particle entry experience — 2026-11-15
+The entry routes preserve the original Obsidian/Pearl themes, typography, branded header, copy, buttons and controls. A persistent canvas occupies the original illustration slots, with the approved form-left/figure-right access arrangement. No paper/green palette, replacement headings or extra footer/caption is introduced.
+
+Only the illustration changes: rounded, finely sampled halftone solids; continuous dot-size midtones; a home composition of a wallet, Bitcoin coin and Ethereum diamond with slight independent float. These are decorative symbols, not a claim of asset support. Particle ink inherits the theme foreground and updates on theme changes. Transitions dissolve and reform over 3.4 seconds without blur. The shared scene survives access-route changes, and reduced-motion renders a settled target. Wallet operations and the overview remain unchanged.
+
+### 控件材质（2026-11-15 用户修订）
+
+- 玻璃仅用于主要/次要操作按钮、下拉选择框与分段选择器；普通输入框、图标按钮、账户入口和内容区域保持原样。
+- 玻璃底色统一偏黑，采用轻微边缘高光；不使用灰白交替渐变。主操作只保留深蓝色倾向。
+- 按钮、下拉框外圆角与输入框一致，使用 radius-md（14px）；分段内部圆角按内缩距离减为 10px。
+- 输入框保持不透明背景与内部蓝色焦点描边，禁止外扩 outline 引起容器裁切。
+
+### 钱包明细页轻量精修（2026-11-15）
+- 活动、凭证与安全、担保组织和设置沿用总览/发送页的系统字体、深色背景与 16px 圆角边界，统一 20px 分组间距和 1rem 小标题。
+- 分组插画使用已有 Hairline 组件，固定在右侧；内容与金额保持静态可读。
+- 安全摘要用紧凑指标栏，窄容器自动分为两列；组织节点在窄容器改为单列，完整技术字段继续保留在原有明细中。
+- 设置页保留原有三个分组，统一主题/语言选择器宽度；输入框保持不透明，玻璃只用于既有按钮和选择器。

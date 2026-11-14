@@ -7,6 +7,10 @@ import { useWalletStore } from '@/stores/wallet'
 import WalletOrganizationView from '@/views/wallet/WalletOrganizationView.vue'
 import { configureWalletEntryService, type WalletEntryService } from '@/wallet/entryService'
 
+vi.mock('@/components/WalletFigure.vue', () => ({
+  default: { template: '<div aria-hidden="true" />' },
+}))
+
 describe('WalletOrganizationView', () => {
   const service: WalletEntryService = {
     recover: vi.fn<WalletEntryService['recover']>(),

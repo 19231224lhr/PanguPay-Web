@@ -40,7 +40,7 @@ describe('WalletAddressLedger', () => {
     vi.spyOn(wallet, 'setAddressMetadata').mockResolvedValue()
     vi.spyOn(dashboard, 'sync').mockResolvedValue()
 
-    const wrapper = mount(WalletAddressLedger)
+    const wrapper = mount(WalletAddressLedger, { global: { stubs: { WalletFigure: true } } })
     const createToggle = wrapper
       .findAll('button')
       .find((button) => button.text().includes('新建地址'))

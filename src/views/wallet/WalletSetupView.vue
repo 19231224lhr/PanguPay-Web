@@ -20,7 +20,9 @@ import { resolveWalletArrival } from '@/wallet/entryService'
 
 const router = useRouter()
 const wallet = useWalletStore()
-const mode = ref<'create' | 'import'>('create')
+const mode = ref<'create' | 'import'>(
+  router.currentRoute?.value.query.mode === 'import' ? 'import' : 'create',
+)
 const importMethod = ref<'backup' | 'keys'>('backup')
 const createPassword = ref('')
 const createPasswordConfirm = ref('')
@@ -195,7 +197,19 @@ async function importWallet(): Promise<void> {
 </script>
 
 <template>
-  <WalletAccessFrame>
+  <WalletAccessFrame
+    :figure="
+      importStage === 'verifying'
+        ? 'shield'
+        : backupDownloaded
+          ? 'shield'
+          : mode === 'create'
+            ? 'create'
+            : importMethod === 'keys'
+              ? 'key'
+              : 'import'
+    "
+  >
     <Transition name="verification-stage" mode="out-in">
       <section
         v-if="importStage === 'verifying'"

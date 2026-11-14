@@ -9,6 +9,8 @@ import './styles/tokens.css'
 import './styles/base.css'
 import './styles/motion.css'
 import './styles/wallet.css'
+import './styles/wallet-details.css'
+import './styles/glass-controls.css'
 
 const app = createApp(App)
 

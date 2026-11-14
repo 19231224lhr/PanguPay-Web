@@ -6,6 +6,8 @@ import AppButton from '@/components/AppButton.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
 import OrganizationDetailDialog from '@/components/OrganizationDetailDialog.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletFigure from '@/components/WalletFigure.vue'
+import StatusLabel from '@/components/StatusLabel.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
 import { loadTransferJournal } from '@/transfer/journal'
@@ -185,7 +187,7 @@ onMounted(() => void loadOrganizations())
 </script>
 
 <template>
-  <div class="wallet-page organization-page">
+  <div class="wallet-page wallet-refined organization-page">
     <WalletPageHeader
       title="担保组织"
       description="普通转账可以独立使用；加入组织后可使用 TXCer 快速转账与跨链。"
@@ -197,8 +199,9 @@ onMounted(() => void loadOrganizations())
           <span>当前归属</span>
           <h2>{{ dashboard.current.organization.name }}</h2>
           <p class="mono">组织 ID {{ dashboard.current.organization.id }}</p>
+          <StatusLabel tone="success">快速能力已启用</StatusLabel>
         </div>
-        <b>快速能力已启用</b>
+        <WalletFigure kind="settle" />
       </header>
 
       <div v-if="detailBusy" class="organization-loading" role="status">正在同步组织登记…</div>
@@ -316,9 +319,12 @@ onMounted(() => void loadOrganizations())
     </section>
 
     <section v-else class="organization-chooser" aria-labelledby="available-organizations-heading">
-      <div class="wallet-section__heading">
-        <h2 id="available-organizations-heading">选择担保组织</h2>
-        <span>可稍后加入</span>
+      <div class="detail-page-intro">
+        <div class="detail-page-intro__copy">
+          <h2 id="available-organizations-heading">选择担保组织</h2>
+          <span class="detail-page-caption">可稍后加入</span>
+        </div>
+        <WalletFigure kind="settle" />
       </div>
       <p class="organization-copy">你目前以独立账户使用普通转账。加入不会更换账户或地址。</p>
       <div v-if="organizations.length" class="organization-options" aria-label="可加入的担保组织">
@@ -499,11 +505,11 @@ onMounted(() => void loadOrganizations())
   padding-block: 0.8rem 1.4rem;
   border-bottom: 1px solid var(--hairline);
 }
-.member-organization__hero > div {
+.member-organization__hero > div:first-child {
   display: grid;
   gap: 0.2rem;
 }
-.member-organization__hero span,
+.member-organization__hero > div:first-child > span:not(.status-label),
 .member-organization__hero p,
 .organization-exit p {
   margin: 0;
@@ -514,14 +520,6 @@ onMounted(() => void loadOrganizations())
   margin: 0;
   font-size: clamp(1.8rem, 4vw, 2.7rem);
   letter-spacing: -0.045em;
-}
-.member-organization__hero > b {
-  padding: 0.4rem 0.7rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--success) 9%, transparent);
-  color: var(--success);
-  font-size: 0.72rem;
-  font-weight: 680;
 }
 .organization-loading {
   min-height: 96px;
@@ -741,9 +739,6 @@ onMounted(() => void loadOrganizations())
   }
   .member-organization__hero {
     align-items: start;
-  }
-  .member-organization__hero > b {
-    justify-self: start;
   }
   .organization-roster__grid,
   .organization-technical dl {

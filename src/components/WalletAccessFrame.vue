@@ -4,10 +4,13 @@ import { useRouter } from 'vue-router'
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 
 import BrandMark from './BrandMark.vue'
-import ValueFoldField from './ValueFoldField.vue'
+import { inject, watch } from 'vue'
+import { entryFigureKey } from '@/composables/useEntryFigure'
+import type { EntryShape } from '@/graphics/entryParticles'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
+    figure?: EntryShape
     quietScroll?: boolean
     fieldActive?: boolean
   }>(),
@@ -17,6 +20,14 @@ withDefaults(
   },
 )
 
+const figure = inject(entryFigureKey, undefined)
+watch(
+  () => props.figure,
+  (value) => {
+    if (figure) figure.value = value
+  },
+  { immediate: true },
+)
 const router = useRouter()
 
 async function returnHome(): Promise<void> {
@@ -33,12 +44,7 @@ async function returnHome(): Promise<void> {
     </header>
     <section class="wallet-access__stage">
       <aside class="wallet-access__visual" aria-label="PanguPay">
-        <ValueFoldField
-          :intro="false"
-          :active="fieldActive"
-          label="PanguPay 价值折叠场"
-          transition-name="pangu-value-fold"
-        />
+        <div class="entry-figure-anchor" data-entry-figure-anchor aria-hidden="true" />
         <div class="wallet-access__statement">
           <BrandMark :size="34" />
           <p>PanguPay</p>
@@ -68,7 +74,7 @@ async function returnHome(): Promise<void> {
   grid-template-rows: auto minmax(0, 1fr);
   padding: max(1rem, env(safe-area-inset-top)) clamp(1rem, 3vw, 3rem)
     max(1.15rem, env(safe-area-inset-bottom));
-  background: var(--background);
+  background: transparent;
 }
 
 .wallet-access__header {
@@ -93,12 +99,14 @@ async function returnHome(): Promise<void> {
   width: min(1380px, 100%);
   min-height: 0;
   height: 100%;
-  grid-template-columns: minmax(0, 7fr) minmax(380px, 5fr);
+  grid-template-columns: minmax(380px, 5fr) minmax(0, 7fr);
   gap: clamp(2rem, 5vw, 6rem);
   margin-inline: auto;
 }
 
 .wallet-access__visual {
+  grid-column: 2;
+  grid-row: 1;
   position: relative;
   display: grid;
   min-height: 0;
@@ -106,11 +114,11 @@ async function returnHome(): Promise<void> {
   overflow: hidden;
 }
 
-.wallet-access__visual :deep(.value-fold-field) {
+.wallet-access__visual .entry-figure-anchor {
   width: min(720px, 92%, calc(100dvh - 7.5rem));
   max-height: 100%;
   margin-inline: auto;
-  opacity: 0.76;
+  aspect-ratio: 1;
 }
 
 .wallet-access__statement {
@@ -138,6 +146,8 @@ async function returnHome(): Promise<void> {
 }
 
 .wallet-access__form {
+  grid-column: 1;
+  grid-row: 1;
   display: grid;
   width: min(420px, 100%);
   align-content: start;
@@ -190,10 +200,14 @@ async function returnHome(): Promise<void> {
   }
 
   .wallet-access__visual {
+    grid-column: 2;
+    grid-row: 1;
     display: none;
   }
 
   .wallet-access__form {
+    grid-column: 1;
+    grid-row: 1;
     width: min(420px, 100%);
     height: 100%;
     min-height: 0;
@@ -205,7 +219,7 @@ async function returnHome(): Promise<void> {
     display: none;
   }
 
-  .wallet-access__visual :deep(.value-fold-field) {
+  .wallet-access__visual .entry-figure-anchor {
     width: min(610px, 88%, calc(100dvh - 5.5rem));
   }
 }
@@ -220,6 +234,8 @@ async function returnHome(): Promise<void> {
   }
 
   .wallet-access__form {
+    grid-column: 1;
+    grid-row: 1;
     width: 100%;
     align-content: start;
     padding-top: clamp(4rem, 12vh, 7rem);

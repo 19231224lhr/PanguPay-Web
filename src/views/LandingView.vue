@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
 import BrandMark from '@/components/BrandMark.vue'
-import ValueFoldField from '@/components/ValueFoldField.vue'
+
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveWalletEntry } from '@/wallet/navigation'
@@ -80,11 +80,7 @@ async function enterWallet(): Promise<void> {
       </div>
 
       <div class="value-fold-field-stage">
-        <ValueFoldField
-          :active="walletEntryActive"
-          :label="t('landing.orbitLabel')"
-          transition-name="pangu-value-fold"
-        />
+        <div class="entry-figure-anchor" data-entry-figure-anchor aria-hidden="true" />
       </div>
     </section>
 
@@ -99,6 +95,11 @@ async function enterWallet(): Promise<void> {
 </template>
 
 <style scoped>
+.entry-figure-anchor {
+  width: 100%;
+  height: 100%;
+}
+
 .landing {
   position: relative;
   display: grid;
@@ -108,20 +109,6 @@ async function enterWallet(): Promise<void> {
   padding: max(1.15rem, env(safe-area-inset-top)) clamp(1rem, 4vw, 4rem)
     max(1.1rem, env(safe-area-inset-bottom));
   isolation: isolate;
-}
-
-.landing::before {
-  position: absolute;
-  z-index: -2;
-  top: -20%;
-  right: -10%;
-  width: 68vw;
-  height: 68vw;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--hero-halo), transparent 66%);
-  content: '';
-  filter: blur(18px);
-  pointer-events: none;
 }
 
 .landing__header {

@@ -1,0 +1,140 @@
+/* Glass is limited to primary/secondary actions and explicit selection controls. */
+:root {
+  --glass-base: rgb(16 18 23 / 96%);
+  --glass-edge: rgb(206 222 245 / 18%);
+  --glass-highlight: rgb(235 244 255 / 17%);
+  --glass-bottom: rgb(235 244 255 / 3%);
+  --glass-shadow: rgb(0 0 0 / 22%);
+  --glass-selected: rgb(32 39 50 / 98%);
+  --glass-primary: rgb(16 39 70 / 98%);
+  --glass-menu: rgb(18 21 27 / 98%);
+  --glass-text: #f5f5f7;
+  --glass-muted: #c5cbd4;
+}
+
+#app :is(.app-button--primary, .app-button--secondary, .app-select__trigger, .segmented-control) {
+  --control-fill: var(--glass-base);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-md);
+  background: var(--control-fill);
+  box-shadow:
+    inset 0 1px 1px var(--glass-highlight),
+    inset 0 -1px 1px var(--glass-bottom),
+    0 4px 12px -5px var(--glass-shadow);
+  color: var(--glass-text);
+  backdrop-filter: blur(16px) saturate(115%);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+}
+#app .app-button--primary {
+  --control-fill: var(--glass-primary);
+  border-color: rgb(94 161 239 / 35%);
+}
+#app .app-button--primary svg {
+  color: currentColor;
+}
+#app .segmented-control {
+  padding: 4px;
+}
+#app .segmented-control__indicator {
+  border: 1px solid var(--glass-edge);
+  border-radius: calc(var(--radius-md) - 4px);
+  background: var(--glass-selected);
+  box-shadow:
+    inset 0 1px 1px var(--glass-highlight),
+    0 2px 6px var(--glass-shadow);
+}
+#app .segmented-control label > span {
+  border-radius: calc(var(--radius-md) - 4px);
+  color: var(--glass-muted);
+}
+#app .segmented-control label[data-selected] > span {
+  color: var(--glass-text);
+}
+#app :is(.app-select__value, .app-select__option-copy) small {
+  color: var(--glass-muted);
+}
+#app .app-select__caret {
+  color: var(--glass-muted);
+}
+#app .app-select__menu {
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-md);
+  background: var(--glass-menu);
+  color: var(--glass-text);
+  box-shadow:
+    inset 0 1px 1px var(--glass-highlight),
+    0 12px 28px var(--glass-shadow);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+#app .app-select__menu li:is([data-active], [data-selected]) {
+  background: var(--glass-selected);
+  color: var(--glass-text);
+  box-shadow: inset 0 1px 0 var(--glass-bottom);
+}
+#app :is(.app-button--primary, .app-button--secondary, .app-select__trigger):focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+#app .app-select__trigger[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+#app :is(.app-button--primary, .app-button--secondary, .app-select__trigger):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: inset 0 1px 0 var(--glass-bottom);
+}
+@media (hover: hover) and (pointer: fine) {
+  #app
+    :is(.app-button--primary, .app-button--secondary, .app-select__trigger):hover:not(:disabled) {
+    border-color: rgb(206 222 245 / 32%);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  #app
+    :is(
+      .app-button--primary,
+      .app-button--secondary,
+      .app-select__trigger,
+      .segmented-control,
+      .app-select__menu
+    ) {
+    background: #101217;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  #app .app-button--primary {
+    background: #102746;
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  #app
+    :is(
+      .app-button--primary,
+      .app-button--secondary,
+      .app-select__trigger,
+      .segmented-control,
+      .app-select__menu
+    ) {
+    background-color: #101217;
+  }
+  #app .app-button--primary {
+    background-color: #102746;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app
+    :is(
+      .app-button--primary,
+      .app-button--secondary,
+      .app-select__trigger,
+      .segmented-control__indicator
+    ) {
+    transition: none;
+  }
+  #app :is(.app-button--primary, .app-button--secondary, .app-select__trigger):is(:hover, :active) {
+    transform: none;
+  }
+}

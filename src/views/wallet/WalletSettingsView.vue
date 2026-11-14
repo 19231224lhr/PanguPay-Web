@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletFigure from '@/components/WalletFigure.vue'
 import {
   type SupportedLocale,
   type ThemePreference,
@@ -148,14 +149,15 @@ async function saveProfile(): Promise<void> {
 </script>
 
 <template>
-  <div class="wallet-page">
+  <div class="wallet-page wallet-refined settings-page">
     <WalletPageHeader
       :title="t('wallet.settings.title')"
       :description="t('wallet.settings.description')"
     />
     <section class="wallet-section profile-settings" aria-labelledby="profile-settings-heading">
-      <div class="wallet-section__heading">
+      <div class="detail-page-intro settings-heading">
         <h2 id="profile-settings-heading">{{ t('wallet.settings.profile') }}</h2>
+        <WalletFigure kind="phone" :intensity="0.25" />
       </div>
       <div class="profile-editor">
         <label class="profile-avatar">
@@ -186,8 +188,9 @@ async function saveProfile(): Promise<void> {
       </p>
     </section>
     <section class="wallet-section settings-preferences" aria-labelledby="preferences-heading">
-      <div class="wallet-section__heading">
+      <div class="detail-page-intro settings-heading">
         <h2 id="preferences-heading">{{ t('wallet.settings.preferences') }}</h2>
+        <WalletFigure kind="format" :intensity="0.3" />
       </div>
       <div class="settings-row">
         <span>
@@ -215,8 +218,9 @@ async function saveProfile(): Promise<void> {
       </div>
     </section>
     <section class="wallet-section settings-actions" aria-labelledby="wallet-controls-heading">
-      <div class="wallet-section__heading">
+      <div class="detail-page-intro settings-heading">
         <h2 id="wallet-controls-heading">{{ t('wallet.settings.access') }}</h2>
+        <WalletFigure kind="stack" :intensity="0.3" />
       </div>
       <div>
         <span
@@ -253,17 +257,13 @@ async function saveProfile(): Promise<void> {
 </template>
 
 <style scoped>
-.settings-actions {
-  display: grid;
-}
-
 .settings-preferences,
 .settings-actions {
   display: grid;
 }
 
 .settings-row,
-.settings-actions > div {
+.settings-actions > div:not(.settings-heading) {
   display: flex;
   min-height: 76px;
   align-items: center;
@@ -277,8 +277,8 @@ async function saveProfile(): Promise<void> {
   border-bottom: 0;
 }
 
-.settings-preferences span,
-.settings-actions span {
+.settings-row > span,
+.settings-actions > div > span {
   display: grid;
   gap: 0.25rem;
 }
@@ -295,15 +295,16 @@ async function saveProfile(): Promise<void> {
 .profile-editor {
   display: grid;
   grid-template-columns: auto minmax(220px, 1fr) auto;
-  align-items: end;
+  align-items: center;
   gap: 1rem;
   padding-block: 1rem;
 }
 
 .profile-avatar {
   display: grid;
-  width: 86px;
-  height: 86px;
+  position: relative;
+  width: 64px;
+  height: 64px;
   overflow: hidden;
   border-radius: 50%;
   background: var(--surface-raised);
@@ -331,6 +332,7 @@ async function saveProfile(): Promise<void> {
 }
 .profile-name {
   display: grid;
+  min-width: 0;
   gap: 0.35rem;
 }
 .profile-name label {
@@ -338,10 +340,12 @@ async function saveProfile(): Promise<void> {
   font-weight: 650;
 }
 .profile-name input {
+  width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--field);
   color: var(--text);
 }
@@ -357,9 +361,67 @@ async function saveProfile(): Promise<void> {
   color: var(--danger);
 }
 
-@media (max-width: 599px) {
+.settings-page .settings-heading {
+  min-height: 64px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.settings-page .settings-heading :deep(.wallet-figure) {
+  width: 80px;
+}
+
+.settings-row {
+  padding-block: 16px;
+}
+
+.settings-row > span,
+.settings-actions > div > span {
+  min-width: 0;
+  line-height: 1.55;
+}
+
+.settings-row b,
+.settings-actions b {
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+
+.settings-row small,
+.settings-actions small {
+  font-size: 0.74rem;
+}
+
+.settings-preferences :deep(.segmented-control) {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.settings-actions > div:not(.settings-heading) {
+  padding-block: 16px;
+}
+
+.settings-actions > div > strong {
+  min-width: 112px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 550;
+}
+
+.profile-name input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.profile-avatar:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@container (max-width: 580px) {
   .settings-row,
-  .settings-actions > div {
+  .settings-actions > div:not(.settings-heading) {
     align-items: stretch;
     flex-direction: column;
     padding-block: 1rem;
@@ -371,7 +433,7 @@ async function saveProfile(): Promise<void> {
   }
 
   .profile-editor {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
   }
   .profile-editor :deep(.app-button) {
     grid-column: 1 / -1;

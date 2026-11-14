@@ -6,6 +6,9 @@ import i18n from '@/i18n'
 import WalletSettingsView from '@/views/wallet/WalletSettingsView.vue'
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ replace: vi.fn<() => void>() }) }))
+vi.mock('@/components/WalletFigure.vue', () => ({
+  default: { template: '<div aria-hidden="true" />' },
+}))
 
 describe('WalletSettingsView localization', () => {
   afterEach(() => {

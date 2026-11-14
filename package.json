@@ -26,6 +26,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@lucasmarkes/hairline": "0.5.1",
     "@noble/hashes": "^2.2.0",
     "@phosphor-icons/vue": "^2.2.1",
     "elliptic": "^6.6.1",

@@ -8,25 +8,26 @@ import { computed } from 'vue'
 
 import type { WalletAssetBalance } from '@/wallet/types'
 import AppButton from './AppButton.vue'
+import WalletMoneyFigure from './WalletMoneyFigure.vue'
 
 const props = withDefaults(
   defineProps<{
-    animate?: boolean
+    assets?: WalletAssetBalance[]
     asset?: WalletAssetBalance
     loading?: boolean
     offline?: boolean
     updatedAt?: number
   }>(),
   {
-    animate: false,
     asset: undefined,
+    assets: () => [],
     loading: false,
     offline: false,
     updatedAt: 0,
   },
 )
 
-const emit = defineEmits<{ refresh: []; sweepEnd: [] }>()
+const emit = defineEmits<{ refresh: [] }>()
 const total = computed(() => props.asset?.total ?? '0')
 const updatedLabel = computed(() => {
   if (!props.updatedAt) return '尚未取得真实账户快照'
@@ -35,310 +36,178 @@ const updatedLabel = computed(() => {
 </script>
 
 <template>
-  <section
-    class="wallet-balance-field"
-    :class="{ 'wallet-balance-field--settle': animate }"
-    aria-labelledby="wallet-total-assets"
-  >
-    <div class="wallet-balance-field__main">
-      <div class="wallet-balance-field__label">
-        <p id="wallet-total-assets">总资产</p>
-        <span v-if="offline">离线快照</span>
+  <section class="overview-panel wallet-balance-field" aria-labelledby="wallet-total-assets">
+    <header class="overview-panel__heading">
+      <h2 id="wallet-total-assets">资产总览</h2>
+      <span class="balance-state">{{
+        offline ? '离线快照' : updatedAt ? '已同步' : '读取中'
+      }}</span>
+    </header>
+    <div class="overview-panel__body">
+      <div class="balance-copy">
+        <strong class="wallet-balance-field__amount tabular"
+          >{{ updatedAt ? total : '—' }} <small>{{ asset?.symbol ?? 'PGC' }}</small></strong
+        >
+        <p class="balance-name">{{ asset?.name }}</p>
+        <div class="wallet-balance-field__composition" aria-label="资产可用组成">
+          <span
+            ><small>UTXO 可用</small
+            ><b class="tabular">{{ updatedAt ? (asset?.utxoAvailable ?? '0') : '—' }}</b></span
+          >
+          <span
+            ><small>TXCer 可支付</small
+            ><b class="tabular">{{ updatedAt ? (asset?.txCerSpendable ?? '0') : '—' }}</b></span
+          >
+        </div>
       </div>
-
-      <strong class="wallet-balance-field__amount tabular">
-        {{ total }}
-        <small>{{ asset?.symbol ?? 'PGC' }}</small>
-      </strong>
-
-      <div class="wallet-balance-field__composition" aria-label="资产可用组成">
-        <span>
-          <small>UTXO 可用</small>
-          <b class="tabular">{{ asset?.utxoAvailable ?? '0' }}</b>
-        </span>
-        <span>
-          <small>TXCer 可支付</small>
-          <b class="tabular">{{ asset?.txCerSpendable ?? '0' }}</b>
-        </span>
-      </div>
-
-      <div class="wallet-balance-field__sync">
-        <span>{{ updatedLabel }}</span>
-        <button type="button" :aria-busy="loading || undefined" @click="emit('refresh')">
-          <ArrowClockwise :class="{ 'is-spinning': loading }" :size="16" aria-hidden="true" />
-          {{ loading ? '同步中' : '同步' }}
-        </button>
+      <WalletMoneyFigure />
+    </div>
+    <div v-if="assets.length > 1" class="other-assets" aria-label="其他资产组成">
+      <div v-for="item in assets.slice(1)" :key="item.symbol">
+        <span>{{ item.name }} · {{ item.symbol }}</span
+        ><b>{{ item.total }}</b>
+        <small>UTXO {{ item.utxoAvailable }} · TXCer {{ item.txCerSpendable }}</small>
       </div>
     </div>
-
-    <div class="wallet-balance-field__actions" aria-label="钱包操作">
-      <AppButton to="/wallet/send" size="large">
-        <PaperPlaneTilt :size="18" weight="bold" aria-hidden="true" />
-        发送
-      </AppButton>
-      <AppButton to="/wallet/receive" size="large" variant="secondary">
-        <ArrowDown :size="18" weight="bold" aria-hidden="true" />
-        收款
-      </AppButton>
-    </div>
-
-    <i class="wallet-balance-field__settle" aria-hidden="true" @animationend="emit('sweepEnd')" />
+    <footer class="balance-footer">
+      <button
+        class="balance-sync"
+        type="button"
+        :title="updatedLabel"
+        :aria-label="updatedLabel + '，同步账户'"
+        :aria-busy="loading || undefined"
+        :disabled="loading"
+        @click="emit('refresh')"
+      >
+        <ArrowClockwise :class="{ 'is-spinning': loading }" :size="14" aria-hidden="true" />
+        <span>{{
+          loading ? '同步中' : updatedAt ? new Date(updatedAt).toLocaleTimeString() : '同步'
+        }}</span>
+      </button>
+      <div class="wallet-balance-field__actions" aria-label="钱包操作">
+        <AppButton to="/wallet/send"
+          ><PaperPlaneTilt :size="15" aria-hidden="true" />发送</AppButton
+        >
+        <AppButton to="/wallet/receive" variant="secondary"
+          ><ArrowDown :size="15" aria-hidden="true" />收款</AppButton
+        >
+      </div>
+    </footer>
   </section>
 </template>
 
 <style scoped>
-.wallet-balance-field {
-  --wallet-field-halo: color-mix(in srgb, var(--hero-halo) 84%, var(--accent) 16%);
-
-  position: relative;
-  display: grid;
-  min-height: 270px;
-  align-items: end;
-  overflow: hidden;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: clamp(2rem, 5vw, 5rem);
-  padding: clamp(1.5rem, 4vw, 3rem);
-  border-radius: var(--radius-xl);
-  background: var(--value-field-surface);
-  isolation: isolate;
-}
-
-.wallet-balance-field::after {
-  position: absolute;
-  z-index: 0;
-  top: -38%;
-  right: -12%;
-  width: min(520px, 52vw);
-  aspect-ratio: 1.25;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--wallet-field-halo), transparent 68%);
-  content: '';
-  filter: blur(20px);
-  opacity: 0.68;
-  transform: scale(1);
-  transform-origin: 62% 42%;
-}
-
-.wallet-balance-field__main {
-  position: relative;
-  z-index: 2;
-  display: grid;
+.balance-copy {
   min-width: 0;
-  gap: 0.9rem;
 }
-
-.wallet-balance-field__label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.wallet-balance-field__label p,
-.wallet-balance-field__label span {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-}
-
-.wallet-balance-field__label span {
-  padding: 0.22rem 0.5rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  color: var(--warning);
-}
-
 .wallet-balance-field__amount {
-  overflow: hidden;
-  font-size: clamp(4.4rem, 7vw, 6rem);
-  font-weight: 720;
-  letter-spacing: 0;
-  line-height: 0.94;
-  text-overflow: ellipsis;
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
-
 .wallet-balance-field__amount small {
-  margin-left: 0.25em;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  font-size: 0.18em;
-  font-weight: 620;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  letter-spacing: 0;
 }
-
-.wallet-balance-field__composition {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem 2rem;
-}
-
-.wallet-balance-field__composition span {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55rem;
-}
-
-.wallet-balance-field__composition small {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
-.wallet-balance-field__composition b {
-  font-size: 0.78rem;
-  font-weight: 620;
-}
-
-.wallet-balance-field__sync {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  gap: 0.75rem;
+.balance-name {
+  margin: 0.2rem 0 0.5rem;
   color: var(--text-muted);
   font-size: 0.7rem;
 }
-
-.wallet-balance-field__sync button {
+.balance-state {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.wallet-balance-field__composition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+.wallet-balance-field__composition span {
   display: inline-flex;
-  min-height: 32px;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.wallet-balance-field__composition small {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.wallet-balance-field__composition b {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.balance-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-top: auto;
+}
+.balance-sync {
+  display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding-inline: 0.5rem;
-  border-radius: 8px;
+  min-height: 44px;
+  padding: 0;
   background: transparent;
   color: var(--text-muted);
+  font-size: 0.7rem;
   cursor: pointer;
 }
-
-.wallet-balance-field__sync button:hover {
-  background: var(--surface-hover);
+.balance-sync:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.balance-sync:hover {
   color: var(--text);
 }
-
-.wallet-balance-field__sync svg.is-spinning {
+.wallet-balance-field__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.wallet-balance-field__actions :deep(.app-button) {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 8px;
+}
+.other-assets {
+  border-top: 1px solid var(--hairline);
+  margin-block: 0.5rem;
+}
+.other-assets > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding-block: 0.5rem;
+}
+.other-assets small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+}
+.is-spinning {
   animation: wallet-sync-spin 720ms linear infinite;
 }
-
-.wallet-balance-field__actions {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  width: 316px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-}
-
-.wallet-balance-field__actions :deep(.app-button) {
-  min-width: 0;
-}
-
-.wallet-balance-field__actions :deep(.app-button--secondary) {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
-}
-
-.wallet-balance-field__settle {
-  position: absolute;
-  z-index: 1;
-  top: -12%;
-  bottom: -12%;
-  left: -48%;
-  width: 48%;
-  min-width: 210px;
-  opacity: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--wallet-field-halo) 14%, transparent) 14%,
-    color-mix(in srgb, var(--wallet-field-halo) 42%, transparent) 38%,
-    color-mix(in srgb, var(--wallet-field-halo) 62%, transparent) 52%,
-    color-mix(in srgb, var(--wallet-field-halo) 34%, transparent) 68%,
-    transparent 100%
-  );
-  filter: blur(22px);
-  pointer-events: none;
-  transform: translate3d(0, 0, 0);
-  will-change: transform, opacity;
-}
-
-.wallet-balance-field--settle .wallet-balance-field__settle {
-  animation: wallet-balance-settle 1550ms cubic-bezier(0.22, 0.7, 0.18, 1) both;
-}
-
-@keyframes wallet-balance-settle {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 0, 0);
-  }
-
-  16% {
-    opacity: 0.5;
-  }
-
-  76% {
-    opacity: 0.44;
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate3d(310%, 0, 0);
-  }
-}
-
-@keyframes wallet-balance-settle-reduced {
-  from,
-  to {
-    opacity: 0;
-  }
-}
-
 @keyframes wallet-sync-spin {
   to {
     transform: rotate(1turn);
   }
 }
-
-@media (max-width: 760px) {
-  .wallet-balance-field {
-    min-height: 330px;
-    grid-template-columns: 1fr;
-    gap: 1.7rem;
-  }
-
-  .wallet-balance-field__actions {
-    width: 100%;
-  }
-}
-
-@media (max-width: 440px) {
-  .wallet-balance-field {
-    padding: 1.4rem;
-  }
-
-  .wallet-balance-field__amount {
-    font-size: clamp(3.35rem, 16vw, 4.2rem);
-  }
-
-  .wallet-balance-field__composition {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
-  }
-
-  .wallet-balance-field__composition span {
-    display: grid;
-    gap: 0.22rem;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .wallet-balance-field__sync svg.is-spinning {
+  .is-spinning {
     animation: none;
   }
-
-  .wallet-balance-field--settle .wallet-balance-field__settle {
-    animation: wallet-balance-settle-reduced 1ms linear both;
-  }
-
-  .wallet-balance-field--settle::after {
-    animation: none;
+}
+@media (pointer: coarse) {
+  .wallet-balance-field__actions :deep(.app-button) {
+    min-height: 44px;
   }
 }
 </style>

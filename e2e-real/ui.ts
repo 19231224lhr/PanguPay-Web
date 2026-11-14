@@ -105,16 +105,12 @@ export async function chooseRetail(page: Page): Promise<void> {
 export async function joinFirstOrganization(page: Page): Promise<void> {
   if (!page.url().endsWith('/wallet/entry')) {
     await navigateWallet(page, '/wallet/organization')
-    if (
-      await page
-        .getByText('当前归属')
-        .isVisible()
-        .catch(() => false)
-    )
-      return
-    const option = page.locator('.organization-option input[type="radio"]').first()
-    await expect(option).toBeVisible({ timeout: 60_000 })
-    await option.check()
+    const member = page.getByText('当前归属', { exact: true })
+    const option = page.locator('.organization-options input[type="radio"]').first()
+    await expect(member.or(option).first()).toBeVisible({ timeout: 60_000 })
+    if (await member.isVisible()) return
+    await page.locator('.organization-options label').first().click()
+    await expect(option).toBeChecked()
     await page.getByRole('button', { name: '确认加入' }).click()
     await expect(page.getByText('当前归属')).toBeVisible({ timeout: 120_000 })
     return
@@ -124,7 +120,8 @@ export async function joinFirstOrganization(page: Page): Promise<void> {
   })
   const option = page.locator('.organization-choice input[type="radio"]').first()
   await expect(option).toBeVisible()
-  await option.check()
+  await page.locator('.organization-choice label').first().click()
+  await expect(option).toBeChecked()
   await page.getByRole('button', { name: '加入所选组织' }).click()
   await page.waitForURL(/\/wallet$/, { timeout: 120_000 })
 }
@@ -187,7 +184,9 @@ export async function waitForTimelineStep(
   state: 'complete' | 'active' | 'error' = 'complete',
   timeout = 180_000,
 ): Promise<string> {
-  const step = page.locator('.timeline > li').filter({ hasText: label })
+  const step = page.locator('.timeline > li').filter({
+    has: page.locator('.timeline__title strong').and(page.getByText(label, { exact: true })),
+  })
   await expect(step).toHaveClass(new RegExp(`timeline__item--${state}`), { timeout })
   return (await step.textContent()) ?? ''
 }

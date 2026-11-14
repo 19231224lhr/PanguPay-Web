@@ -18,6 +18,11 @@ export async function navigateWithSpatialTransition(
   mode: SpatialTransition,
   method: SpatialNavigationMethod = 'push',
 ): Promise<void> {
+  // Keep the live particle canvas running while entry forms change.
+  if (mode === 'access' && document.querySelector('[data-entry-experience]')) {
+    await router[method](destination)
+    return
+  }
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const transitionDocument = document as ViewTransitionDocument
   const navigate = () => router[method](destination)
