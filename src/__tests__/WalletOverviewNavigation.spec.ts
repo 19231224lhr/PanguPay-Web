@@ -5,7 +5,10 @@ import WalletOverviewView from '@/views/wallet/WalletOverviewView.vue'
 import type { TransferProgress } from '@/transfer'
 
 const mocks = vi.hoisted(() => ({
-  transfer: { history: [] as TransferProgress[], synchronizeHistory: vi.fn(async () => true) },
+  transfer: {
+    history: [] as TransferProgress[],
+    synchronizeHistory: vi.fn<() => Promise<boolean>>(async () => true),
+  },
   dashboard: {
     current: {
       displayName: 'Test',
@@ -15,7 +18,7 @@ const mocks = vi.hoisted(() => ({
       credentials: [],
       security: { isolatedCount: 0, pendingAudits: 0 },
     },
-    sync: vi.fn(),
+    sync: vi.fn<(...args: unknown[]) => unknown>(),
     offline: false,
     loading: false,
   },
@@ -110,7 +113,7 @@ describe('Overview navigation', () => {
   })
   it('keeps the ledger visible and focuses the selected address on repeated clicks', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true }))
-    const scroll = vi.fn()
+    const scroll = vi.fn<(...args: unknown[]) => unknown>()
     const previous = HTMLElement.prototype.scrollIntoView
     HTMLElement.prototype.scrollIntoView = scroll
     try {

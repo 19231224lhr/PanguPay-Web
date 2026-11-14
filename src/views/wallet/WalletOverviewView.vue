@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { wt, wl, walletLocale } from '@/i18n/walletText'
 import { PhArrowDown as ArrowDown, PhArrowUpRight as ArrowUpRight } from '@phosphor-icons/vue'
 import { computed, nextTick, ref } from 'vue'
 import '@/styles/wallet-overview.css'
@@ -40,14 +41,14 @@ async function revealAddress(address: string): Promise<void> {
 const snapshotReady = computed(() => dashboard.current.source !== 'empty')
 const securityLabel = computed(() =>
   !snapshotReady.value
-    ? '读取中'
+    ? wt('w19')
     : dashboard.offline
-      ? '离线快照'
+      ? wt('w380')
       : dashboard.current.security.isolatedCount
-        ? '需要处理'
+        ? wt('refinement32')
         : dashboard.current.credentials.length
-          ? '已同步'
-          : '暂无凭证',
+          ? wt('w126')
+          : wt('refinement33'),
 )
 const primaryAsset = computed(() => dashboard.current.assets[0])
 
@@ -57,10 +58,10 @@ async function refresh(): Promise<void> {
 </script>
 <template>
   <div class="wallet-page overview">
-    <WalletPageHeader variant="compact" title="账户总览">
+    <WalletPageHeader variant="compact" :title="wt('refinement34')">
       <span class="overview-account"
         >{{ dashboard.current.displayName }} ·
-        {{ dashboard.current.organization ? '组织成员' : '独立账户' }}</span
+        {{ dashboard.current.organization ? wt('refinement35') : wt('refinement20') }}</span
       >
     </WalletPageHeader>
 
@@ -75,7 +76,9 @@ async function refresh(): Promise<void> {
       />
       <section class="overview-panel security-preview" aria-labelledby="overview-security">
         <div class="overview-panel__heading">
-          <h2 id="overview-security"><RouterLink to="/wallet/security">凭证与安全</RouterLink></h2>
+          <h2 id="overview-security">
+            <RouterLink to="/wallet/security">{{ wt('w177') }}</RouterLink>
+          </h2>
           <StatusLabel
             :tone="
               !snapshotReady || dashboard.offline
@@ -90,19 +93,19 @@ async function refresh(): Promise<void> {
         <div class="overview-panel__body">
           <dl class="overview-metrics">
             <div>
-              <dt>TXCer 记录</dt>
+              <dt>{{ wt('refinement36') }}</dt>
               <dd class="tabular">
                 {{ snapshotReady ? dashboard.current.credentials.length : '—' }}
               </dd>
             </div>
             <div>
-              <dt>后台审计中</dt>
+              <dt>{{ wt('refinement37') }}</dt>
               <dd class="tabular">
                 {{ snapshotReady ? dashboard.current.security.pendingAudits : '—' }}
               </dd>
             </div>
             <div :class="{ 'needs-attention': dashboard.current.security.isolatedCount }">
-              <dt>暂停支付</dt>
+              <dt>{{ wt('w188') }}</dt>
               <dd class="tabular">
                 {{ snapshotReady ? dashboard.current.security.isolatedCount : '—' }}
               </dd>
@@ -111,22 +114,22 @@ async function refresh(): Promise<void> {
           <WalletFigure kind="stack" :intensity="0.3" />
         </div>
         <RouterLink class="text-action security-detail" to="/wallet/security">
-          查看凭证明细 <ArrowUpRight :size="15" aria-hidden="true" />
+          {{ wt('refinement38') }} <ArrowUpRight :size="15" aria-hidden="true" />
         </RouterLink>
       </section>
     </div>
     <p v-if="dashboard.offline" class="wallet-notice wallet-notice--warning">
-      当前展示上次同步的账户快照，资产与凭证状态可能已变化。
+      {{ wt('refinement39') }}
     </p>
     <p v-if="dashboard.error" class="wallet-notice wallet-notice--warning">
-      无法取得最新快照：{{ dashboard.error }}
+      {{ wt('w132') }}{{ dashboard.error }}
     </p>
 
     <div class="overview-main overview-pair">
       <section class="overview-panel activity" aria-labelledby="activity-heading">
         <div class="overview-panel__heading">
-          <h2 id="activity-heading">最近活动</h2>
-          <span class="overview-caption">{{ activities.length }} 条记录</span>
+          <h2 id="activity-heading">{{ wt('w129') }}</h2>
+          <span class="overview-caption">{{ activities.length }} {{ wt('refinement40') }}</span>
         </div>
         <div class="overview-panel__body activity-body">
           <div>
@@ -139,28 +142,33 @@ async function refresh(): Promise<void> {
                 />
                 <span>
                   <b>{{ item.title }}</b>
-                  <small>{{ item.status }} · {{ new Date(item.timestamp).toLocaleString() }}</small>
+                  <small
+                    >{{ wl(item.status) }} ·
+                    {{ new Date(item.timestamp).toLocaleString(walletLocale()) }}</small
+                  >
                 </span>
                 <b class="tabular">{{ item.amount }}</b>
               </li>
             </ul>
             <div v-else class="overview-empty">
               <div>
-                <strong>还没有交易记录</strong>
-                <p>完成收款或转账后，可在这里查看进展。</p>
+                <strong>{{ wt('refinement41') }}</strong>
+                <p>{{ wt('refinement42') }}</p>
               </div>
             </div>
           </div>
           <WalletFigure kind="drawer" :intensity="0.35" />
         </div>
         <RouterLink class="text-action activity-detail" to="/wallet/activity">
-          查看全部活动 <ArrowUpRight :size="15" aria-hidden="true" />
+          {{ wt('refinement43') }} <ArrowUpRight :size="15" aria-hidden="true" />
         </RouterLink>
       </section>
       <section class="overview-panel receive-preview" aria-labelledby="receive-heading">
         <header class="overview-panel__heading">
-          <h2 id="receive-heading">收款地址</h2>
-          <span class="overview-caption">{{ wallet.activeAddresses.length }} 个地址</span>
+          <h2 id="receive-heading">{{ wt('w144') }}</h2>
+          <span class="overview-caption"
+            >{{ wallet.activeAddresses.length }} {{ wt('refinement2') }}</span
+          >
         </header>
         <div class="overview-panel__body">
           <div class="receive-copy">
@@ -170,13 +178,13 @@ async function refresh(): Promise<void> {
                 <a
                   class="receive-address"
                   href="#complete-address-ledger"
-                  :aria-label="`查看 ${item.asset.symbol} 地址 ${item.address} 的详细信息`"
+                  :aria-label="wt('refinement60', [item.asset.symbol, item.address])"
                   @click.prevent="revealAddress(item.address)"
                   ><code>{{ item.address }}</code></a
                 >
               </li>
             </ul>
-            <p v-else class="overview-caption">暂无已登记的收款地址。</p>
+            <p v-else class="overview-caption">{{ wt('refinement44') }}</p>
           </div>
           <WalletFigure kind="phone" :intensity="0.25" />
         </div>
@@ -192,7 +200,7 @@ async function refresh(): Promise<void> {
       id="complete-address-ledger"
       ref="addressLedger"
       class="address-details"
-      aria-label="完整收款地址账本"
+      :aria-label="wt('refinement1')"
     >
       <WalletAddressLedger />
     </section>

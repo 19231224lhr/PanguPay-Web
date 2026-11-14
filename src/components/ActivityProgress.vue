@@ -1,122 +1,67 @@
 <script setup lang="ts">
+import { wt, walletLocale } from '@/i18n/walletText'
+
 import { computed } from 'vue'
 
-import type { TransferMode, TransferPhase } from '@/transfer'
+import type { TransferProgress } from '@/transfer/journal'
+import { buildTransferTimeline } from '@/transfer/workflow'
 
 const props = defineProps<{
-  mode?: TransferMode
-  phase?: TransferPhase
+  progress?: TransferProgress
   status?: string
-  lightTxHash?: string
-  targetBlock?: number
-  crossChainError?: string
 }>()
 
-const shortHash = (value: string) => `${value.slice(0, 10)}…${value.slice(-8)}`
+const steps = computed(() =>
+  props.progress
+    ? buildTransferTimeline(props.progress)
+    : [{ label: wt('w294'), detail: props.status || wt('w295'), state: 'pending' }],
+)
 
-type StepState = 'complete' | 'active' | 'pending' | 'error'
+const formatTime = (value?: number) =>
+  value
+    ? new Intl.DateTimeFormat(walletLocale(), {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+        hour12: false,
+      }).format(value)
+    : wt('w296')
 
-const steps = computed(() => {
-  if (!props.phase)
-    return [{ label: '后端记录', detail: props.status || '状态未知', state: 'active' as StepState }]
-  const failed = props.phase === 'failed'
-  const accepted = [
-    'accepted',
-    'spend-ready',
-    'local-certified',
-    'target-accepted',
-    'settled',
-  ].includes(props.phase)
-  const spendReady = ['spend-ready', 'settled'].includes(props.phase)
-  const settled = props.phase === 'settled'
-  if (props.mode === 'cross') {
-    const localCertified = ['local-certified', 'target-accepted', 'settled'].includes(props.phase)
-    const targetAccepted = ['target-accepted', 'settled'].includes(props.phase)
-    return [
-      {
-        label: '跨链交易已接收',
-        detail: accepted ? '源区入口已接收交易。' : '等待源区入口确认。',
-        state: failed ? 'error' : accepted ? 'complete' : ('active' as StepState),
-      },
-      {
-        label: '担保验证',
-        detail: localCertified ? '担保验证已经完成。' : '等待担保节点确认。',
-        state: failed ? 'error' : localCertified ? 'complete' : accepted ? 'active' : 'pending',
-      },
-      {
-        label: '本地 GQNC 已认证',
-        detail: localCertified ? '源区交易已获得终局认证。' : '等待本地 GQNC 认证。',
-        state: failed ? 'error' : localCertified ? 'complete' : 'pending',
-      },
-      {
-        label: '轻计算区已接收',
-        detail: targetAccepted
-          ? props.lightTxHash
-            ? `交易 ${shortHash(props.lightTxHash)} 已接收，等待出块。`
-            : '目标交易已进入轻计算区，等待出块。'
-          : '等待轻计算区接收。',
-        state: failed
-          ? 'error'
-          : targetAccepted
-            ? 'complete'
-            : localCertified
-              ? 'active'
-              : 'pending',
-      },
-      {
-        label: '目标链到账',
-        detail: props.crossChainError
-          ? `需要人工恢复：${props.crossChainError}`
-          : settled
-            ? props.targetBlock
-              ? `目标链回执成功，区块高度 ${props.targetBlock}。`
-              : '目标链回执成功。'
-            : '等待目标链出块。',
-        state: props.crossChainError
-          ? 'error'
-          : failed
-            ? 'error'
-            : settled
-              ? 'complete'
-              : targetAccepted
-                ? 'active'
-                : 'pending',
-      },
-    ] satisfies Array<{ label: string; detail: string; state: StepState }>
-  }
-  const result = [
-    {
-      label: '入口接收',
-      detail: accepted ? '提交已通过入口校验。' : '等待入口确认。',
-      state: failed ? 'error' : accepted ? 'complete' : 'active',
-    },
-  ]
-  if (props.mode === 'quick') {
+const milestones = computed(() => {
+  const p = props.progress
+  if (!p) return []
+  const result = [{ label: wt('w297'), value: formatTime(p.backendAcceptedAt ?? p.acceptedAt) }]
+  if (p.mode === 'quick') {
+    result.push({ label: wt('w298'), value: formatTime(p.registeredAt) })
     result.push({
-      label: 'TXCer 可支付',
-      detail: spendReady ? '收款方已获得可继续支付的 TXCer。' : '等待收款方权威状态。',
-      state: failed ? 'error' : spendReady ? 'complete' : accepted ? 'active' : 'pending',
+      label: wt('w299'),
+      value: p.spendReadyAt ? formatTime(p.backendSpendReadyAt ?? p.spendReadyAt) : wt('w300'),
     })
   }
-  result.push({
-    label: '后台结算',
-    detail: settled ? 'GQNC 已完成本地认证与结算。' : '后台处理不冒充快速可用。',
-    state: failed ? 'error' : settled ? 'complete' : 'pending',
-  })
+  if (p.mode === 'cross') {
+    result.push({ label: wt('w301'), value: formatTime(p.targetConfirmedAt) })
+  }
+  result.push({ label: wt('w302'), value: formatTime(p.settledAt) })
   return result
 })
 </script>
 
 <template>
-  <ol class="activity-progress" aria-label="交易处理进度">
+  <ol class="activity-progress" :aria-label="wt('w303')">
     <li v-for="step in steps" :key="step.label" data-activity-step :data-state="step.state">
       <span aria-hidden="true" />
       <div>
-        <b>{{ step.label }}</b
-        ><small>{{ step.detail }}</small>
+        <b>{{ step.label }}</b>
+        <small>{{ step.detail }}</small>
+        <small v-if="'meta' in step && step.meta">{{ step.meta }}</small>
       </div>
     </li>
   </ol>
+  <dl v-if="milestones.length" class="activity-times" :aria-label="wt('w304')">
+    <div v-for="item in milestones" :key="item.label">
+      <dt>{{ item.label }}</dt>
+      <dd>{{ item.value }}</dd>
+    </div>
+  </dl>
 </template>
 
 <style scoped>
@@ -182,5 +127,29 @@ const steps = computed(() => {
   color: var(--text-muted);
   font-size: 0.7rem;
   line-height: 1.45;
+}
+.activity-times {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.72rem;
+}
+.activity-times > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+.activity-times dt {
+  color: var(--text-muted);
+}
+.activity-times dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.activity-progress li[data-state='unknown'] > span {
+  border-style: dashed;
+  border-color: var(--text-muted);
+  background: var(--surface);
 }
 </style>

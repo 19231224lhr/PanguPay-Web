@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import {
   PhArrowLeft as ArrowLeft,
   PhArrowRight as ArrowRight,
@@ -41,7 +43,7 @@ const sourceRecord = computed(() => wallet.addresses.find((item) => item.address
 const coinType = computed(() => Number(sourceRecord.value?.type ?? 0))
 const asset = computed(() =>
   dashboard.current.assets.find((item) => {
-    const symbol = ['PGC', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`
+    const symbol = ['CAL', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`
     return item.symbol === symbol
   }),
 )
@@ -51,15 +53,18 @@ const isMember = computed(() => !!organization.value && !['0', '1'].includes(org
 const sourceOptions = computed(() =>
   wallet.addresses.map((address, index) => ({
     description: address.address,
-    label: `${['PGC', 'BTC', 'ETH'][Number(address.type)] ?? `资产 ${address.type}`} · 地址 ${index + 1}`,
+    label: wt('w137', [
+      ['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `Asset ${address.type}`,
+      index + 1,
+    ]),
     monospace: true,
     value: address.address,
   })),
 )
 const modeOptions = computed(() => [
-  { label: '快速', value: 'quick', disabled: !isMember.value },
-  { label: '普通', value: 'normal' },
-  { label: '跨链', value: 'cross', disabled: !isMember.value },
+  { label: wt('w208'), value: 'quick', disabled: !isMember.value },
+  { label: wt('w209'), value: 'normal' },
+  { label: wt('w49'), value: 'cross', disabled: !isMember.value },
 ])
 const transferIssue = computed(() =>
   transfer.error ? describeTransferIssue(transfer.error) : undefined,
@@ -113,42 +118,42 @@ function startAnother(): void {
 <template>
   <div class="wallet-page send-page">
     <WalletPageHeader
-      title="发送"
+      :title="wt('w210')"
       :description="
         transfer.stage === 'compose'
-          ? '填写收款地址与金额，审核后确认发送。'
+          ? wt('refinement51')
           : transfer.stage === 'review'
-            ? '签名已经在本机生成，提交前请再次核对。'
-            : '入口确认、快速可用与后台结算是三个独立状态。'
+            ? wt('w212')
+            : wt('w213')
       "
     />
 
     <form v-if="transfer.stage === 'compose'" class="send-form" @submit.prevent="prepareReview">
       <div class="send-mode">
-        <h2>转账方式</h2>
-        <SegmentedControl v-model="mode" label="转账模式" :options="modeOptions" />
+        <h2>{{ wt('refinement52') }}</h2>
+        <SegmentedControl v-model="mode" :label="wt('w214')" :options="modeOptions" />
       </div>
       <div class="send-compose">
         <section class="send-panel send-addresses" aria-labelledby="send-address-heading">
           <header class="send-panel-heading">
             <div>
-              <h2 id="send-address-heading">转账信息</h2>
-              <p>来源与收款地址</p>
+              <h2 id="send-address-heading">{{ wt('refinement53') }}</h2>
+              <p>{{ wt('refinement54') }}</p>
             </div>
             <WalletFigure kind="settle" />
           </header>
           <AppSelect
             id="send-source"
             v-model="source"
-            label="来源地址"
+            :label="wt('w215')"
             :options="sourceOptions"
-            empty-label="钱包中没有可用地址"
+            :empty-label="wt('w145')"
           />
           <FormField
             id="send-recipient"
             v-model="recipient"
-            :label="mode === 'cross' ? '轻计算收款地址' : '收款地址'"
-            :placeholder="mode === 'cross' ? '0x…' : '40位原始地址或胶囊地址'"
+            :label="mode === 'cross' ? wt('w216') : wt('w144')"
+            :placeholder="mode === 'cross' ? '0x…' : wt('w217')"
           />
           <div
             v-if="recipientLooksCapsule"
@@ -159,34 +164,28 @@ function startAnother(): void {
             <span class="capsule-input-status__icon" aria-hidden="true">
               <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
             </span>
-            {{
-              mode === 'cross'
-                ? '跨链转账暂不支持胶囊地址，请使用原始地址。'
-                : transfer.busy
-                  ? '正在获取签名公钥并验证胶囊地址…'
-                  : '审核前会先验签并还原链上真实地址。'
-            }}
+            {{ mode === 'cross' ? wt('w218') : transfer.busy ? wt('w219') : wt('w220') }}
           </div>
         </section>
         <section class="send-panel send-payment" aria-labelledby="send-payment-heading">
           <header class="send-panel-heading">
             <div>
-              <h2 id="send-payment-heading">支付资产</h2>
-              <p>{{ asset?.symbol ?? 'PGC' }}</p>
+              <h2 id="send-payment-heading">{{ wt('refinement55') }}</h2>
+              <p>{{ asset?.symbol ?? 'CAL' }}</p>
             </div>
             <WalletMoneyFigure />
           </header>
           <AmountField
             id="send-amount"
             v-model="amount"
-            label="金额"
-            :currency="asset?.symbol ?? 'PGC'"
+            :label="wt('w221')"
+            :currency="asset?.symbol ?? 'CAL'"
             placeholder="0.00"
           />
           <div class="send-available">
-            <span>当前可支付</span
+            <span>{{ wt('refinement56') }}</span
             ><strong class="tabular"
-              >{{ available }} <small>{{ asset?.symbol ?? 'PGC' }}</small></strong
+              >{{ available }} <small>{{ asset?.symbol ?? 'CAL' }}</small></strong
             >
           </div>
         </section>
@@ -194,84 +193,83 @@ function startAnother(): void {
       <footer class="send-footer">
         <div class="send-footer-copy">
           <span>{{ transferModeLabel(mode) }}</span>
-          <p v-if="!isMember">你仍可使用普通转账；快速和跨链功能需要先在“担保组织”中加入组织。</p>
-          <p v-else>下一步核对收款地址、交易输入与找零。</p>
+          <p v-if="!isMember">{{ wt('w224') }}</p>
+          <p v-else>{{ wt('refinement57') }}</p>
         </div>
         <AppButton type="submit" size="large" :loading="transfer.busy">
-          审核交易
-          <template #icon><ArrowRight :size="18" weight="bold" /></template>
+          {{ wt('w225') }} <template #icon><ArrowRight :size="18" weight="bold" /></template>
         </AppButton>
       </footer>
       <InlineNotice
         v-if="transferIssue"
         class="transfer-error-notice"
-        :title="transferIssue.title"
+        :title="wl(transferIssue.title)"
         tone="danger"
       >
-        {{ transferIssue.message }}
+        {{ wl(transferIssue.message) }}
       </InlineNotice>
     </form>
 
     <section v-else-if="transfer.stage === 'review' && transfer.review" class="review-plane">
       <div v-if="transfer.review.capsule" class="capsule-review-mark">
         <ShieldCheck :size="17" weight="fill" aria-hidden="true" />
-        <span>胶囊地址已验证</span>
-        <small>组织 {{ transfer.review.capsuleOrgID }}</small>
+        <span> {{ wt('w226') }} </span>
+        <small> {{ wt('w227') }} {{ transfer.review.capsuleOrgID }}</small>
       </div>
       <div class="review-amount">
-        <span>将发送</span>
+        <span> {{ wt('w228') }} </span>
         <strong class="tabular">{{ transfer.review.amount }}</strong>
-        <b>{{ asset?.symbol ?? 'PGC' }}</b>
+        <b>{{ asset?.symbol ?? 'CAL' }}</b>
       </div>
       <dl class="review-details">
         <div>
-          <dt>转账路径</dt>
+          <dt>{{ wt('w229') }}</dt>
           <dd>
             {{ transferModeLabel(transfer.review.mode) }}
           </dd>
         </div>
         <div>
-          <dt>{{ transfer.review.capsule ? '胶囊地址' : '收款地址' }}</dt>
+          <dt>{{ transfer.review.capsule ? wt('w135') : wt('w144') }}</dt>
           <dd class="mono">{{ transfer.review.recipientInput }}</dd>
         </div>
         <div v-if="transfer.review.capsule">
-          <dt>链上真实目标</dt>
+          <dt>{{ wt('w230') }}</dt>
           <dd class="mono">{{ transfer.review.recipient }}</dd>
         </div>
         <div>
-          <dt>普通输入</dt>
-          <dd>{{ transfer.review.selection.utxos.length }} 个</dd>
+          <dt>{{ wt('w231') }}</dt>
+          <dd>{{ transfer.review.selection.utxos.length }} {{ wt('w94') }}</dd>
         </div>
         <div>
-          <dt>TXCer 输入</dt>
-          <dd>{{ transfer.review.selection.txCers.length }} 个</dd>
+          <dt>{{ wt('w232') }}</dt>
+          <dd>{{ transfer.review.selection.txCers.length }} {{ wt('w94') }}</dd>
         </div>
         <div>
-          <dt>找零</dt>
+          <dt>{{ wt('w233') }}</dt>
           <dd class="tabular">
-            {{ transfer.review.selection.change }} {{ asset?.symbol ?? 'PGC' }}
+            {{ transfer.review.selection.change }} {{ asset?.symbol ?? 'CAL' }}
           </dd>
         </div>
         <div>
-          <dt>交易 ID</dt>
+          <dt>{{ wt('w234') }}</dt>
           <dd class="mono">{{ transfer.review.built.txID }}</dd>
         </div>
       </dl>
       <div class="review-actions">
         <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
-          <ArrowLeft :size="18" /> 返回修改
+          <ArrowLeft :size="18" /> {{ wt('w235') }}
         </AppButton>
         <AppButton :loading="transfer.busy" @click="submit">
-          <PaperPlaneTilt :size="18" /> 确认并提交
+          <PaperPlaneTilt :size="18" /> {{ wt('w236') }}
         </AppButton>
       </div>
       <InlineNotice
         v-if="transferIssue"
         class="transfer-error-notice"
-        :title="transferIssue.title"
+        :title="wl(transferIssue.title)"
         tone="danger"
       >
-        {{ transferIssue.message }}
+        {{ wl(transferIssue.message) }}
       </InlineNotice>
     </section>
 
@@ -285,8 +283,8 @@ function startAnother(): void {
       </header>
       <ProgressTimeline :items="timeline" />
       <div class="result-actions">
-        <AppButton variant="secondary" to="/wallet/activity">查看活动</AppButton>
-        <AppButton @click="startAnother">继续发送</AppButton>
+        <AppButton variant="secondary" to="/wallet/activity"> {{ wt('w237') }} </AppButton>
+        <AppButton @click="startAnother"> {{ wt('w238') }} </AppButton>
       </div>
     </section>
   </div>

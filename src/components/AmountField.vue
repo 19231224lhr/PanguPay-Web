@@ -10,7 +10,7 @@ withDefaults(
     error?: string
   }>(),
   {
-    currency: 'PGC',
+    currency: 'CAL',
     error: '',
   },
 )

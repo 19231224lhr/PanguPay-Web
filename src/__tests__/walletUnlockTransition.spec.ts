@@ -10,20 +10,20 @@ const wallet = vi.hoisted(() => ({
   unlock: vi.fn<(password: string) => Promise<void>>(),
 }))
 const resolveWalletArrival = vi.hoisted(() => vi.fn<() => Promise<string>>())
-const navigateWithSpatialTransition = vi.hoisted(() =>
-  vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-)
-
 vi.mock('vue-router', () => ({ useRouter: () => router }))
 vi.mock('@/stores/wallet', () => ({ useWalletStore: () => wallet }))
 vi.mock('@/wallet/entryService', () => ({ resolveWalletArrival }))
-vi.mock('@/composables/useSpatialNavigation', () => ({ navigateWithSpatialTransition }))
+import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
 
 import WalletUnlockView from '@/views/wallet/WalletUnlockView.vue'
 
 describe('wallet unlock transition', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    resetUnlockAnimation()
+    router.replace.mockResolvedValue(undefined)
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
     wallet.error = ''
     wallet.unlock.mockResolvedValue(undefined)
     resolveWalletArrival.mockResolvedValue('/wallet')
@@ -33,7 +33,11 @@ describe('wallet unlock transition', () => {
     })
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+    resetUnlockAnimation()
+  })
 
   it('keeps the loading layer visible until it can transition directly to the wallet', async () => {
     const wrapper = mount(WalletUnlockView, {
@@ -53,13 +57,10 @@ describe('wallet unlock transition', () => {
     await flushPromises()
 
     expect(resolveWalletArrival).toHaveBeenCalledExactlyOnceWith('alice')
-    expect(navigateWithSpatialTransition).toHaveBeenCalledExactlyOnceWith(
-      router,
-      '/wallet',
-      'wallet',
-      'replace',
-    )
-    expect(router.replace).not.toHaveBeenCalled()
+    expect(router.replace).toHaveBeenCalledExactlyOnceWith('/wallet')
+    expect(unlockPhase.value).toBe('revealing')
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(unlockPhase.value).toBe('idle')
     wrapper.unmount()
   })
 })

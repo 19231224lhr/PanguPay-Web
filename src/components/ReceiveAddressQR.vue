@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import QRCode from 'qrcode'
 import { computed } from 'vue'
 
 const props = withDefaults(defineProps<{ address: string; emptyLabel?: string }>(), {
-  emptyLabel: '钱包中没有可用地址，暂时无法生成二维码。',
+  emptyLabel: wt('w143'),
 })
 
 const matrix = computed(() => {
@@ -33,7 +35,7 @@ const matrix = computed(() => {
       v-if="matrix"
       :viewBox="`-4 -4 ${matrix.size + 8} ${matrix.size + 8}`"
       role="img"
-      :aria-label="`收款地址 ${address} 的二维码`"
+      :aria-label="wt('w335', [address])"
       shape-rendering="crispEdges"
     >
       <rect :x="-4" :y="-4" :width="matrix.size + 8" :height="matrix.size + 8" fill="#fff" />

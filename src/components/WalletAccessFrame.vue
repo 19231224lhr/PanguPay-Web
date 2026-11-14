@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { useRouter } from 'vue-router'
 
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
@@ -20,11 +22,11 @@ const props = withDefaults(
   },
 )
 
-const figure = inject(entryFigureKey, undefined)
+const sharedFigure = inject(entryFigureKey, undefined)
 watch(
   () => props.figure,
   (value) => {
-    if (figure) figure.value = value
+    if (sharedFigure) sharedFigure.value = value
   },
   { immediate: true },
 )
@@ -49,8 +51,8 @@ async function returnHome(): Promise<void> {
           <BrandMark :size="34" />
           <p>PanguPay</p>
           <strong>
-            <span>计算，为了无法计算的</span>
-            <span>价值。</span>
+            <span> {{ wt('w352') }} </span>
+            <span> {{ wt('w353') }} </span>
           </strong>
         </div>
       </aside>

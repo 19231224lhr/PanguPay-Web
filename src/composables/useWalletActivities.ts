@@ -6,11 +6,13 @@ import {
   transferModeLabel,
   type TransferMode,
   type TransferPhase,
+  type TransferProgress,
 } from '@/transfer'
 import type { WalletActivity } from '@/wallet/types'
 
 export interface ActivityRow extends WalletActivity {
   txID: string
+  progress?: TransferProgress
   mode?: TransferMode
   phase?: TransferPhase
   lightTxHash?: string
@@ -19,7 +21,9 @@ export interface ActivityRow extends WalletActivity {
 }
 
 export const activityAssetSymbol = (coinType?: number, explicit?: string) =>
-  explicit || ['PGC', 'BTC', 'ETH'][coinType ?? 0] || `Asset ${coinType ?? 0}`
+  (explicit === 'PGC' ? 'CAL' : explicit) ||
+  ['CAL', 'BTC', 'ETH'][coinType ?? 0] ||
+  `Asset ${coinType ?? 0}`
 
 /** Keep the overview and full ledger on the same account-scoped activity feed. */
 export function useWalletActivities() {
@@ -38,7 +42,8 @@ export function useWalletActivities() {
         coinType: item.coinType,
         asset: activityAssetSymbol(item.coinType),
         status: transferActivityStatus(item.mode, item.phase, item.crossChainError),
-        timestamp: item.updatedAt,
+        timestamp: item.backendAcceptedAt ?? item.acceptedAt ?? item.updatedAt,
+        progress: item,
         txID: item.txID,
         direction: 'out',
         mode: item.mode,

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { PhLockKey as LockKey } from '@phosphor-icons/vue'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -8,6 +10,7 @@ const props = withDefaults(
   defineProps<{
     accountId?: string
     accountName?: string
+    accountAvatar?: string
     items?: AppShellItem[]
     utilityItems?: AppShellItem[]
     lockLabel?: string
@@ -19,12 +22,13 @@ const props = withDefaults(
   {
     accountId: '',
     accountName: 'Wallet',
+    accountAvatar: '',
     items: () => [],
     utilityItems: () => [],
-    lockLabel: '锁定钱包',
-    menuLabel: '账户菜单',
-    itemsLabel: '账户功能',
-    mobileUtilityLabel: '移动端钱包设置',
+    lockLabel: wt('w308'),
+    menuLabel: wt('w354'),
+    itemsLabel: wt('w355'),
+    mobileUtilityLabel: wt('w356'),
   },
 )
 
@@ -67,7 +71,10 @@ onBeforeUnmount(() => {
       :aria-label="menuLabel"
     >
       <header>
-        <span class="wallet-account-menu__avatar">{{ accountName.slice(0, 1).toUpperCase() }}</span>
+        <span class="wallet-account-menu__avatar">
+          <img v-if="accountAvatar" :src="accountAvatar" alt="" />
+          <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
+        </span>
         <span>
           <strong>{{ accountName }}</strong>
           <small>{{ accountId }}</small>
@@ -163,6 +170,7 @@ header small {
 }
 
 .wallet-account-menu__avatar {
+  overflow: hidden;
   display: grid;
   width: 36px;
   height: 36px;
@@ -253,5 +261,11 @@ button {
     filter: none;
     transform: none;
   }
+}
+.wallet-account-menu__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>

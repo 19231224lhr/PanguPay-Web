@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import {
   PhArrowClockwise as ArrowClockwise,
   PhArrowRight as ArrowRight,
@@ -36,7 +38,7 @@ const selectedGroupId = ref('')
 const busy = ref(true)
 const error = ref('')
 const connectionInterrupted = ref(false)
-const stage = ref('正在恢复你的钱包状态')
+const stage = ref(wt('w34'))
 const pendingAction = ref<'join' | 'retail'>()
 const detailOpen = ref(false)
 const detailOrganization = ref<WalletEntryOrganization>()
@@ -83,7 +85,7 @@ async function restore(manual = false): Promise<void> {
   if (!service) {
     busy.value = false
     connectionInterrupted.value = true
-    error.value = '服务连接暂时中断，请稍后重试。'
+    error.value = wt('w35')
     scheduleReconnect()
     return
   }
@@ -93,7 +95,7 @@ async function restore(manual = false): Promise<void> {
       localSkipped: hasLocalNoGroupChoice(wallet.accountId),
     })
     if (decision.value.kind === 'inconsistent') {
-      error.value = '地址的组织状态不一致，已停止进入钱包以保护资产。'
+      error.value = wt('w36')
       return
     }
     if (decision.value.kind === 'chooser') {
@@ -101,12 +103,12 @@ async function restore(manual = false): Promise<void> {
       reconnectAttempted = false
       return
     }
-    if (decision.value.kind === 'member') stage.value = '已恢复担保组织连接'
+    if (decision.value.kind === 'member') stage.value = wt('w37')
     if (decision.value.kind === 'no-group') {
       rememberLocalNoGroupChoice(wallet.accountId)
-      stage.value = '已恢复独立使用状态'
+      stage.value = wt('w38')
     }
-    if (decision.value.kind === 'repair-no-group') stage.value = '需要重新确认独立使用状态'
+    if (decision.value.kind === 'repair-no-group') stage.value = wt('w39')
     reconnectAttempted = false
     if (decision.value.kind !== 'repair-no-group') enterWallet()
   } catch (cause) {
@@ -124,10 +126,10 @@ async function chooseGroup(): Promise<void> {
   busy.value = true
   pendingAction.value = 'join'
   error.value = ''
-  stage.value = '正在提交加入申请并验证组织状态'
+  stage.value = wt('w40')
   try {
     await service.join(selectedGroupId.value)
-    stage.value = '担保组织已连接'
+    stage.value = wt('w41')
     enterWallet()
   } catch (cause) {
     error.value = formatWalletEntryError(cause)
@@ -143,11 +145,11 @@ async function chooseNoGroup(): Promise<void> {
   busy.value = true
   pendingAction.value = 'retail'
   error.value = ''
-  stage.value = '正在登记独立使用状态'
+  stage.value = wt('w42')
   try {
     await service.registerNoGroup()
     rememberLocalNoGroupChoice(wallet.accountId)
-    stage.value = '独立使用状态已确认'
+    stage.value = wt('w43')
     enterWallet()
   } catch (cause) {
     error.value = formatWalletEntryError(cause)
@@ -191,10 +193,10 @@ onBeforeUnmount(clearReconnectTimer)
   <WalletAccessFrame :field-active="fieldActive">
     <section class="access-panel wallet-entry" :class="{ 'wallet-entry--busy': busy }">
       <template v-if="isChoosing">
-        <h1>选择你的使用方式</h1>
-        <p>加入担保组织可使用快速转账与跨链；暂不加入仍可独立使用普通转账。</p>
+        <h1>{{ wt('w44') }}</h1>
+        <p>{{ wt('w45') }}</p>
 
-        <div v-if="organizations.length" class="organization-list" aria-label="可加入的担保组织">
+        <div v-if="organizations.length" class="organization-list" :aria-label="wt('w46')">
           <article
             v-for="organization in organizations"
             :key="organization.id"
@@ -211,25 +213,26 @@ onBeforeUnmount(clearReconnectTimer)
               <span class="organization-choice__indicator" aria-hidden="true" />
               <span class="organization-choice__copy">
                 <strong>{{ organization.name }}</strong>
-                <small>组织 ID {{ organization.id }}</small>
-                <span class="organization-choice__services"> <b>快速转账</b><b>跨链</b> </span>
+                <small> {{ wt('w47') }} {{ organization.id }}</small>
+                <span class="organization-choice__services">
+                  <b> {{ wt('w48') }} </b><b> {{ wt('w49') }} </b>
+                </span>
               </span>
             </label>
             <button
               type="button"
               class="organization-choice__detail"
-              :aria-label="`查看${organization.name}详情`"
+              :aria-label="wt('w50', [organization.name])"
               @click="showOrganizationDetail(organization)"
             >
-              查看详情
-              <CaretRight :size="15" />
+              {{ wt('w51') }} <CaretRight :size="15" />
             </button>
           </article>
         </div>
 
         <div v-else class="organization-empty">
-          <strong>暂时没有可加入的担保组织</strong>
-          <span>你仍可独立使用普通转账，之后再加入组织。</span>
+          <strong> {{ wt('w52') }} </strong>
+          <span> {{ wt('w53') }} </span>
         </div>
 
         <div class="entry-actions">
@@ -239,8 +242,7 @@ onBeforeUnmount(clearReconnectTimer)
             :loading="pendingAction === 'join'"
             @click="chooseGroup"
           >
-            加入所选组织
-            <template #icon><ArrowRight :size="18" /></template>
+            {{ wt('w54') }} <template #icon><ArrowRight :size="18" /></template>
           </AppButton>
           <AppButton
             size="large"
@@ -249,18 +251,17 @@ onBeforeUnmount(clearReconnectTimer)
             :loading="pendingAction === 'retail'"
             @click="chooseNoGroup"
           >
-            暂不加入
+            {{ wt('w55') }}
           </AppButton>
         </div>
-        <p class="entry-note">此选择决定当前可用的转账方式，进入钱包后仍可管理担保组织。</p>
+        <p class="entry-note">{{ wt('w56') }}</p>
       </template>
 
       <template v-else-if="isRepairing">
-        <h1>确认独立使用状态</h1>
-        <p>我们没有在网络上找到这台钱包的地址登记。确认后可以继续独立使用。</p>
+        <h1>{{ wt('w57') }}</h1>
+        <p>{{ wt('w58') }}</p>
         <AppButton size="large" :loading="busy" @click="chooseNoGroup">
-          确认并进入钱包
-          <template #icon><ArrowRight :size="18" /></template>
+          {{ wt('w59') }} <template #icon><ArrowRight :size="18" /></template>
         </AppButton>
       </template>
 
@@ -269,12 +270,9 @@ onBeforeUnmount(clearReconnectTimer)
           <span class="entry-service-state__icon" aria-hidden="true">
             <CloudSlash :size="24" weight="regular" />
           </span>
-          <h1>服务暂时未就绪</h1>
-          <p>钱包仍安全保存在本机。恢复连接后即可继续。</p>
-          <div class="entry-service-state__status">
-            <span aria-hidden="true" />
-            服务连接暂时中断
-          </div>
+          <h1>{{ wt('w60') }}</h1>
+          <p>{{ wt('w61') }}</p>
+          <div class="entry-service-state__status"><span aria-hidden="true" /> {{ wt('w62') }}</div>
           <AppButton
             class="entry-service-state__retry"
             size="large"
@@ -282,21 +280,20 @@ onBeforeUnmount(clearReconnectTimer)
             :loading="busy"
             @click="restore(true)"
           >
-            重新连接
-            <template #icon><ArrowClockwise :size="18" /></template>
+            {{ wt('w63') }} <template #icon><ArrowClockwise :size="18" /></template>
           </AppButton>
         </div>
       </template>
 
       <template v-else-if="error">
-        <h1>无法进入钱包</h1>
-        <p class="entry-error" role="alert">{{ error }}</p>
-        <AppButton size="large" @click="restore(true)">重新尝试</AppButton>
+        <h1>{{ wt('w64') }}</h1>
+        <p class="entry-error" role="alert">{{ wl(error) }}</p>
+        <AppButton size="large" @click="restore(true)"> {{ wt('w65') }} </AppButton>
       </template>
 
       <template v-else>
         <CheckCircle class="entry-mark" :size="34" weight="regular" />
-        <h1>正在准备钱包</h1>
+        <h1>{{ wt('w66') }}</h1>
         <p>{{ stage }}</p>
       </template>
     </section>

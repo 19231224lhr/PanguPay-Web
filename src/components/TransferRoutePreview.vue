@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import { computed } from 'vue'
 
 import type { TransferMode } from '@/transfer'
@@ -8,26 +10,26 @@ const props = defineProps<{ mode: TransferMode; member: boolean }>()
 const route = computed(() => {
   if (props.mode === 'quick') {
     return {
-      label: '快速可用路径',
-      nodes: ['本地签名', '担保责任', '目标 Assign', 'TXCer 可支付'],
-      note: 'GQNC 后台结算，不阻塞 TXCer 继续支付。',
+      label: wt('w336'),
+      nodes: [wt('w337'), wt('w338'), wt('w339'), wt('w206')],
+      note: wt('w340'),
       background: true,
     }
   }
   if (props.mode === 'cross') {
     return {
-      label: '跨链路径',
-      nodes: ['本地签名', '担保组织', '跨链出口', '轻计算网络'],
-      note: '当前仅支持整数 PGC、单一轻计算收款地址。',
+      label: wt('w341'),
+      nodes: [wt('w337'), wt('w86'), wt('w342'), wt('w343')],
+      note: wt('w344'),
       background: false,
     }
   }
   return {
-    label: props.member ? '组织内普通路径' : '独立普通路径',
+    label: props.member ? wt('w345') : wt('w346'),
     nodes: props.member
-      ? ['本地签名', '担保组织', 'GQNC 结算']
-      : ['本地签名', '委员会入口', 'GQNC 结算'],
-    note: props.member ? '仅使用普通 UTXO。' : '不依赖担保组织，仅使用普通 UTXO。',
+      ? [wt('w337'), wt('w86'), wt('w347')]
+      : [wt('w337'), wt('w348'), wt('w347')],
+    note: props.member ? wt('w349') : wt('w350'),
     background: false,
   }
 })

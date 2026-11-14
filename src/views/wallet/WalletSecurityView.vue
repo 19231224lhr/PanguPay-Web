@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import CredentialTrustPath from '@/components/CredentialTrustPath.vue'
 import ExposureShareBar from '@/components/ExposureShareBar.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
@@ -12,69 +14,68 @@ const dashboard = useDashboardStore()
 
 <template>
   <div class="wallet-page wallet-refined security-page">
-    <WalletPageHeader
-      title="凭证与安全"
-      description="面向日常使用的状态保持简洁；需要审计时，可在这里查看 TXCer、证据和责任份额。"
-    />
+    <WalletPageHeader :title="wt('w177')" :description="wt('w178')" />
     <section class="wallet-section" aria-labelledby="security-summary-heading">
       <div class="detail-page-intro">
         <div class="detail-page-intro__copy">
-          <h2 id="security-summary-heading">安全摘要</h2>
+          <h2 id="security-summary-heading">{{ wt('w179') }}</h2>
           <StatusLabel :tone="dashboard.current.security.isolatedCount ? 'danger' : 'success'">
-            {{ dashboard.current.security.isolatedCount ? '存在隔离项' : '正常' }}
+            {{ dashboard.current.security.isolatedCount ? wt('w180') : wt('w181') }}
           </StatusLabel>
         </div>
         <WalletFigure kind="stack" :intensity="0.3" />
       </div>
       <dl class="security-metrics">
         <div>
-          <dt>可立即支付</dt>
-          <dd class="tabular">{{ dashboard.current.security.spendReady }} PGC</dd>
+          <dt>{{ wt('w182') }}</dt>
+          <dd class="tabular">{{ dashboard.current.security.spendReady }} CAL</dd>
         </div>
         <div>
-          <dt>安全凭证</dt>
+          <dt>{{ wt('w183') }}</dt>
           <dd>
-            {{ dashboard.current.security.isolatedCount ? '存在需要处理的异常' : '状态正常' }}
+            {{ dashboard.current.security.isolatedCount ? wt('w184') : wt('w185') }}
           </dd>
         </div>
         <div>
-          <dt>后台审计</dt>
+          <dt>{{ wt('w186') }}</dt>
           <dd class="tabular">
-            {{ dashboard.current.security.pendingAudits }} 项处理中
-            <small>不阻塞快速可用</small>
+            {{ dashboard.current.security.pendingAudits }} {{ wt('refinement47') }}
+            <small>{{ wt('refinement48') }}</small>
           </dd>
         </div>
         <div>
-          <dt>暂停支付</dt>
-          <dd class="tabular">{{ dashboard.current.security.isolatedCount }} 项</dd>
+          <dt>{{ wt('w188') }}</dt>
+          <dd class="tabular">{{ dashboard.current.security.isolatedCount }} {{ wt('w189') }}</dd>
         </div>
       </dl>
       <details class="protocol-summary">
-        <summary>查看协议验证说明</summary>
+        <summary>{{ wt('w190') }}</summary>
         <dl class="wallet-detail-list">
           <div>
             <dt>FastEvidence / AssignAck</dt>
-            <dd>随权威签发记录验证；缺失时不伪造 Verified</dd>
+            <dd>{{ wt('w191') }}</dd>
           </div>
           <div>
             <dt>LiabilityReceipt</dt>
-            <dd>使用权威 signer-set 独立验签</dd>
+            <dd>{{ wt('w192') }}</dd>
           </div>
           <div>
             <dt>CFAA</dt>
-            <dd>只承担后台审计，不阻塞 TXCer 快速可用</dd>
+            <dd>{{ wt('w193') }}</dd>
           </div>
         </dl>
       </details>
     </section>
     <section class="wallet-section" aria-labelledby="security-credentials-heading">
       <div class="wallet-section__heading">
-        <h2 id="security-credentials-heading">TXCer 凭证</h2>
-        <span class="detail-page-caption">{{ dashboard.current.credentials.length }} 条记录</span>
+        <h2 id="security-credentials-heading">{{ wt('w194') }}</h2>
+        <span class="detail-page-caption"
+          >{{ dashboard.current.credentials.length }} {{ wt('refinement40') }}</span
+        >
       </div>
       <div v-if="!dashboard.current.credentials.length" class="wallet-empty">
-        <strong>当前没有可展示的权威签发记录</strong>
-        <p>证据接口不可用时不会伪造已验证状态。</p>
+        <strong>{{ wt('refinement49') }}</strong>
+        <p>{{ wt('refinement50') }}</p>
       </div>
       <article
         v-for="credential in dashboard.current.credentials"
@@ -85,7 +86,7 @@ const dashboard = useDashboardStore()
         <header>
           <span>
             <small>TXCer</small>
-            <b>{{ credential.amount }} PGC</b>
+            <b>{{ credential.amount }} CAL</b>
           </span>
           <StatusLabel
             :tone="
@@ -103,13 +104,11 @@ const dashboard = useDashboardStore()
         <ExposureShareBar :shares="credential.exposureShares" />
         <p v-if="credential.error" class="credential__error">
           {{
-            credential.lifecycle === 'Active'
-              ? credential.error
-              : `历史凭证验证记录：${credential.error}`
+            credential.lifecycle === 'Active' ? credential.error : wt('w196', [credential.error])
           }}
         </p>
         <details>
-          <summary>凭证与技术字段</summary>
+          <summary>{{ wt('w197') }}</summary>
           <dl class="wallet-detail-list">
             <div>
               <dt>FastEvidence</dt>
@@ -118,18 +117,19 @@ const dashboard = useDashboardStore()
             <div>
               <dt>AssignAck / LiabilityReceipt</dt>
               <dd>
-                {{ credential.hasAssignAck ? '已取得' : '等待中' }} /
-                {{ credential.hasLiabilityReceipt ? '已取得' : '等待中' }}
+                {{ credential.hasAssignAck ? wt('w198') : wt('w199') }} /
+                {{ credential.hasLiabilityReceipt ? wt('w198') : wt('w199') }}
               </dd>
             </div>
             <div>
-              <dt>CFAA 后台审计</dt>
+              <dt>{{ wt('w200') }}</dt>
               <dd>{{ credential.cfaaAuditStatus }}</dd>
             </div>
             <div>
               <dt>ExposureShares</dt>
               <dd>
-                {{ credential.exposureShares.length }} 份 · {{ credential.rootIds.length }} 个 Root
+                {{ credential.exposureShares.length }} {{ wt('w201') }}
+                {{ credential.rootIds.length }} {{ wt('w202') }}
               </dd>
             </div>
             <div>
@@ -142,7 +142,7 @@ const dashboard = useDashboardStore()
             </div>
             <div v-for="share in credential.exposureShares" :key="share.leafId">
               <dt>{{ share.rootId }}</dt>
-              <dd>{{ share.amount }} PGC · {{ share.leafId }}</dd>
+              <dd>{{ share.amount }} CAL · {{ share.leafId }}</dd>
             </div>
           </dl>
         </details>
@@ -150,27 +150,29 @@ const dashboard = useDashboardStore()
     </section>
     <section class="wallet-section security-addresses" aria-labelledby="security-addresses-heading">
       <div class="wallet-section__heading">
-        <h2 id="security-addresses-heading">地址与责任视图</h2>
-        <span class="detail-page-caption">{{ dashboard.current.addresses.length }} 个地址</span>
+        <h2 id="security-addresses-heading">{{ wt('w203') }}</h2>
+        <span class="detail-page-caption"
+          >{{ dashboard.current.addresses.length }} {{ wt('refinement2') }}</span
+        >
       </div>
       <details v-for="address in dashboard.current.addresses" :key="address.address">
         <summary>{{ address.address }}</summary>
         <dl class="wallet-detail-list">
           <div>
-            <dt>资产类型</dt>
+            <dt>{{ wt('w204') }}</dt>
             <dd>{{ address.type }}</dd>
           </div>
           <div>
-            <dt>UTXO 可用</dt>
+            <dt>{{ wt('w205') }}</dt>
             <dd>{{ address.balance }}</dd>
           </div>
           <div>
-            <dt>TXCer 可支付</dt>
+            <dt>{{ wt('w206') }}</dt>
             <dd>{{ address.txCerBalance }}</dd>
           </div>
           <div>
             <dt>ExposureShares / RootID</dt>
-            <dd>完整签发记录同步后在此展开</dd>
+            <dd>{{ wt('w207') }}</dd>
           </div>
         </dl>
       </details>

@@ -133,7 +133,9 @@ export function utxoSeedSweepKey(utxo: SpendableUTXO): string {
   const step = Number(output?.SeedChainStep)
   const anchor = decodeBackendBytes(output?.SeedAnchor as never)
   if (!Number.isSafeInteger(step) || step <= 0 || anchor.length === 0) return `utxo:${utxo.id}`
-  return `${utxo.address.toLowerCase()}:${utxo.coinType}:${step}:${bytesToBase64(anchor)}`
+  // The backend's hard conflict key is address + seed step. Different anchors at
+  // the same step must therefore be swept together in one transaction.
+  return `${utxo.address.toLowerCase()}:${step}`
 }
 
 function selectableUTXOGroups(
@@ -220,8 +222,8 @@ export function assertTransferDraft(draft: TransferDraft): void {
   if (draft.mode !== 'cross') return
   if (draft.membership !== 'member')
     throw new Error('cross-chain transfer requires a guarantor organization')
-  if (draft.coinType !== 0) throw new Error('cross-chain transfer supports PGC only')
-  if (!isWholeAmount(draft.amount)) throw new Error('cross-chain transfer requires whole PGC')
+  if (draft.coinType !== 0) throw new Error('cross-chain transfer supports CAL only')
+  if (!isWholeAmount(draft.amount)) throw new Error('cross-chain transfer requires whole CAL')
   if (draft.usesTXCer) throw new Error('cross-chain transfer cannot use TXCer')
   if (!/^0x[0-9a-f]{40}$/i.test(draft.recipient)) throw new Error('invalid light-compute address')
 }

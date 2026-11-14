@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WalletNetworkOverview from '@/components/WalletNetworkOverview.vue'
 
-const mocks = vi.hoisted(() => ({ status: vi.fn(), organizations: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  status: vi.fn<() => Promise<unknown>>(),
+  organizations: vi.fn<() => Promise<unknown>>(),
+}))
 vi.mock('@/services/gatewayClient', () => ({
   GatewayClient: class {
     gqncStatus = mocks.status

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import {
   PhArrowClockwise as ArrowClockwise,
   PhCheckCircle as CheckCircle,
@@ -37,10 +39,40 @@ const nodeGroupDefinitions: Array<{
   title: string
   description: string
 }> = [
-  { role: 'assign', title: 'Assign 节点', description: '账户接入与 TXCer 原子登记' },
-  { role: 'aggregation', title: 'Aggregation 节点', description: '责任聚合与签发调度' },
-  { role: 'txcer', title: 'TXCer 审计节点', description: 'Certifier / CFAA 后台证明' },
-  { role: 'guarantor', title: 'GuarNode', description: '担保责任与交易确认' },
+  {
+    role: 'assign',
+    get title() {
+      return wt('w67')
+    },
+    get description() {
+      return wt('w68')
+    },
+  },
+  {
+    role: 'aggregation',
+    get title() {
+      return wt('w69')
+    },
+    get description() {
+      return wt('w70')
+    },
+  },
+  {
+    role: 'txcer',
+    get title() {
+      return wt('w71')
+    },
+    get description() {
+      return wt('w72')
+    },
+  },
+  {
+    role: 'guarantor',
+    title: 'GuarNode',
+    get description() {
+      return wt('w73')
+    },
+  },
 ]
 
 const nodeGroups = computed(() =>
@@ -55,21 +87,21 @@ function nodeName(node: WalletEntryOrganizationNode, fallback: string): string {
 }
 
 function nodeStatus(status?: string): string {
-  if (!status) return '已登记'
+  if (!status) return wt('w75')
   const normalized = status.toLowerCase()
-  if (['active', 'online', 'ready'].includes(normalized)) return '运行中'
-  if (['standby', 'pending'].includes(normalized)) return '备用'
-  if (['disabled', 'revoked', 'offline'].includes(normalized)) return '已停用'
+  if (['active', 'online', 'ready'].includes(normalized)) return wt('w76')
+  if (['standby', 'pending'].includes(normalized)) return wt('w77')
+  if (['disabled', 'revoked', 'offline'].includes(normalized)) return wt('w78')
   return status
 }
 
 function groupedAmount(value?: string): string {
-  if (!value) return '未公开'
+  if (!value) return wt('w74')
   const [integer, fraction] = value.split('.', 2)
   const sign = integer?.startsWith('-') ? '-' : ''
   const digits = (integer ?? '').replace(/^-/, '')
   const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${grouped}${fraction === undefined ? '' : `.${fraction}`} PGC`
+  return `${sign}${grouped}${fraction === undefined ? '' : `.${fraction}`} CAL`
 }
 
 function close(): void {
@@ -111,59 +143,58 @@ onBeforeUnmount(() => {
             <ShieldCheck :size="23" weight="regular" />
           </span>
           <div>
-            <p>担保组织</p>
-            <h2 id="organization-detail-title">{{ organization?.name || '组织详情' }}</h2>
+            <p>{{ wt('w86') }}</p>
+            <h2 id="organization-detail-title">{{ organization?.name || wt('w319') }}</h2>
           </div>
         </div>
-        <IconButton label="关闭组织详情" @click="close"><X :size="18" /></IconButton>
+        <IconButton :label="wt('w320')" @click="close"><X :size="18" /></IconButton>
       </header>
 
       <div v-if="busy" class="organization-dialog__loading" role="status" aria-live="polite">
         <span aria-hidden="true" />
-        <strong>正在读取组织信息</strong>
-        <small>数据来自当前 Gateway 的权威登记。</small>
+        <strong> {{ wt('w321') }} </strong>
+        <small> {{ wt('w322') }} </small>
       </div>
 
       <div v-else-if="error" class="organization-dialog__error" role="alert">
         <WarningCircle :size="22" />
         <div>
-          <strong>暂时无法读取详情</strong>
-          <small>{{ error }}</small>
+          <strong> {{ wt('w323') }} </strong>
+          <small>{{ wl(error) }}</small>
         </div>
         <AppButton variant="secondary" @click="emit('retry')">
-          <template #icon><ArrowClockwise :size="16" /></template>
-          重新加载
+          <template #icon><ArrowClockwise :size="16" /></template> {{ wt('w324') }}
         </AppButton>
       </div>
 
       <template v-else-if="detail">
-        <section class="organization-dialog__services" aria-label="支持的服务">
-          <span><CheckCircle :size="16" weight="fill" />快速转账</span>
-          <span><CheckCircle :size="16" weight="fill" />跨链转账</span>
+        <section class="organization-dialog__services" :aria-label="wt('w325')">
+          <span><CheckCircle :size="16" weight="fill" /> {{ wt('w48') }} </span>
+          <span><CheckCircle :size="16" weight="fill" /> {{ wt('w326') }} </span>
         </section>
 
         <dl class="organization-dialog__metrics">
           <div>
-            <dt>担保额度</dt>
+            <dt>{{ wt('w92') }}</dt>
             <dd>{{ groupedAmount(detail.pledgeAmount) }}</dd>
           </div>
           <div>
-            <dt>组织构成</dt>
-            <dd>{{ detail.guarantorCount }} 个担保节点</dd>
+            <dt>{{ wt('w327') }}</dt>
+            <dd>{{ detail.guarantorCount }} {{ wt('w328') }}</dd>
           </div>
           <div>
-            <dt>独立审计</dt>
-            <dd>{{ detail.certifierCount }} 个审计节点</dd>
+            <dt>{{ wt('w329') }}</dt>
+            <dd>{{ detail.certifierCount }} {{ wt('w330') }}</dd>
           </div>
         </dl>
 
         <section class="organization-dialog__nodes" aria-labelledby="organization-nodes-title">
           <div class="organization-dialog__nodes-heading">
             <div>
-              <span>节点构成</span>
-              <h3 id="organization-nodes-title">服务与责任节点</h3>
+              <span> {{ wt('w331') }} </span>
+              <h3 id="organization-nodes-title">{{ wt('w98') }}</h3>
             </div>
-            <p>来自当前 Gateway 的权威登记</p>
+            <p>{{ wt('w332') }}</p>
           </div>
 
           <div class="organization-dialog__node-groups">
@@ -187,24 +218,24 @@ onBeforeUnmount(() => {
                   </b>
                 </li>
               </ul>
-              <p v-else class="organization-node-group__empty">暂未登记</p>
+              <p v-else class="organization-node-group__empty">{{ wt('w100') }}</p>
             </section>
           </div>
         </section>
 
         <details class="organization-dialog__technical">
-          <summary>技术信息</summary>
+          <summary>{{ wt('w101') }}</summary>
           <dl>
             <div>
-              <dt>组织 ID</dt>
+              <dt>{{ wt('w47') }}</dt>
               <dd>{{ detail.id }}</dd>
             </div>
             <div v-if="detail.peerGroupId">
-              <dt>通信组</dt>
+              <dt>{{ wt('w102') }}</dt>
               <dd>{{ detail.peerGroupId }}</dd>
             </div>
             <div v-if="detail.pledgeAddress">
-              <dt>质押地址</dt>
+              <dt>{{ wt('w103') }}</dt>
               <dd>{{ detail.pledgeAddress }}</dd>
             </div>
             <div v-if="detail.assignEndpoint">
@@ -220,8 +251,8 @@ onBeforeUnmount(() => {
       </template>
 
       <footer>
-        <p>加入后可使用快速转账与跨链服务。</p>
-        <AppButton variant="secondary" @click="close">返回选择</AppButton>
+        <p>{{ wt('w333') }}</p>
+        <AppButton variant="secondary" @click="close"> {{ wt('w334') }} </AppButton>
       </footer>
     </article>
   </dialog>

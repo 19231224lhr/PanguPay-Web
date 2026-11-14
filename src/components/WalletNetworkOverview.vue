@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { wt, walletLocale } from '@/i18n/walletText'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { PhArrowClockwise, PhArrowUpRight } from '@phosphor-icons/vue'
 import { GatewayClient } from '@/services/gatewayClient'
@@ -20,10 +21,12 @@ const organizationsLoading = ref(true)
 let disposed = false
 let timer: ReturnType<typeof setInterval> | undefined
 const chainLabel = computed(() => {
-  if (error.value) return '暂不可用'
-  if (!status.value) return '读取中'
-  if (!status.value.enabled) return '未启用'
-  return status.value.safetyStatus === 'NORMAL' ? '正常' : status.value.safetyStatus || '未知'
+  if (error.value) return wt('w315')
+  if (!status.value) return wt('w19')
+  if (!status.value.enabled) return wt('refinement13')
+  return status.value.safetyStatus === 'NORMAL'
+    ? wt('w181')
+    : status.value.safetyStatus || wt('refinement14')
 })
 
 async function refresh(): Promise<void> {
@@ -31,15 +34,15 @@ async function refresh(): Promise<void> {
   loading.value = true
   try {
     const next = normalizeGQNCStatus(await client.gqncStatus())
-    if (!next.protocolVersion || !next.safetyStatus) throw new Error('状态数据不完整')
+    if (!next.protocolVersion || !next.safetyStatus) throw new Error(wt('refinement15'))
     if (disposed) return
     status.value = next
     error.value = ''
-    checkedAt.value = new Date().toLocaleTimeString()
+    checkedAt.value = new Date().toLocaleTimeString(walletLocale())
   } catch {
     if (disposed) return
     status.value = undefined
-    error.value = '认证链暂不可用，请重试。账户余额仍独立同步。'
+    error.value = wt('refinement16')
   } finally {
     if (!disposed) loading.value = false
   }
@@ -56,7 +59,7 @@ async function loadOrganizations(): Promise<void> {
       organizationError.value = ''
     }
   } catch {
-    if (!disposed) organizationError.value = '组织目录暂不可用'
+    if (!disposed) organizationError.value = wt('refinement17')
   } finally {
     if (!disposed) organizationsLoading.value = false
   }
@@ -84,31 +87,31 @@ onBeforeUnmount(() => {
     <section class="overview-panel" aria-labelledby="overview-organization">
       <header class="overview-panel__heading">
         <h2 id="overview-organization">
-          <RouterLink to="/wallet/organization">担保组织</RouterLink>
+          <RouterLink to="/wallet/organization">{{ wt('w86') }}</RouterLink>
         </h2>
         <StatusLabel :tone="offline ? 'warning' : 'neutral'">{{
-          offline ? '缓存身份' : organization ? '已加入' : '独立账户'
+          offline ? wt('refinement18') : organization ? wt('refinement19') : wt('refinement20')
         }}</StatusLabel>
       </header>
       <div class="overview-panel__body">
         <dl class="overview-rows">
           <div>
-            <dt>当前组织</dt>
-            <dd>{{ organization?.name || (offline ? '未取得最新身份' : '未加入担保组织') }}</dd>
+            <dt>{{ wt('refinement21') }}</dt>
+            <dd>{{ organization?.name || (offline ? wt('refinement22') : wt('refinement23')) }}</dd>
           </div>
           <div v-if="organization">
-            <dt>角色</dt>
+            <dt>{{ wt('refinement24') }}</dt>
             <dd>{{ organization.role }}</dd>
           </div>
           <div>
-            <dt>可见组织</dt>
+            <dt>{{ wt('refinement25') }}</dt>
             <dd>
               {{
                 organizationsLoading
-                  ? '读取中'
+                  ? wt('w19')
                   : organizationError
                     ? '—'
-                    : `${organizations.length} 个`
+                    : wt('refinement59', [organizations.length])
               }}
             </dd>
           </div>
@@ -116,22 +119,24 @@ onBeforeUnmount(() => {
         <WalletFigure kind="settle" :intensity="0.3" />
       </div>
       <p v-if="organizationError" class="network-error" role="status">
-        {{ organizationError }} <button @click="loadOrganizations">重试</button>
+        {{ organizationError }} <button @click="loadOrganizations">{{ wt('refinement26') }}</button>
       </p>
       <RouterLink class="network-detail" to="/wallet/organization">
-        查看组织详情 <PhArrowUpRight :size="15" aria-hidden="true" />
+        {{ wt('refinement27') }} <PhArrowUpRight :size="15" aria-hidden="true" />
       </RouterLink>
     </section>
 
     <section class="overview-panel" aria-labelledby="overview-chain">
       <header class="overview-panel__heading">
-        <h2 id="overview-chain"><RouterLink to="/wallet/blockchain">认证链</RouterLink></h2>
+        <h2 id="overview-chain">
+          <RouterLink to="/wallet/blockchain">{{ wt('refinement28') }}</RouterLink>
+        </h2>
         <div class="chain-actions">
-          <StatusLabel :tone="chainLabel === '正常' ? 'success' : 'warning'">{{
+          <StatusLabel :tone="chainLabel === wt('w181') ? 'success' : 'warning'">{{
             chainLabel
           }}</StatusLabel
           ><button
-            aria-label="刷新认证链"
+            :aria-label="wt('refinement29')"
             :disabled="loading"
             :aria-busy="loading"
             @click="refresh"
@@ -143,17 +148,17 @@ onBeforeUnmount(() => {
       <div class="overview-panel__body">
         <dl class="overview-metrics">
           <div>
-            <dt>认证高度</dt>
+            <dt>{{ wt('w16') }}</dt>
             <dd class="tabular">{{ status?.certifiedHeight ?? '—' }}</dd>
           </div>
           <div>
-            <dt>法定人数</dt>
+            <dt>{{ wt('w17') }}</dt>
             <dd class="tabular">
               {{ status ? `${status.quorum} / ${status.validatorCount}` : '—' }}
             </dd>
           </div>
           <div>
-            <dt>当前视图</dt>
+            <dt>{{ wt('w18') }}</dt>
             <dd class="tabular">{{ status?.currentView ?? '—' }}</dd>
           </div>
         </dl>
@@ -162,9 +167,9 @@ onBeforeUnmount(() => {
       <p v-if="error" class="network-error" role="status">{{ error }}</p>
       <div class="network-footer">
         <RouterLink class="network-detail" to="/wallet/blockchain">
-          查看认证链详情 <PhArrowUpRight :size="15" aria-hidden="true" />
+          {{ wt('refinement30') }} <PhArrowUpRight :size="15" aria-hidden="true" />
         </RouterLink>
-        <span v-if="checkedAt">{{ checkedAt }} 更新</span>
+        <span v-if="checkedAt">{{ checkedAt }} {{ wt('refinement31') }}</span>
       </div>
     </section>
   </div>

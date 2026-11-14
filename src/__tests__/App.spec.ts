@@ -20,8 +20,8 @@ describe('App entry experience', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
   it('retains one particle scene across access routes and releases it on wallet entry', async () => {
-    const mounted = vi.fn(),
-      disposed = vi.fn()
+    const mounted = vi.fn<(...args: unknown[]) => unknown>(),
+      disposed = vi.fn<(...args: unknown[]) => unknown>()
     const figure = defineComponent({
       props: ['shape'],
       setup() {

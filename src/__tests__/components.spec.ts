@@ -45,9 +45,9 @@ describe('foundation components', () => {
         offline: true,
         updatedAt: 1,
         asset: {
-          name: 'Pangu Coin',
+          name: 'CAL',
           network: 'Transfer Area',
-          symbol: 'PGC',
+          symbol: 'CAL',
           total: '12',
           txCerSpendable: '2',
           utxoAvailable: '10',
@@ -129,8 +129,8 @@ describe('foundation components', () => {
         label: '来源地址',
         modelValue: 'address-a',
         options: [
-          { label: 'PGC · 地址 1', description: 'address-a', value: 'address-a' },
-          { label: 'PGC · 地址 2', description: 'address-b', value: 'address-b' },
+          { label: 'CAL · 地址 1', description: 'address-a', value: 'address-a' },
+          { label: 'CAL · 地址 2', description: 'address-b', value: 'address-b' },
         ],
       },
     })

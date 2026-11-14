@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt } from '@/i18n/walletText'
+
 import {
   PhCheckCircle as CheckCircle,
   PhWarningCircle as WarningCircle,
@@ -17,23 +19,23 @@ const state = computed(() => {
   if (props.offline) {
     return {
       icon: WifiSlash,
-      title: '账户快照离线',
-      detail: '当前显示上次同步的数据',
+      title: wt('w385'),
+      detail: wt('w386'),
       tone: 'warning',
     }
   }
   if (props.security.isolatedCount > 0) {
     return {
       icon: WarningCircle,
-      title: `${props.security.isolatedCount} 份凭证需要处理`,
-      detail: '相关 TXCer 已暂停支付',
+      title: wt('w387', [props.security.isolatedCount]),
+      detail: wt('w388'),
       tone: 'danger',
     }
   }
   return {
     icon: CheckCircle,
-    title: '资金状态正常',
-    detail: `可立即支付 ${props.security.spendReady} PGC · ${props.security.pendingAudits} 项后台审计中`,
+    title: wt('w389'),
+    detail: wt('w390', [props.security.spendReady, props.security.pendingAudits]),
     tone: 'success',
   }
 })
@@ -44,14 +46,14 @@ const state = computed(() => {
     class="wallet-status-summary"
     :class="`wallet-status-summary--${state.tone}`"
     role="region"
-    aria-label="资金状态"
+    :aria-label="wt('w391')"
   >
     <component :is="state.icon" :size="20" weight="regular" aria-hidden="true" />
     <span>
       <strong>{{ state.title }}</strong>
       <small>{{ state.detail }}</small>
     </span>
-    <RouterLink to="/wallet/security">查看详情</RouterLink>
+    <RouterLink to="/wallet/security"> {{ wt('w51') }} </RouterLink>
   </section>
 </template>
 

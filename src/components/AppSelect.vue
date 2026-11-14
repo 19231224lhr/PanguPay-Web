@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl } from '@/i18n/walletText'
+
 import { PhCaretDown as CaretDown, PhCheck as Check } from '@phosphor-icons/vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 
@@ -24,10 +26,10 @@ const props = withDefaults(
   }>(),
   {
     disabled: false,
-    emptyLabel: '没有可用选项',
+    emptyLabel: wt('w305'),
     error: '',
     help: '',
-    placeholder: '请选择',
+    placeholder: wt('w306'),
   },
 )
 
@@ -247,7 +249,7 @@ onBeforeUnmount(() => {
     </div>
 
     <p v-if="error" :id="errorId" class="app-select__message app-select__message--error">
-      {{ error }}
+      {{ wl(error) }}
     </p>
     <p v-else-if="help" :id="helpId" class="app-select__message">{{ help }}</p>
   </div>

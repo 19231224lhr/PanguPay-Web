@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wl, wt } from '@/i18n/walletText'
+
 import {
   PhDownloadSimple as DownloadSimple,
   PhKey as Key,
@@ -85,6 +87,12 @@ function exportRecoveryKit(): void {
   URL.revokeObjectURL(url)
 }
 
+function signOut(): void {
+  wallet.lock()
+  dashboard.reset()
+  void router.replace('/')
+}
+
 function lock(): void {
   wallet.lock()
   dashboard.reset()
@@ -151,7 +159,7 @@ async function saveProfile(): Promise<void> {
 <template>
   <div class="wallet-page wallet-refined settings-page">
     <WalletPageHeader
-      :title="t('wallet.settings.title')"
+      :title="wl(t('wallet.settings.title'))"
       :description="t('wallet.settings.description')"
     />
     <section class="wallet-section profile-settings" aria-labelledby="profile-settings-heading">
@@ -204,6 +212,7 @@ async function saveProfile(): Promise<void> {
           @update:model-value="setTheme"
         />
       </div>
+
       <div class="settings-row">
         <span>
           <b>{{ t('wallet.settings.language') }}</b>
@@ -237,6 +246,15 @@ async function saveProfile(): Promise<void> {
         ><AppButton variant="secondary" @click="exportRecoveryKit"
           ><Key :size="18" />{{ t('wallet.settings.export') }}</AppButton
         >
+      </div>
+      <div>
+        <span
+          ><b>{{ wt('signOut') }}</b
+          ><small>{{ wt('signOutDescription') }}</small></span
+        >
+        <AppButton variant="secondary" data-testid="sign-out" @click="signOut">{{
+          wt('signOut')
+        }}</AppButton>
       </div>
       <div>
         <span

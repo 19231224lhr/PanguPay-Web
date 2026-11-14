@@ -1,3 +1,4 @@
+/* oxlint-disable vitest/no-conditional-expect -- Shared cases explicitly test both worker and synchronous delivery. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildShape,
@@ -17,9 +18,11 @@ describe('entry particle scene continuity', () => {
       let worker: BackgroundShapes | undefined
       class BackgroundShapes {
         onmessage?: (event: { data: { shape: EntryShape; points: Particle[] } }) => void
-        postMessage = vi.fn()
-        terminate = vi.fn()
+        postMessage = vi.fn<(...args: unknown[]) => unknown>()
+        terminate = vi.fn<(...args: unknown[]) => unknown>()
         constructor() {
+          // Capture the worker instance so the test can deliver asynchronous replies.
+          // oxlint-disable-next-line typescript/no-this-alias
           worker = this
         }
         deliver(shape: EntryShape) {
@@ -68,7 +71,9 @@ describe('entry particle scene continuity', () => {
       } as unknown as CanvasRenderingContext2D)
       const scene = createParticleScene(canvas, 'wallet')
       try {
-        canvas.dispatchEvent(Object.assign(new Event('pointermove'), { clientX: 410, clientY: 145 }))
+        canvas.dispatchEvent(
+          Object.assign(new Event('pointermove'), { clientX: 410, clientY: 145 }),
+        )
         for (let time = 0; time <= 4000; time += 40) callback(time)
         const settled = dots
         scene.setShape('key')

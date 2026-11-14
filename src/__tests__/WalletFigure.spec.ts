@@ -3,10 +3,10 @@ import { mount } from '@vue/test-utils'
 import WalletFigure from '@/components/WalletFigure.vue'
 
 const mocks = vi.hoisted(() => ({
-  drawer: vi.fn(),
-  settle: vi.fn(),
-  destroy: vi.fn(),
-  update: vi.fn(),
+  drawer: vi.fn<(...args: unknown[]) => unknown>(),
+  settle: vi.fn<(...args: unknown[]) => unknown>(),
+  destroy: vi.fn<(...args: unknown[]) => unknown>(),
+  update: vi.fn<(...args: unknown[]) => unknown>(),
 }))
 vi.mock('@lucasmarkes/hairline', () => ({
   drawer: mocks.drawer,

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { wt, wl, walletLocale } from '@/i18n/walletText'
+
 import {
   PhArrowClockwise as ArrowClockwise,
   PhCheckCircle as CheckCircle,
@@ -62,16 +64,16 @@ async function refresh(manual = false): Promise<void> {
       window.setTimeout(() => (pulseHeight.value = undefined), 900)
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法读取认证链。'
+    error.value = cause instanceof Error ? cause.message : wt('w11')
   } finally {
     loading.value = false
   }
 }
 
 function time(timestamp: number): string {
-  if (!timestamp) return '未提供'
+  if (!timestamp) return wt('w12')
   const milliseconds = timestamp < 10_000_000_000 ? timestamp * 1_000 : timestamp
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(walletLocale(), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -92,41 +94,38 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="wallet-page chain-page">
-    <WalletPageHeader
-      title="本地认证链"
-      description="查看担保委员会已认证的 GQNC 区块、交易与 3-of-4 BlockQC。"
-    />
+    <WalletPageHeader :title="wt('w13')" :description="wt('w14')" />
 
-    <section class="chain-status" aria-label="委员会状态">
+    <section class="chain-status" :aria-label="wt('w15')">
       <div>
-        <span>认证高度</span>
+        <span> {{ wt('w16') }} </span>
         <strong class="tabular">{{ status?.certifiedHeight ?? '—' }}</strong>
       </div>
       <div>
-        <span>法定人数</span>
+        <span> {{ wt('w17') }} </span>
         <strong>{{ status ? `${status.quorum}-of-${status.validatorCount}` : '—' }}</strong>
       </div>
       <div>
-        <span>当前视图</span>
+        <span> {{ wt('w18') }} </span>
         <strong class="tabular">{{ status?.currentView ?? '—' }}</strong>
       </div>
       <div class="chain-status__safety">
         <StatusLabel :tone="status?.safetyStatus === 'NORMAL' ? 'success' : 'warning'">
-          {{ status?.safetyStatus || '读取中' }}
+          {{ status?.safetyStatus || wt('w19') }}
         </StatusLabel>
         <AppButton variant="ghost" :loading="loading" @click="refresh(true)">
-          <ArrowClockwise :size="17" />刷新
+          <ArrowClockwise :size="17" /> {{ wt('w20') }}
         </AppButton>
       </div>
     </section>
 
-    <p v-if="error" class="wallet-notice wallet-notice--warning">{{ error }}</p>
+    <p v-if="error" class="wallet-notice wallet-notice--warning">{{ wl(error) }}</p>
 
     <section class="chain-ledger" aria-labelledby="chain-ledger-title">
       <header>
         <div>
-          <span>认证序列</span>
-          <h2 id="chain-ledger-title">最近区块</h2>
+          <span> {{ wt('w21') }} </span>
+          <h2 id="chain-ledger-title">{{ wt('w22') }}</h2>
         </div>
         <small>{{ status?.protocolVersion || 'GQNC' }}</small>
       </header>
@@ -144,51 +143,51 @@ onBeforeUnmount(() => {
           <span class="chain-flow__node"><Cube :size="18" weight="duotone" /></span>
           <span
             ><b>#{{ block.height }}</b
-            ><small>{{ block.transactionCount }} 笔交易</small></span
+            ><small>{{ block.transactionCount }} {{ wt('w23') }} </small></span
           >
           <CheckCircle :size="17" weight="fill" aria-hidden="true" />
         </button>
       </div>
-      <div v-else-if="!loading" class="wallet-empty">当前没有可展示的认证区块。</div>
+      <div v-else-if="!loading" class="wallet-empty">{{ wt('w24') }}</div>
     </section>
 
     <section v-if="selected" class="block-detail" aria-labelledby="block-detail-title">
       <header>
         <div>
-          <span>区块详情</span>
-          <h2 id="block-detail-title">高度 #{{ selected.height }}</h2>
+          <span> {{ wt('w25') }} </span>
+          <h2 id="block-detail-title">{{ wt('w26') }} {{ selected.height }}</h2>
         </div>
         <span class="block-detail__qc"
-          ><ShieldCheck :size="17" />{{ selected.qcSigners.length }} 个签名</span
-        >
+          ><ShieldCheck :size="17" />{{ selected.qcSigners.length }} {{ wt('w27') }}
+        </span>
       </header>
       <dl>
         <div>
-          <dt>区块哈希</dt>
-          <dd>{{ selected.hash || '未提供' }}</dd>
+          <dt>{{ wt('w28') }}</dt>
+          <dd>{{ selected.hash || wt('w12') }}</dd>
         </div>
         <div>
-          <dt>提案者</dt>
-          <dd>{{ selected.proposerId || '未提供' }}</dd>
+          <dt>{{ wt('w29') }}</dt>
+          <dd>{{ selected.proposerId || wt('w12') }}</dd>
         </div>
         <div>
-          <dt>认证时间</dt>
+          <dt>{{ wt('w30') }}</dt>
           <dd>{{ time(selected.timestamp) }}</dd>
         </div>
         <div>
           <dt>QC ID</dt>
-          <dd>{{ selected.qcId || '未提供' }}</dd>
+          <dd>{{ selected.qcId || wt('w12') }}</dd>
         </div>
       </dl>
       <div class="block-transactions">
-        <h3>区块内交易</h3>
+        <h3>{{ wt('w31') }}</h3>
         <ol v-if="selected.transactionIds.length">
           <li v-for="txID in selected.transactionIds" :key="txID">{{ txID }}</li>
         </ol>
-        <p v-else>该区块未返回可展示的交易 ID。</p>
+        <p v-else>{{ wt('w32') }}</p>
       </div>
       <details>
-        <summary>查看 QC 签名者</summary>
+        <summary>{{ wt('w33') }}</summary>
         <ul>
           <li v-for="signer in selected.qcSigners" :key="signer">{{ signer }}</li>
         </ul>

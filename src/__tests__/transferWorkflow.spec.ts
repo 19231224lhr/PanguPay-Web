@@ -254,14 +254,14 @@ describe('transfer submission workflow', () => {
       '交易已接收',
       '担保验证',
       '组织确认',
-      '收款方可用',
+      '收款方可用（未确认）',
       '后台结算',
     ])
     expect(timeline.map((item) => item.state)).toEqual([
       'complete',
       'complete',
       'active',
-      'pending',
+      'unknown',
       'pending',
     ])
   })
@@ -284,6 +284,22 @@ describe('transfer submission workflow', () => {
     expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBe('可用耗时 24 ms')
   })
 
+  it('does not present a precision interval as an exact spend-ready duration', () => {
+    const timeline = buildTransferTimeline({
+      draftID: 'draft-second-precision',
+      txID: 'a'.repeat(64),
+      mode: 'quick',
+      amount: '1',
+      recipient: 'b'.repeat(40),
+      phase: 'spend-ready',
+      backendAcceptedAt: 10_418,
+      backendSpendReadyAt: 10_000,
+      updatedAt: 20_180,
+    })
+
+    expect(timeline.find((item) => item.id === 'recipient-ready')?.meta).toBeUndefined()
+  })
+
   it('shows only the authoritative backend GQNC consensus time', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-settlement-timing',
@@ -299,7 +315,7 @@ describe('transfer submission workflow', () => {
       updatedAt: 13_450,
     })
 
-    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('结算耗时 28 ms')
+    expect(timeline.find((item) => item.id === 'settlement')?.meta).toBe('共识阶段耗时 28 ms')
   })
 
   it('uses five cross-chain milestones and waits for a successful target receipt', () => {
