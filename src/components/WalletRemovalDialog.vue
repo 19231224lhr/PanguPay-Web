@@ -37,10 +37,12 @@ onBeforeUnmount(() => dialog.value?.close())
     @cancel.prevent="close"
     @click="$event.target === dialog && close()"
   >
-    <CurveMark v-if="open" class="wallet-removal__mark" motion="once" :size="48"
-      ><PhSignOut :size="23" weight="duotone"
-    /></CurveMark>
-    <h2 id="wallet-removal-title">{{ wt('signOutTitle') }}</h2>
+    <div class="wallet-removal__heading">
+      <CurveMark v-if="open" motion="once" :size="40"
+        ><PhSignOut :size="21" weight="duotone"
+      /></CurveMark>
+      <h2 id="wallet-removal-title">{{ wt('signOutTitle') }}</h2>
+    </div>
     <p id="wallet-removal-description">{{ wt('signOutWarning') }}</p>
     <p class="wallet-removal__backup"><PhWarningCircle :size="18" />{{ wt('signOutBackup') }}</p>
     <p v-if="error" role="alert" class="wallet-removal__error">{{ error }}</p>
@@ -83,13 +85,16 @@ onBeforeUnmount(() => dialog.value?.close())
 .wallet-removal[open] {
   animation: appear 170ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.wallet-removal__mark {
-  margin-bottom: 16px;
+.wallet-removal__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .wallet-removal h2 {
   font-size: 23px;
   line-height: 1.3;
-  margin: 0 0 12px;
+  margin: 0;
   letter-spacing: -0.03em;
 }
 .wallet-removal p {

@@ -224,9 +224,11 @@ async function importWallet(): Promise<void> {
         aria-live="polite"
         aria-busy="true"
       >
-        <CurveMark variant="weave" :size="58" />
         <span class="verification-eyebrow"> {{ wt('w258') }} </span>
-        <h1>{{ verificationTitle }}</h1>
+        <div class="verification-heading">
+          <CurveMark variant="weave" :size="44" />
+          <h1>{{ verificationTitle }}</h1>
+        </div>
         <p>{{ verificationDescription }}</p>
         <small> {{ wt('w259') }} </small>
       </section>
@@ -514,8 +516,14 @@ async function importWallet(): Promise<void> {
   margin: 0;
 }
 
+.verification-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
 .verification-panel h1 {
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: clamp(28px, 2.6vw, 36px);
   letter-spacing: -0.065em;
   line-height: 0.98;
@@ -534,7 +542,7 @@ async function importWallet(): Promise<void> {
 }
 
 .verification-eyebrow {
-  margin-top: 1.2rem;
+  margin-top: 0;
   color: var(--accent);
   font-size: 0.72rem;
   font-weight: 650;

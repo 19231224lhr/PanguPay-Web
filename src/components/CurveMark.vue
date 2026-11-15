@@ -123,8 +123,8 @@ onBeforeUnmount(() => {
           :d="path"
           fill="none"
           stroke="currentColor"
-          :stroke-width="$slots.default ? 2 : 4"
-          opacity="0.14"
+          :stroke-width="$slots.default ? 3 : 6"
+          opacity="0.22"
         />
         <g ref="trail">
           <circle
@@ -132,7 +132,7 @@ onBeforeUnmount(() => {
             :key="i"
             :cx="point((-i / count) * 0.36 * Math.PI * 2)[0]"
             :cy="point((-i / count) * 0.36 * Math.PI * 2)[1]"
-            :r="0.6 + 3 * (1 - i / count)"
+            :r="0.9 + 4.3 * (1 - i / count)"
             :opacity="0.08 + 0.92 * (1 - i / count) ** 0.65"
             fill="currentColor"
           />

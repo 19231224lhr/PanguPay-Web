@@ -152,8 +152,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div v-if="busy" class="organization-dialog__loading" role="status" aria-live="polite">
-        <CurveMark variant="link" :size="40" />
-        <strong> {{ wt('w321') }} </strong>
+        <div class="organization-dialog__loading-title"><CurveMark variant="link" :size="36" /><strong>{{ wt('w321') }}</strong></div>
         <small> {{ wt('w322') }} </small>
       </div>
 
@@ -572,6 +571,8 @@ onBeforeUnmount(() => {
   gap: 0.45rem;
   text-align: center;
 }
+
+.organization-dialog__loading-title { display: flex; align-items: center; gap: 10px; }
 
 .organization-dialog__loading small,
 .organization-dialog__error small {

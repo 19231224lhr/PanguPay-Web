@@ -54,8 +54,10 @@ async function unlock(): Promise<void> {
 <template>
   <WalletAccessFrame figure="key" compact>
     <section class="access-panel">
-      <CurveMark class="unlock-mark" :size="40" />
-      <h1>{{ wt('w286') }}</h1>
+      <div class="unlock-heading">
+        <CurveMark :size="42" />
+        <h1>{{ wt('w286') }}</h1>
+      </div>
       <p>{{ wt('w287') }}</p>
       <form class="access-form" @submit.prevent="unlock">
         <FormField
@@ -90,8 +92,14 @@ async function unlock(): Promise<void> {
 </template>
 
 <style scoped>
-.unlock-mark {
-  margin-bottom: 0.9rem;
+.unlock-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.unlock-heading h1 {
+  margin: 0;
 }
 
 .unlock-feedback {
