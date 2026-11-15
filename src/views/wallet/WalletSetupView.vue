@@ -16,6 +16,7 @@ import AppButton from '@/components/AppButton.vue'
 import FormField from '@/components/FormField.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
+import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveWalletArrival } from '@/wallet/entryService'
@@ -56,11 +57,11 @@ const recoveryPasswordError = computed(() =>
   newPasswordError(recoveryPassword.value, recoveryPasswordConfirm.value),
 )
 const setupTitle = computed(() => {
-  if (mode.value === 'create') return wt('w241')
+  if (mode.value === 'create') return backupDownloaded.value ? wt('w267') : wt('w241')
   return importMethod.value === 'backup' ? wt('w242') : wt('w243')
 })
 const setupDescription = computed(() => {
-  if (mode.value === 'create') return wt('w244')
+  if (mode.value === 'create') return backupDownloaded.value ? '' : wt('w244')
   if (importMethod.value === 'backup') return wt('w245')
   return wt('w246')
 })
@@ -105,11 +106,13 @@ async function createWallet(): Promise<void> {
     backupDownloaded.value = true
     recoveryDownloaded.value = true
   } catch (cause) {
+    resetUnlockAnimation()
     localError.value = cause instanceof Error ? cause.message : wt('w251')
   }
 }
 
 async function enterCreatedWallet(): Promise<void> {
+  unlockPhase.value = 'loading'
   localError.value = ''
   try {
     await wallet.confirmCreatedWallet()
@@ -123,6 +126,7 @@ async function enterCreatedWallet(): Promise<void> {
       'replace',
     )
   } catch (cause) {
+    resetUnlockAnimation()
     localError.value = cause instanceof Error ? cause.message : wt('w252')
   }
 }
@@ -162,6 +166,7 @@ async function importWallet(): Promise<void> {
     return
   }
   await showVerificationStage()
+  unlockPhase.value = 'loading'
   try {
     if (importMethod.value === 'keys') {
       await wallet.importLegacy(
@@ -180,6 +185,7 @@ async function importWallet(): Promise<void> {
       'replace',
     )
   } catch {
+    resetUnlockAnimation()
     wallet.clearError()
     if (importMethod.value === 'backup') {
       backupPassword.value = ''
@@ -197,6 +203,7 @@ async function importWallet(): Promise<void> {
 
 <template>
   <WalletAccessFrame
+    compact
     :figure="
       importStage === 'verifying'
         ? 'shield'
@@ -231,12 +238,13 @@ async function importWallet(): Promise<void> {
           <Transition name="setup-copy" mode="out-in">
             <div :key="`${mode}:${importMethod}`" class="setup-copy__content">
               <h1>{{ setupTitle }}</h1>
-              <p class="setup-copy__description">{{ setupDescription }}</p>
+              <p v-if="setupDescription" class="setup-copy__description">{{ setupDescription }}</p>
             </div>
           </Transition>
         </div>
 
         <SegmentedControl
+          v-if="!backupDownloaded"
           v-model="mode"
           :label="wt('w260')"
           :options="[
@@ -254,23 +262,25 @@ async function importWallet(): Promise<void> {
               data-setup-panel="create"
               @submit.prevent="createWallet"
             >
-              <FormField
-                id="create-password"
-                v-model="createPassword"
-                :label="wt('w263')"
-                type="password"
-                autocomplete="new-password"
-                :help="wt('w264')"
-                :error="createPasswordError"
-              />
-              <FormField
-                id="create-password-confirm"
-                v-model="createPasswordConfirm"
-                :label="wt('w265')"
-                type="password"
-                autocomplete="new-password"
-                :error="createPasswordError"
-              />
+              <div v-if="!backupDownloaded" class="password-pair">
+                <FormField
+                  id="create-password"
+                  v-model="createPassword"
+                  :label="wt('w263')"
+                  type="password"
+                  autocomplete="new-password"
+                  :help="wt('w264')"
+                  :error="createPasswordError"
+                />
+                <FormField
+                  id="create-password-confirm"
+                  v-model="createPasswordConfirm"
+                  :label="wt('w265')"
+                  type="password"
+                  autocomplete="new-password"
+                  :error="createPasswordError"
+                />
+              </div>
               <AppButton
                 v-if="!backupDownloaded"
                 type="submit"
@@ -392,23 +402,25 @@ async function importWallet(): Promise<void> {
                     autocomplete="off"
                     :help="wt('w283')"
                   />
-                  <FormField
-                    id="recovery-new-password"
-                    v-model="recoveryPassword"
-                    :label="wt('w165')"
-                    type="password"
-                    autocomplete="new-password"
-                    :help="wt('w166')"
-                    :error="recoveryPasswordError"
-                  />
-                  <FormField
-                    id="recovery-new-password-confirm"
-                    v-model="recoveryPasswordConfirm"
-                    :label="wt('w167')"
-                    type="password"
-                    autocomplete="new-password"
-                    :error="recoveryPasswordError"
-                  />
+                  <div class="password-pair">
+                    <FormField
+                      id="recovery-new-password"
+                      v-model="recoveryPassword"
+                      :label="wt('w165')"
+                      type="password"
+                      autocomplete="new-password"
+                      :help="wt('w166')"
+                      :error="recoveryPasswordError"
+                    />
+                    <FormField
+                      id="recovery-new-password-confirm"
+                      v-model="recoveryPasswordConfirm"
+                      :label="wt('w167')"
+                      type="password"
+                      autocomplete="new-password"
+                      :error="recoveryPasswordError"
+                    />
+                  </div>
                   <AppButton
                     type="submit"
                     size="large"
@@ -441,18 +453,30 @@ async function importWallet(): Promise<void> {
 </template>
 
 <style scoped>
+.password-pair {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 380px) {
+  .password-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
 .access-panel {
   display: grid;
   gap: 0;
 }
 
 .setup-copy {
-  min-block-size: 7.15rem;
+  min-block-size: 0;
 }
 
 .setup-copy__content {
   display: grid;
-  gap: 0.7rem;
+  gap: 10px;
 }
 
 .setup-copy__content > h1,
@@ -461,7 +485,7 @@ async function importWallet(): Promise<void> {
 }
 
 .setup-copy__content > p {
-  min-block-size: 3.1em;
+  font-size: 14px;
   color: var(--text-muted);
   line-height: 1.55;
 }
@@ -482,7 +506,7 @@ async function importWallet(): Promise<void> {
 
 .verification-panel {
   align-content: center;
-  min-height: min(500px, 68dvh);
+  min-height: 280px;
   justify-items: start;
 }
 
@@ -494,7 +518,7 @@ async function importWallet(): Promise<void> {
 
 .verification-panel h1 {
   margin-top: 0.75rem;
-  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-size: clamp(28px, 2.6vw, 36px);
   letter-spacing: -0.065em;
   line-height: 0.98;
 }
@@ -632,7 +656,7 @@ async function importWallet(): Promise<void> {
 
 .file-picker {
   display: flex;
-  min-height: 82px;
+  min-height: 64px;
   align-items: center;
   justify-content: flex-start;
   gap: 0.65rem;

@@ -19,20 +19,18 @@ export function unlockParticle(
 ): Particle {
   const fade = smooth(release)
   if (reduced) return { ...p, alpha: p.alpha * (1 - fade) }
-  // Each point has its own persistent heading and speed. No shared orbit or bounded cloud.
+  // Settle into a soft cloud once; independent phases keep it alive without a shared orbit.
   const angle = index * 2.399963
   const seed = Math.sin(index * 127.1 + 311.7) * 43758.5453
-  // A radial Gaussian fills the center and has sparse tails, avoiding a ring or hard rim.
-  const speed = 0.42 * Math.sqrt(-2 * Math.log(Math.max(0.001, seed - Math.floor(seed))))
-  const scatter = activity * (12 + time * 60) * speed + fade * (100 + speed * 160)
-  const shape = 1 - activity * smooth(time / 2.2)
-  const wander = activity * 6 * (Math.sin(time * 0.4 + angle) - Math.sin(angle))
+  const spread = 75 * Math.sqrt(-2 * Math.log(Math.max(0.001, seed - Math.floor(seed))))
+  const dispersed = activity * smooth(time / 2.6)
+  const driftX = 22 * Math.sin(time * (0.18 + (index % 13) * 0.009) + angle)
+  const driftY = 20 * Math.sin(time * (0.15 + (index % 17) * 0.008) + angle * 1.7)
   return {
     ...p,
-    x: p.x * shape + Math.cos(angle) * scatter - Math.sin(angle) * wander,
-    y: p.y * shape + Math.sin(angle) * scatter * 0.85 + Math.cos(angle) * wander,
-    z: p.z * shape + Math.sin(angle * 1.3) * scatter * 0.4,
-    radius: p.radius * (1 - fade * 0.6),
+    x: mix(p.x, Math.cos(angle) * spread + driftX, dispersed),
+    y: mix(p.y, Math.sin(angle) * spread * 0.85 + driftY, dispersed),
+    z: mix(p.z, Math.sin(angle * 1.3) * spread * 0.3, dispersed),
     alpha: p.alpha * (1 - fade),
   }
 }
@@ -124,10 +122,18 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
   } catch {
     worker = undefined
   }
+  const anchor = canvas.parentElement!
+  let centerX = 0,
+    centerY = 0,
+    scale = 0
   function resize() {
     const r = canvas.getBoundingClientRect()
     width = r.width
     height = r.height
+    const box = anchor.getBoundingClientRect()
+    centerX = box.left + box.width / 2 - r.left
+    centerY = box.top + box.height * 0.46 - r.top
+    scale = Math.min(box.width / 500, box.height / 420)
     const ratio = Math.min(devicePixelRatio || 1, 2)
     canvas.width = Math.round(width * ratio)
     canvas.height = Math.round(height * ratio)
@@ -143,7 +149,6 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
       sy = Math.sin(yaw),
       cx = Math.cos(pitch),
       sx = Math.sin(pitch)
-    const scale = Math.min(width / 500, height / 420)
     // Float belongs to the persistent scene clock, never to a route's morph progress.
     const float = media.matches ? 0 : smooth(elapsed / 3.4) * 3
     ctx.clearRect(0, 0, width, height)
@@ -157,8 +162,8 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
       const x = p.x * cy + p.z * sy + Math.sin(elapsed * 0.55 + p.group * 2.1) * float,
         z = -p.x * sy + p.z * cy,
         y = p.y * cx - z * sx + Math.sin(elapsed * 0.65 + p.group * 2.5) * float
-      const px = width / 2 + x * scale,
-        py = height * 0.46 + y * scale
+      const px = centerX + x * scale,
+        py = centerY + y * scale
       const r = Math.max(0.2, p.radius * scale)
       ctx.globalAlpha = p.alpha
       ctx.beginPath()
@@ -173,7 +178,7 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
       const x = Math.cos(a) * orbit,
         y = Math.sin(a) * orbit * 0.76 + Math.sin(elapsed * 0.25 + i) * 4
       const r = (0.35 + (i % 5) * 0.13) * scale
-      ctx.fillRect(width / 2 + x * scale, height * 0.46 + y * scale, r * 2, r * 2)
+      ctx.fillRect(centerX + x * scale, centerY + y * scale, r * 2, r * 2)
     }
     ctx.globalAlpha = 1
     canvas.dataset.progress = progress.toFixed(2)
@@ -198,20 +203,27 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
   }
   const resizeObserver = new ResizeObserver(resize)
   resizeObserver.observe(canvas)
+  resizeObserver.observe(anchor)
+  const anchorObserver = new MutationObserver(resize)
+  anchorObserver.observe(anchor, { attributes: true, attributeFilter: ['style'] })
   const observer = new IntersectionObserver((entries) => {
     visible = entries[0]?.isIntersecting ?? true
   })
   observer.observe(canvas)
   const move = (e: PointerEvent) => {
-    const r = canvas.getBoundingClientRect()
+    const r = anchor.getBoundingClientRect()
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
+      pointerX = pointerY = 0
+      return
+    }
     pointerX = (e.clientX - r.left) / r.width - 0.5
     pointerY = (e.clientY - r.top) / r.height - 0.5
   }
   const leave = () => {
     pointerX = pointerY = 0
   }
-  canvas.addEventListener('pointermove', move)
-  canvas.addEventListener('pointerleave', leave)
+  window.addEventListener('pointermove', move)
+  document.addEventListener('pointerleave', leave)
   resize()
   raf = requestAnimationFrame(frame)
   return {
@@ -234,10 +246,11 @@ export function createParticleScene(canvas: HTMLCanvasElement, initial: EntrySha
       cancelAnimationFrame(raf)
       worker?.terminate()
       resizeObserver.disconnect()
+      anchorObserver.disconnect()
       observer.disconnect()
       themeObserver.disconnect()
-      canvas.removeEventListener('pointermove', move)
-      canvas.removeEventListener('pointerleave', leave)
+      window.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerleave', leave)
     },
   }
 }

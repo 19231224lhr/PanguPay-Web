@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { unlockPhase } from '@/composables/useEntryUnlock'
 import type { Router } from 'vue-router'
 
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
@@ -24,7 +25,32 @@ describe('wallet spatial navigation', () => {
   afterEach(() => {
     Reflect.deleteProperty(document, 'startViewTransition')
     document.documentElement.className = ''
+    document.body.innerHTML = ''
+    unlockPhase.value = 'idle'
+    vi.useRealTimers()
     vi.unstubAllGlobals()
+  })
+
+  it('uses the live scene for creation and never starts a zoom overlay', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(0), 16),
+    )
+    document.body.innerHTML = '<div data-entry-experience></div>'
+    const native = vi.fn()
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: native })
+    sessionStorage.setItem(arrivalKey, '1')
+    const router = routerStub()
+    const pending = navigateWithSpatialTransition(router, '/wallet', 'wallet', 'replace')
+    expect(unlockPhase.value).toBe('arriving')
+    await vi.advanceTimersByTimeAsync(40)
+    expect(unlockPhase.value).toBe('revealing')
+    await vi.advanceTimersByTimeAsync(1100)
+    await pending
+    expect(native).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(arrivalKey)).toBeNull()
+    expect(router.replace).toHaveBeenCalledWith('/wallet')
+    expect(unlockPhase.value).toBe('idle')
   })
 
   it('uses only the native view transition when the browser supports it', async () => {

@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
   color: var(--text);
 }
 .entry-experience__figure :deep(canvas) {
-  pointer-events: auto;
+  pointer-events: none;
 }
 .entry-experience__content {
   transition: opacity 300ms ease;

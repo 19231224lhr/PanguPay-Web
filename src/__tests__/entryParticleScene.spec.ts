@@ -50,12 +50,22 @@ describe('entry particle scene continuity', () => {
           disconnect() {}
         },
       )
+      const anchor = document.createElement('div')
       const canvas = document.createElement('canvas')
+      anchor.append(canvas)
+      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+        left: 500,
+        top: 100,
+        width: 500,
+        height: 500,
+        right: 1000,
+        bottom: 600,
+      } as DOMRect)
       vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
         left: 0,
         top: 0,
-        width: 500,
-        height: 500,
+        width: 1200,
+        height: 800,
       } as DOMRect)
       vi.spyOn(canvas, 'getContext').mockReturnValue({
         setTransform() {},
@@ -71,7 +81,7 @@ describe('entry particle scene continuity', () => {
       } as unknown as CanvasRenderingContext2D)
       const scene = createParticleScene(canvas, 'wallet')
       try {
-        canvas.dispatchEvent(
+        window.dispatchEvent(
           Object.assign(new Event('pointermove'), { clientX: 410, clientY: 145 }),
         )
         for (let time = 0; time <= 4000; time += 40) callback(time)

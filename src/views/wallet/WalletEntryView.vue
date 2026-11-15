@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import OrganizationDetailDialog from '@/components/OrganizationDetailDialog.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
+import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import {
@@ -71,8 +72,8 @@ function scheduleReconnect(): void {
   }, 1_500)
 }
 
-function enterWallet(): void {
-  void navigateWithSpatialTransition(router, '/wallet', 'wallet')
+async function enterWallet(): Promise<void> {
+  await navigateWithSpatialTransition(router, '/wallet', 'wallet')
 }
 
 async function restore(manual = false): Promise<void> {
@@ -110,8 +111,9 @@ async function restore(manual = false): Promise<void> {
     }
     if (decision.value.kind === 'repair-no-group') stage.value = wt('w39')
     reconnectAttempted = false
-    if (decision.value.kind !== 'repair-no-group') enterWallet()
+    if (decision.value.kind !== 'repair-no-group') await enterWallet()
   } catch (cause) {
+    resetUnlockAnimation()
     connectionInterrupted.value = isWalletEntryConnectionError(cause)
     error.value = formatWalletEntryError(cause)
     if (connectionInterrupted.value) scheduleReconnect()
@@ -124,14 +126,16 @@ async function chooseGroup(): Promise<void> {
   const service = getWalletEntryService()
   if (!service || !selectedGroupId.value) return
   busy.value = true
+  unlockPhase.value = 'loading'
   pendingAction.value = 'join'
   error.value = ''
   stage.value = wt('w40')
   try {
     await service.join(selectedGroupId.value)
     stage.value = wt('w41')
-    enterWallet()
+    await enterWallet()
   } catch (cause) {
+    resetUnlockAnimation()
     error.value = formatWalletEntryError(cause)
   } finally {
     busy.value = false
@@ -143,6 +147,7 @@ async function chooseNoGroup(): Promise<void> {
   const service = getWalletEntryService()
   if (!service) return
   busy.value = true
+  unlockPhase.value = 'loading'
   pendingAction.value = 'retail'
   error.value = ''
   stage.value = wt('w42')
@@ -150,8 +155,9 @@ async function chooseNoGroup(): Promise<void> {
     await service.registerNoGroup()
     rememberLocalNoGroupChoice(wallet.accountId)
     stage.value = wt('w43')
-    enterWallet()
+    await enterWallet()
   } catch (cause) {
+    resetUnlockAnimation()
     error.value = formatWalletEntryError(cause)
   } finally {
     busy.value = false
@@ -190,7 +196,7 @@ onBeforeUnmount(clearReconnectTimer)
 </script>
 
 <template>
-  <WalletAccessFrame :field-active="fieldActive">
+  <WalletAccessFrame compact :field-active="fieldActive">
     <section class="access-panel wallet-entry" :class="{ 'wallet-entry--busy': busy }">
       <template v-if="isChoosing">
         <h1>{{ wt('w44') }}</h1>
@@ -313,7 +319,7 @@ onBeforeUnmount(clearReconnectTimer)
 <style scoped>
 .wallet-entry {
   align-content: center;
-  min-height: min(440px, 100%);
+  min-height: 0;
   row-gap: 0;
 }
 
@@ -322,7 +328,7 @@ onBeforeUnmount(clearReconnectTimer)
 }
 
 .wallet-entry > p {
-  margin: 0.75rem 0 1.7rem;
+  margin: 10px 0 20px;
 }
 
 .entry-mark {
@@ -541,7 +547,7 @@ onBeforeUnmount(clearReconnectTimer)
 
   .wallet-entry h1 {
     max-width: 8em;
-    font-size: clamp(2.35rem, 11.5vw, 2.9rem);
+    font-size: 28px;
     line-height: 1.02;
   }
 

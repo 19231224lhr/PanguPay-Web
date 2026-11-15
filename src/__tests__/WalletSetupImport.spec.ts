@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const router = vi.hoisted(() => ({ replace: vi.fn<(path: string) => Promise<void>>() }))
 const wallet = vi.hoisted(() => ({
+  create: vi.fn().mockResolvedValue({ encrypted: 'test' }),
+  exportRecoveryKit: vi.fn().mockReturnValue({ test: true }),
+  confirmCreatedWallet: vi.fn().mockResolvedValue(undefined),
   accountId: 'alice',
   busy: false,
   error: '',
@@ -40,6 +43,34 @@ describe('wallet backup import experience', () => {
   })
 
   afterEach(() => vi.unstubAllGlobals())
+
+  it('replaces password inputs with backup confirmation before entering', async () => {
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:test', revokeObjectURL: vi.fn() })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const wrapper = mount(WalletSetupView, {
+      global: { stubs: { WalletAccessFrame: { template: '<main><slot /></main>' } } },
+    })
+    await wrapper.get('#create-password').setValue('test-password-123')
+    await wrapper.get('#create-password-confirm').setValue('test-password-123')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('#create-password').exists()).toBe(false)
+    expect(wrapper.find('input[value="import"]').exists()).toBe(false)
+    expect(wrapper.get('.backup-files').text()).toContain('PanguPay-recovery.json')
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wallet.confirmCreatedWallet).toHaveBeenCalledOnce()
+    expect(navigateWithSpatialTransition).toHaveBeenCalledWith(
+      router,
+      '/wallet',
+      'wallet',
+      'replace',
+    )
+    click.mockRestore()
+    wrapper.unmount()
+  })
 
   it('moves to a verification stage immediately and returns a friendly focused error', async () => {
     let rejectImport!: (cause: Error) => void

@@ -9,18 +9,26 @@ afterEach(() => {
 })
 describe('unlock dispersion', () => {
   const p = { x: 42, y: -20, z: 5, radius: 1, alpha: 0.8, group: 1 }
-  it('loses the source silhouette and keeps expanding instead of rotating a fixed cloud', () => {
+  it('settles into a drifting cloud without growing during a long wait', () => {
     const origin = { ...p, x: 0, y: 0, z: 0 }
-    const early = unlockParticle(origin, 3, 1, 0, 41)
-    const later = unlockParticle(origin, 6, 1, 0, 41)
-    expect(Math.hypot(later.x, later.y)).toBeGreaterThan(Math.hypot(early.x, early.y) * 1.5)
-    const fromShape = unlockParticle(p, 3, 1, 0, 41)
-    expect(Math.hypot(fromShape.x - early.x, fromShape.y - early.y)).toBeLessThan(0.001)
-    // The same point continues roughly outward, rather than orbiting around the center.
-    const dot =
-      (early.x * later.x + early.y * later.y) /
-      (Math.hypot(early.x, early.y) * Math.hypot(later.x, later.y))
-    expect(dot).toBeGreaterThan(0.98)
+    const cloud = (time: number) =>
+      Array.from({ length: 500 }, (_, i) => unlockParticle(p, time, 1, 0, i))
+    const extent = (points: ReturnType<typeof cloud>) =>
+      Math.sqrt(points.reduce((sum, q) => sum + q.x * q.x + q.y * q.y, 0) / points.length)
+    const early = cloud(10),
+      later = cloud(60)
+    expect(extent(later) / extent(early)).toBeGreaterThan(0.85)
+    expect(extent(later) / extent(early)).toBeLessThan(1.15)
+    expect(
+      later.filter((q, i) => Math.hypot(q.x - early[i]!.x, q.y - early[i]!.y) > 3).length,
+    ).toBeGreaterThan(400)
+    const fromShape = unlockParticle(p, 4, 1, 0, 41)
+    const fromOrigin = unlockParticle(origin, 4, 1, 0, 41)
+    expect(Math.hypot(fromShape.x - fromOrigin.x, fromShape.y - fromOrigin.y)).toBeLessThan(0.001)
+    const released = unlockParticle(p, 10, 1, 0.5, 41)
+    const waiting = unlockParticle(p, 10, 1, 0, 41)
+    expect(released.x).toBe(waiting.x)
+    expect(released.y).toBe(waiting.y)
   })
   it('starts from the live particle, stays visible while loading and vanishes at reveal completion', () => {
     expect(unlockParticle(p, 0, 0, 0, 4)).toEqual(p)

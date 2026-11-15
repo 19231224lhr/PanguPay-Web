@@ -1,4 +1,5 @@
 import { nextTick } from 'vue'
+import { revealUnlockedPage, resetUnlockAnimation } from './useEntryUnlock'
 import type { Router } from 'vue-router'
 
 export type SpatialTransition = 'access' | 'wallet'
@@ -18,9 +19,14 @@ export async function navigateWithSpatialTransition(
   mode: SpatialTransition,
   method: SpatialNavigationMethod = 'push',
 ): Promise<void> {
-  // Keep the live particle canvas running while entry forms change.
-  if (mode === 'access' && document.querySelector('[data-entry-experience]')) {
-    await router[method](destination)
+  // Every entry path shares the same live scene, including new wallets and imports.
+  if (document.querySelector('[data-entry-experience]')) {
+    sessionStorage.removeItem(walletArrivalFallbackKey)
+    if (mode === 'wallet') await revealUnlockedPage(() => router[method](destination))
+    else {
+      resetUnlockAnimation()
+      await router[method](destination)
+    }
     return
   }
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
