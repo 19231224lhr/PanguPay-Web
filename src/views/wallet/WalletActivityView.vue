@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
 import { computed, ref } from 'vue'
 import AnimatedNumber from '@/components/AnimatedNumber.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
@@ -86,8 +87,8 @@ const statusTone = (item: ActivityRow) =>
         />
         <p v-if="!filteredActivities.length" class="wallet-empty">{{ wt('motionEmpty') }}</p>
         <ol>
-          <li v-for="item in filteredActivities" :key="`${item.id}-${item.status}`">
-            <details>
+          <li v-for="item in filteredActivities" :key="item.id">
+            <details v-smooth-details>
               <summary>
                 <span class="activity-copy">
                   <b>{{ item.title }}</b>
@@ -220,7 +221,6 @@ details[open] .activity-caret {
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
   gap: clamp(1rem, 3vw, 2rem);
   padding: 0.2rem 0 1.25rem;
-  animation: activity-detail-enter 180ms var(--ease-standard) both;
 }
 
 .activity-detail dl {

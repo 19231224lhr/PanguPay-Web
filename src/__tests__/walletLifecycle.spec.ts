@@ -56,6 +56,7 @@ describe('wallet lifecycle', () => {
     const repository = new MemoryWalletRepository()
     await repository.saveEnvelope(goEnvelope)
     localStorage.setItem('pangupay-transfer-chain:68740417', 'old-chain')
+    localStorage.setItem('pangupay:wallet-entry:no-group:68740417', '1')
     localStorage.setItem('pangupay-transfer-journal:68740417', '[{"draftID":"old"}]')
     localStorage.setItem('pangupay-transfer-reservations:68740417', '{"old":["genesis-utxo"]}')
     const store = useWalletStore()
@@ -64,6 +65,7 @@ describe('wallet lifecycle', () => {
 
     await store.clearLocalWallet()
 
+    expect(localStorage.getItem('pangupay:wallet-entry:no-group:68740417')).toBeNull()
     expect(store.lifecycle).toBe('absent')
     expect(store.accountId).toBe('')
     expect(await repository.loadEnvelope()).toBeUndefined()

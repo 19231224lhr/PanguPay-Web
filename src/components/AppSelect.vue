@@ -42,6 +42,7 @@ const root = ref<HTMLElement>()
 const trigger = ref<HTMLButtonElement>()
 const listbox = ref<HTMLElement>()
 const open = ref(false)
+const keyboard = ref(false)
 const activeIndex = ref(0)
 
 const labelId = `${props.id}-${instanceId}-label`
@@ -55,6 +56,11 @@ const selectedIndex = computed(() =>
 )
 const selectedOption = computed(() => props.options[selectedIndex.value])
 const triggerDisabled = computed(() => props.disabled || props.options.length === 0)
+
+function pointOption(index: number): void {
+  keyboard.value = false
+  if (!props.options[index]?.disabled) activeIndex.value = index
+}
 
 function optionId(index: number): string {
   return `${props.id}-${instanceId}-option-${index}`
@@ -81,7 +87,8 @@ async function openMenu(preferLast = false): Promise<void> {
       : firstEnabledIndex(fallback, direction)
   open.value = true
   await nextTick()
-  listbox.value?.focus()
+  listbox.value?.focus({ preventScroll: true })
+  revealActive()
 }
 
 function closeMenu(returnFocus = true): void {
@@ -96,18 +103,29 @@ function commit(option: AppSelectOption): void {
   closeMenu()
 }
 
+function revealActive() {
+  if (!open.value) return
+  listbox.value
+    ?.querySelector<HTMLElement>(`[id="${optionId(activeIndex.value)}"]`)
+    ?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
+}
+watch(activeIndex, () => {
+  if (keyboard.value) nextTick(revealActive)
+})
 function moveActive(direction: 1 | -1): void {
   const next = firstEnabledIndex(activeIndex.value, direction)
   if (next >= 0) activeIndex.value = next
 }
 
 function onTriggerKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  keyboard.value = true
+  if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) return
   event.preventDefault()
   void openMenu(event.key === 'ArrowUp')
 }
 
 function onListboxKeydown(event: KeyboardEvent): void {
+  keyboard.value = true
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     moveActive(event.key === 'ArrowDown' ? 1 : -1)
@@ -161,7 +179,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="app-select" :data-open="open || undefined">
+  <div
+    ref="root"
+    class="app-select"
+    :data-open="open || undefined"
+    :data-keyboard="keyboard || undefined"
+    @pointerdown.capture="keyboard = false"
+  >
     <label :id="labelId" class="app-select__label" :for="id">
       {{ label }}
     </label>
@@ -203,7 +227,7 @@ onBeforeUnmount(() => {
         />
       </button>
 
-      <Transition name="select-menu">
+      <Transition name="select-menu" :css="!keyboard">
         <ul
           v-if="open"
           :id="listboxId"
@@ -225,7 +249,7 @@ onBeforeUnmount(() => {
             :data-active="activeIndex === index || undefined"
             :data-selected="modelValue === option.value || undefined"
             @click="commit(option)"
-            @pointermove="!option.disabled && (activeIndex = index)"
+            @pointermove="pointOption(index)"
           >
             <span class="app-select__option-copy">
               <strong>{{ option.label }}</strong>
@@ -256,6 +280,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.app-select[data-keyboard] .app-select__caret,
+.app-select[data-keyboard] .app-select__menu li {
+  transition: none;
+}
 .app-select {
   display: grid;
   gap: 0.48rem;

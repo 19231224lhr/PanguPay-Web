@@ -1,16 +1,12 @@
 <script setup lang="ts">
 import { wt } from '@/i18n/walletText'
 
-import {
-  PhArrowLeft as ArrowLeft,
-  PhKey as Key,
-  PhTrash as Trash,
-  PhUploadSimple as UploadSimple,
-} from '@phosphor-icons/vue'
+import { PhArrowLeft as ArrowLeft, PhUploadSimple as UploadSimple } from '@phosphor-icons/vue'
 import { computed, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import WalletRemovalDialog from '@/components/WalletRemovalDialog.vue'
 import FormField from '@/components/FormField.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -61,9 +57,10 @@ async function recoverWallet(): Promise<void> {
 async function clearLocalWallet(): Promise<void> {
   localError.value = ''
   try {
-    await wallet.clearLocalWallet()
     dashboard.reset()
-    await router.replace('/wallet/setup')
+    await wallet.clearLocalWallet()
+    // A fresh document also releases all in-memory signing and monitoring state.
+    window.location.replace(import.meta.env.BASE_URL)
   } catch (cause) {
     localError.value = cause instanceof Error ? cause.message : wt('w161')
   }
@@ -71,27 +68,26 @@ async function clearLocalWallet(): Promise<void> {
 </script>
 
 <template>
-  <WalletAccessFrame quiet-scroll>
+  <WalletAccessFrame quiet-scroll compact>
     <section class="access-panel recovery-panel">
-      <template v-if="!revealClear">
-        <Key class="recovery-mark" :size="34" weight="regular" />
-        <h1>{{ wt('w162') }}</h1>
-        <p>{{ wt('w163') }}</p>
+      <h1>{{ wt('w162') }}</h1>
+      <p>{{ wt('w163') }}</p>
 
-        <form class="access-form recovery-form" @submit.prevent="recoverWallet">
-          <label class="file-picker">
-            <input type="file" accept=".json,application/json" @change="readRecoveryKit" />
-            <UploadSimple :size="20" />
-            <span>{{ recoveryFileName || wt('w164') }}</span>
-          </label>
+      <form class="access-form recovery-form" @submit.prevent="recoverWallet">
+        <label class="file-picker">
+          <input type="file" accept=".json,application/json" @change="readRecoveryKit" />
+          <UploadSimple :size="20" />
+          <span>{{ recoveryFileName || wt('w164') }}</span>
+        </label>
+        <div class="recovery-passwords">
           <FormField
             id="recovery-password"
             v-model="password"
             :label="wt('w165')"
             type="password"
             autocomplete="new-password"
-            :help="wt('w166')"
-            :error="passwordError"
+            :invalid="!!passwordError"
+            described-by="recovery-password-feedback"
           />
           <FormField
             id="recovery-password-confirm"
@@ -99,64 +95,47 @@ async function clearLocalWallet(): Promise<void> {
             :label="wt('w167')"
             type="password"
             autocomplete="new-password"
-            :error="passwordError"
+            :invalid="!!passwordError"
+            described-by="recovery-password-feedback"
           />
-          <AppButton
-            type="submit"
-            size="large"
-            :loading="wallet.busy"
-            :disabled="!recoveryValue || !passwordConfirm || !!passwordError"
-          >
-            {{ wt('w168') }}
-          </AppButton>
-        </form>
-
-        <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
-
-        <div class="recovery-divider">
-          <span> {{ wt('w169') }} </span>
         </div>
+        <p id="recovery-password-feedback" class="password-guidance">
+          {{ passwordError || wt('w166') }}
+        </p>
         <AppButton
-          class="clear-wallet-entry"
+          type="submit"
           size="large"
-          variant="secondary"
-          @click="revealClear = true"
+          :loading="wallet.busy"
+          :disabled="!recoveryValue || !passwordConfirm || !!passwordError"
         >
-          <template #icon><Trash :size="17" /></template> {{ wt('w170') }}
+          {{ wt('w168') }}
+        </AppButton>
+      </form>
+
+      <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
+
+      <div class="recovery-footer">
+        <AppButton class="clear-wallet-entry" variant="ghost" @click="revealClear = true">
+          {{ wt('w170') }}
         </AppButton>
         <RouterLink class="back-link" to="/wallet/unlock">
           <ArrowLeft :size="16" /> {{ wt('w171') }}
         </RouterLink>
-      </template>
-
-      <template v-else>
-        <Trash class="clear-mark" :size="34" weight="regular" />
-        <h1>{{ wt('w172') }}</h1>
-        <p>{{ wt('w173') }}</p>
-        <div class="clear-summary">
-          <strong> {{ wt('w174') }} </strong>
-          <span> {{ wt('w175') }} </span>
-        </div>
-        <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
-        <div class="clear-actions">
-          <AppButton variant="ghost" @click="revealClear = false"> {{ wt('w108') }} </AppButton>
-          <AppButton variant="danger" :loading="wallet.busy" @click="clearLocalWallet">
-            <template #icon><Trash :size="17" /></template> {{ wt('w176') }}
-          </AppButton>
-        </div>
-      </template>
+      </div>
+      <WalletRemovalDialog
+        :open="revealClear"
+        :busy="wallet.busy"
+        :error="localError"
+        @close="revealClear = false"
+        @confirm="clearLocalWallet"
+      />
     </section>
   </WalletAccessFrame>
 </template>
 
 <style scoped>
 .recovery-panel {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.recovery-mark {
-  color: var(--accent);
+  display: block;
 }
 
 .recovery-panel > p {
@@ -169,7 +148,7 @@ async function clearLocalWallet(): Promise<void> {
 
 .file-picker {
   display: flex;
-  min-height: 60px;
+  min-height: 62px;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
@@ -194,49 +173,10 @@ async function clearLocalWallet(): Promise<void> {
   pointer-events: none;
 }
 
-.recovery-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  color: var(--text-faint);
-  font-size: 0.72rem;
-}
-
-.recovery-divider::before,
-.recovery-divider::after {
-  height: 1px;
-  flex: 1;
-  background: var(--hairline);
-  content: '';
-}
-
 .clear-wallet-entry {
-  width: 100%;
+  width: auto;
 }
 
-.clear-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.55rem;
-}
-
-.clear-mark {
-  color: var(--danger);
-}
-
-.clear-summary {
-  display: grid;
-  gap: 0.4rem;
-  padding-block: 0.9rem;
-  border-block: 1px solid var(--hairline);
-}
-
-.clear-summary strong {
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-
-.clear-summary span,
 .recovery-error {
   color: var(--text-muted);
   font-size: 0.78rem;
@@ -277,9 +217,47 @@ async function clearLocalWallet(): Promise<void> {
 }
 
 @media (max-width: 480px) {
-  .clear-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
+}
+
+.recovery-passwords {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.password-guidance {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -4px 0 0;
+  min-height: 18px;
+}
+.recovery-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+.recovery-footer .clear-wallet-entry {
+  font-size: 12px;
+  min-height: 36px;
+  padding: 6px 0;
+}
+.recovery-footer .back-link {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.file-picker:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 380px) {
+  .recovery-passwords {
+    grid-template-columns: 1fr;
+  }
+  .recovery-footer {
+    flex-wrap: wrap;
   }
 }
 </style>

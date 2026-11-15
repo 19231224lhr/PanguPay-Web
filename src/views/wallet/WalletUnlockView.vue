@@ -55,9 +55,9 @@ async function unlock(): Promise<void> {
 </script>
 
 <template>
-  <WalletAccessFrame figure="key">
+  <WalletAccessFrame figure="key" compact>
     <section class="access-panel">
-      <LockKey class="unlock-mark" :size="34" weight="regular" />
+      <LockKey class="unlock-mark" :size="24" weight="regular" />
       <h1>{{ wt('w286') }}</h1>
       <p>{{ wt('w287') }}</p>
       <form class="access-form" @submit.prevent="unlock">
@@ -94,7 +94,7 @@ async function unlock(): Promise<void> {
 
 <style scoped>
 .unlock-mark {
-  margin-bottom: 1.15rem;
+  margin-bottom: 0.9rem;
   color: var(--accent);
 }
 

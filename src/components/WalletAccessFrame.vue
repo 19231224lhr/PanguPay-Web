@@ -12,6 +12,7 @@ import type { EntryShape } from '@/graphics/entryParticles'
 
 const props = withDefaults(
   defineProps<{
+    compact?: boolean
     figure?: EntryShape
     quietScroll?: boolean
     fieldActive?: boolean
@@ -38,7 +39,7 @@ async function returnHome(): Promise<void> {
 </script>
 
 <template>
-  <main class="wallet-access">
+  <main class="wallet-access" :class="{ 'wallet-access--compact': compact }">
     <header class="wallet-access__header">
       <RouterLink to="/" aria-label="PanguPay home" @click.prevent="returnHome">
         <BrandMark :size="32" transition-name="pangu-mobile-brand" />PanguPay
@@ -245,6 +246,42 @@ async function returnHome(): Promise<void> {
 
   :deep(.access-panel h1) {
     font-size: 2.55rem;
+  }
+}
+
+.wallet-access--compact .wallet-access__statement {
+  display: none;
+}
+
+.wallet-access--compact .wallet-access__form {
+  width: min(440px, 100%);
+  align-content: safe center;
+  padding-block: 24px;
+}
+.wallet-access--compact :deep(.access-panel h1) {
+  font-size: clamp(28px, 2.6vw, 36px);
+  line-height: 1.15;
+  font-weight: 630;
+}
+.wallet-access--compact :deep(.access-panel > p) {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 10px 0 24px;
+}
+.wallet-access--compact :deep(.access-form) {
+  gap: 14px;
+}
+.wallet-access--compact :deep(.form-field__control) {
+  min-height: 46px;
+}
+.wallet-access--compact :deep(.app-button--large) {
+  min-height: 46px;
+  padding-block: 12px;
+}
+@media (max-width: 480px), (max-height: 650px) {
+  .wallet-access--compact .wallet-access__form {
+    align-content: start;
+    padding-block: 20px;
   }
 }
 </style>

@@ -2,7 +2,7 @@
 import { wt } from '@/i18n/walletText'
 
 import { PhLockKey as LockKey } from '@phosphor-icons/vue'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { AppShellItem } from './AppShell.vue'
 
@@ -35,19 +35,65 @@ const props = withDefaults(
 const emit = defineEmits<{ close: []; lock: [] }>()
 const panel = ref<HTMLElement>()
 
-function close(): void {
+let trigger: HTMLElement | undefined
+function menuItems() {
+  return Array.from(panel.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []).filter(
+    (item) => {
+      for (
+        let parent: HTMLElement | null = item;
+        parent && parent !== panel.value;
+        parent = parent.parentElement
+      ) {
+        if (getComputedStyle(parent).display === 'none' || parent.hidden) return false
+      }
+      return true
+    },
+  )
+}
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return
+    trigger = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    await nextTick()
+    if (props.open) menuItems()[0]?.focus({ preventScroll: true })
+  },
+)
+function close(restore = true): void {
   emit('close')
+  if (restore) nextTick(() => trigger?.isConnected && trigger.focus({ preventScroll: true }))
 }
 
 function onPointerDown(event: PointerEvent): void {
   if (!props.open) return
   const target = event.target as Element | null
   if (target?.closest('[data-account-trigger]')) return
-  if (!panel.value?.contains(target)) close()
+  if (!panel.value?.contains(target)) close(false)
 }
 
 function onKeyDown(event: KeyboardEvent): void {
-  if (props.open && event.key === 'Escape') close()
+  if (!props.open) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close()
+    return
+  }
+  if (event.key === 'Tab') {
+    close(false)
+    return
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const items = menuItems()
+  if (!items.length) return
+  const index = items.indexOf(document.activeElement as HTMLElement)
+  const next =
+    event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? items.length - 1
+        : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+  items[next]?.focus({ preventScroll: true })
 }
 
 onMounted(() => {
@@ -92,7 +138,7 @@ onBeforeUnmount(() => {
           :key="item.to"
           :to="item.to"
           role="menuitem"
-          @click="close"
+          @click="close(false)"
         >
           <component :is="item.icon" :size="18" weight="regular" aria-hidden="true" />
           <span>{{ item.label }}</span>
@@ -110,7 +156,7 @@ onBeforeUnmount(() => {
           :key="item.to"
           :to="item.to"
           role="menuitem"
-          @click="close"
+          @click="close(false)"
         >
           <component :is="item.icon" :size="18" weight="regular" aria-hidden="true" />
           <span>{{ item.label }}</span>

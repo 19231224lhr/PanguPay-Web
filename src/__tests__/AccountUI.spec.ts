@@ -1,5 +1,5 @@
 vi.mock('@/components/WalletFigure.vue', () => ({ default: { template: '<div />' } }))
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, expect, it, vi } from 'vitest'
 import i18n from '@/i18n'
@@ -12,6 +12,7 @@ const { replace } = vi.hoisted(() => ({ replace: vi.fn<(...args: unknown[]) => u
 vi.mock('vue-router', () => ({ useRouter: () => ({ replace }) }))
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   replace.mockClear()
   i18n.global.locale.value = 'zh-CN'
 })
@@ -44,24 +45,45 @@ it('uses the same photo in the header and open account menu and updates both', a
 })
 
 it.each(['zh-CN', 'en-US'] as const)(
-  'signs out to home using the existing wallet lock in %s',
+  'requires confirmation before clearing the wallet and returning home in %s',
   async (locale) => {
     const pinia = createPinia()
     setActivePinia(pinia)
     i18n.global.locale.value = locale
     const wallet = useWalletStore(),
       dashboard = useDashboardStore()
-    const lock = vi.spyOn(wallet, 'lock')
+    const clear = vi.spyOn(wallet, 'clearLocalWallet').mockResolvedValue()
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.open = true
+      },
+    })
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.open = false
+      },
+    })
+    const navigate = vi.fn()
+    vi.stubGlobal('location', { replace: navigate })
     const reset = vi.spyOn(dashboard, 'reset')
     const wrapper = mount(WalletSettingsView, { global: { plugins: [pinia, i18n] } })
     expect(wrapper.find('[data-testid="sign-out"]').text()).toBe(
       locale === 'en-US' ? 'Sign out' : '退出当前账户',
     )
     await wrapper.find('[data-testid="sign-out"]').trigger('click')
-    expect(lock).toHaveBeenCalledOnce()
+    expect(clear).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid=cancel-sign-out]').trigger('click')
+    expect(clear).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid=sign-out]').trigger('click')
+    await wrapper.get('[data-testid=confirm-sign-out]').trigger('click')
+    await flushPromises()
+    expect(clear).toHaveBeenCalledOnce()
     expect(reset).toHaveBeenCalledOnce()
-    expect(replace).toHaveBeenCalledWith('/')
-    expect(lock.mock.invocationCallOrder[0]).toBeLessThan(replace.mock.invocationCallOrder[0]!)
+    expect(navigate).toHaveBeenCalledWith('/')
+    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(navigate.mock.invocationCallOrder[0]!)
     wrapper.unmount()
   },
 )

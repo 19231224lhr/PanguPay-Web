@@ -22,6 +22,7 @@ const router = useRouter()
 const wallet = useWalletStore()
 const dashboard = useDashboardStore()
 const entryArrival = ref(false)
+const keyboardNavigation = ref(false)
 let arrivalTimer: ReturnType<typeof setTimeout> | undefined
 
 const navItems = computed(() => [
@@ -67,6 +68,8 @@ onBeforeUnmount(() => {
 
 <template>
   <AppShell
+    @keydown.capture="keyboardNavigation = true"
+    @pointerdown.capture="keyboardNavigation = false"
     :items="navItems"
     :mobile-items="mobileItems"
     :account-items="accountItems"
@@ -88,7 +91,7 @@ onBeforeUnmount(() => {
       <ValueFoldField :intro="false" :active="true" label="" transition-name="pangu-value-fold" />
     </div>
     <RouterView v-slot="{ Component }">
-      <Transition name="wallet-page" mode="out-in">
+      <Transition name="wallet-page" :css="!keyboardNavigation">
         <component :is="Component" />
       </Transition>
     </RouterView>
@@ -98,19 +101,20 @@ onBeforeUnmount(() => {
 <style>
 .wallet-page-enter-active,
 .wallet-page-leave-active {
-  transition:
-    opacity 190ms var(--ease-standard),
-    transform 190ms var(--ease-standard);
+  transition: opacity 140ms var(--ease-standard);
+}
+
+.wallet-page-leave-active {
+  display: none;
+  transition: none;
 }
 
 .wallet-page-enter-from {
   opacity: 0;
-  transform: translateY(6px);
 }
 
 .wallet-page-leave-to {
   opacity: 0;
-  transform: translateY(-3px);
 }
 
 @media (prefers-reduced-motion: reduce) {

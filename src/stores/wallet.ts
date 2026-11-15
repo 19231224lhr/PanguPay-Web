@@ -281,6 +281,7 @@ export const useWalletStore = defineStore('wallet', () => {
         clearTransferChainScope(previousAccountID)
         clearTransferJournal(previousAccountID)
         clearTransferReservations(previousAccountID)
+        localStorage.removeItem(`pangupay:wallet-entry:no-group:${previousAccountID}`)
       }
       envelope.value = undefined
       unlockedRecord.value = undefined

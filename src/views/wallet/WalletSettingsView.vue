@@ -12,6 +12,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import WalletRemovalDialog from '@/components/WalletRemovalDialog.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
@@ -31,6 +32,9 @@ const { locale: i18nLocale, t } = useI18n()
 const displayName = ref(wallet.profile.displayName)
 const avatar = ref(wallet.profile.avatarDataUrl ?? '')
 const profileBusy = ref(false)
+const showSignOut = ref(false)
+const signOutBusy = ref(false)
+const signOutError = ref('')
 const profileMessage = ref('')
 const profileError = ref('')
 
@@ -87,10 +91,21 @@ function exportRecoveryKit(): void {
   URL.revokeObjectURL(url)
 }
 
-function signOut(): void {
-  wallet.lock()
-  dashboard.reset()
-  void router.replace('/')
+async function signOut(): Promise<void> {
+  if (signOutBusy.value) return
+  signOutBusy.value = true
+  signOutError.value = ''
+  try {
+    dashboard.reset()
+    await wallet.clearLocalWallet()
+    showSignOut.value = false
+    // A fresh document also releases all in-memory signing and monitoring state.
+    window.location.replace(import.meta.env.BASE_URL)
+  } catch {
+    signOutError.value = wt('signOutError')
+  } finally {
+    signOutBusy.value = false
+  }
 }
 
 function lock(): void {
@@ -252,7 +267,7 @@ async function saveProfile(): Promise<void> {
           ><b>{{ wt('signOut') }}</b
           ><small>{{ wt('signOutDescription') }}</small></span
         >
-        <AppButton variant="secondary" data-testid="sign-out" @click="signOut">{{
+        <AppButton variant="secondary" data-testid="sign-out" @click="showSignOut = true">{{
           wt('signOut')
         }}</AppButton>
       </div>
@@ -271,6 +286,13 @@ async function saveProfile(): Promise<void> {
         ><strong>{{ t('wallet.settings.fifteenMinutes') }}</strong>
       </div>
     </section>
+    <WalletRemovalDialog
+      :open="showSignOut"
+      :busy="signOutBusy"
+      :error="signOutError"
+      @close="showSignOut = false"
+      @confirm="signOut"
+    />
   </div>
 </template>
 
