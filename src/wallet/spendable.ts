@@ -145,7 +145,14 @@ function normalizeTXCers(
   addresses: Set<string>,
 ): SpendableTXCer[] {
   if (input.issuanceResponse == null) return []
-  const records = extractIssuanceRecords(input.issuanceResponse)
+  // Issuance history is scoped to the sender and also includes outputs paid to others.
+  // Exclude only an unambiguously external destination; inconsistent ownership
+  // metadata must still reach validatedTXCer and fail closed.
+  const records = extractIssuanceRecords(input.issuanceResponse).filter((item) => {
+    const destination = String(item.ToAddress || item.TXCer?.ToAddress || '')
+    const certificateDestination = String(item.TXCer?.ToAddress || '')
+    return !destination || destination !== certificateDestination || addresses.has(destination)
+  })
   const summaries = new Map(
     normalizeCredentialSummaries(
       records,

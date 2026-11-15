@@ -173,6 +173,33 @@ describe('wallet spendable snapshot', () => {
     expect(calls.some((url) => url.includes('/aggr/txcer-issuance-records'))).toBe(true)
   })
 
+  it('does not treat an outgoing issuance as a wallet-owned spendable certificate', () => {
+    const outgoing = structuredClone(evidence.issuanceRecord)
+    outgoing.ToAddress = 'a'.repeat(40)
+    outgoing.TXCer.ToAddress = outgoing.ToAddress
+    const snapshot = normalizeWalletSpendableSnapshot({
+      userID,
+      addresses: [address],
+      addressResponse: addressResponse(),
+      issuanceResponse: { records: [outgoing] },
+    })
+    expect(snapshot.txCers).toEqual([])
+    expect(snapshot.utxos).toHaveLength(1)
+  })
+
+  it('still rejects inconsistent destination metadata claiming a wallet-owned certificate', () => {
+    const tampered = structuredClone(evidence.issuanceRecord)
+    tampered.TXCer.ToAddress = 'a'.repeat(40)
+    expect(() =>
+      normalizeWalletSpendableSnapshot({
+        userID,
+        addresses: [address],
+        addressResponse: addressResponse(),
+        issuanceResponse: { records: [tampered] },
+      }),
+    ).toThrow(/destination mismatch/)
+  })
+
   it('fails closed instead of rounding malformed UTXO amounts', () => {
     expect(() =>
       normalizeWalletSpendableSnapshot({

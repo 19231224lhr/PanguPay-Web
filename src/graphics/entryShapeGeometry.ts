@@ -107,13 +107,15 @@ function distance(kind: EntryShape, x: number, y: number, z: number) {
     Math.abs(z) - (25 - (x * x) / 900),
   )
   const rim = Math.max(shield, -box(x, y + 20, z - 29, 64, 70, 13, 25))
-  const u = (x + 10) * 0.8 + (y - 2) * 0.6,
-    v = -(x + 10) * 0.6 + (y - 2) * 0.8
-  return Math.min(
-    rim,
-    box(u - 15, v, z - 35, 40, 7, 8, 4),
-    box(u + 21, v - 13, z - 35, 7, 20, 8, 4),
-  )
+  // Screen-space Y points down: the check descends to its elbow, then rises right.
+  // Rounded strokes meet continuously, so the mark reads as a check, not an arrow.
+  const stroke = (ax: number, ay: number, bx: number, by: number) => {
+    const dx = bx - ax,
+      dy = by - ay
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy))
+    return Math.hypot(x - ax - t * dx, y - ay - t * dy, z - 35) - 7.5
+  }
+  return Math.min(rim, stroke(-39, -6, -12, 22), stroke(-12, 22, 43, -39))
 }
 
 export function buildShape(kind: EntryShape): Particle[] {
