@@ -196,7 +196,12 @@ function startAnother(): void {
           <p v-if="!isMember">{{ wt('w224') }}</p>
           <p v-else>{{ wt('refinement57') }}</p>
         </div>
-        <AppButton type="submit" size="large" :loading="transfer.busy">
+        <AppButton
+          type="submit"
+          size="large"
+          :loading="transfer.busy"
+          :status="transfer.error ? 'error' : 'idle'"
+        >
           {{ wt('w225') }} <template #icon><ArrowRight :size="18" weight="bold" /></template>
         </AppButton>
       </footer>
@@ -259,7 +264,11 @@ function startAnother(): void {
         <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
           <ArrowLeft :size="18" /> {{ wt('w235') }}
         </AppButton>
-        <AppButton :loading="transfer.busy" @click="submit">
+        <AppButton
+          :loading="transfer.busy"
+          :status="transfer.error ? 'error' : 'idle'"
+          @click="submit"
+        >
           <PaperPlaneTilt :size="18" /> {{ wt('w236') }}
         </AppButton>
       </div>

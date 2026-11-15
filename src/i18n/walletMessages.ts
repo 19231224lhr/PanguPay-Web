@@ -1,6 +1,16 @@
 // Wallet interface messages. Parameters are positional and never translated as user data.
 export const walletMessages = {
   'zh-CN': {
+    motionLoading: '处理中',
+    motionSuccess: '已完成',
+    motionError: '请重试',
+    motionAll: '全部',
+    motionActive: '处理中',
+    motionSettled: '已结算',
+    motionFailed: '异常',
+    motionPhase: '按交易阶段筛选',
+    motionEmpty: '当前阶段没有交易记录。',
+
     refinement0: '收款地址明细',
     refinement1: '完整收款地址账本',
     refinement2: '个地址',
@@ -588,6 +598,15 @@ export const walletMessages = {
     w521: '用户名需要 1–24 个字符',
   },
   'en-US': {
+    motionLoading: 'Working',
+    motionSuccess: 'Done',
+    motionError: 'Retry',
+    motionAll: 'All',
+    motionActive: 'In progress',
+    motionSettled: 'Settled',
+    motionFailed: 'Failed',
+    motionPhase: 'Filter by transaction stage',
+    motionEmpty: 'No transactions in this stage.',
     refinement0: 'Receive address details',
     refinement1: 'Complete receive address ledger',
     refinement2: 'addresses',

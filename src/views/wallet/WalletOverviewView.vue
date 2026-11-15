@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AnimatedNumber from '@/components/AnimatedNumber.vue'
 import { wt, wl, walletLocale } from '@/i18n/walletText'
 import { PhArrowDown as ArrowDown, PhArrowUpRight as ArrowUpRight } from '@phosphor-icons/vue'
 import { computed, nextTick, ref } from 'vue'
@@ -95,19 +96,25 @@ async function refresh(): Promise<void> {
             <div>
               <dt>{{ wt('refinement36') }}</dt>
               <dd class="tabular">
-                {{ snapshotReady ? dashboard.current.credentials.length : '—' }}
+                <AnimatedNumber
+                  :value="snapshotReady ? dashboard.current.credentials.length : null"
+                />
               </dd>
             </div>
             <div>
               <dt>{{ wt('refinement37') }}</dt>
               <dd class="tabular">
-                {{ snapshotReady ? dashboard.current.security.pendingAudits : '—' }}
+                <AnimatedNumber
+                  :value="snapshotReady ? dashboard.current.security.pendingAudits : null"
+                />
               </dd>
             </div>
             <div :class="{ 'needs-attention': dashboard.current.security.isolatedCount }">
               <dt>{{ wt('w188') }}</dt>
               <dd class="tabular">
-                {{ snapshotReady ? dashboard.current.security.isolatedCount : '—' }}
+                <AnimatedNumber
+                  :value="snapshotReady ? dashboard.current.security.isolatedCount : null"
+                />
               </dd>
             </div>
           </dl>

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import AnimatedNumber from '@/components/AnimatedNumber.vue'
+import SegmentedControl from '@/components/SegmentedControl.vue'
 import { wt, wl, walletLocale } from '@/i18n/walletText'
 
 import { PhCaretDown as CaretDown } from '@phosphor-icons/vue'
@@ -15,6 +18,28 @@ import {
 import { transferModeLabel } from '@/transfer'
 
 const activities = useWalletActivities()
+const phase = ref('all')
+function matchesPhase(item: ActivityRow, value: string) {
+  if (value === 'all') return true
+  if (value === 'failed') return item.phase === 'failed' || !!item.crossChainError
+  if (item.crossChainError || item.phase === 'failed') return false
+  if (value === 'settled') return item.phase === 'settled'
+  return !!item.phase && item.phase !== 'settled'
+}
+const phases = computed(() =>
+  [
+    { value: 'all', label: wt('motionAll') },
+    { value: 'processing', label: wt('motionActive') },
+    { value: 'settled', label: wt('motionSettled') },
+    { value: 'failed', label: wt('motionFailed') },
+  ].map((option) => ({
+    ...option,
+    count: activities.value.filter((item) => matchesPhase(item, option.value)).length,
+  })),
+)
+const filteredActivities = computed(() =>
+  activities.value.filter((item) => matchesPhase(item, phase.value)),
+)
 
 const formatTime = (value: number) =>
   value
@@ -40,7 +65,9 @@ const statusTone = (item: ActivityRow) =>
       <div class="detail-page-intro">
         <div class="detail-page-intro__copy">
           <h2 id="activity-list-heading">{{ wt('w3') }}</h2>
-          <span class="detail-page-caption">{{ activities.length }} {{ wt('refinement40') }}</span>
+          <span class="detail-page-caption"
+            ><AnimatedNumber :value="activities.length" /> {{ wt('refinement40') }}</span
+          >
         </div>
         <WalletFigure kind="drawer" />
       </div>
@@ -48,50 +75,64 @@ const statusTone = (item: ActivityRow) =>
         <strong>{{ wt('refinement45') }}</strong>
         <p>{{ wt('refinement46') }}</p>
       </div>
-      <ol v-else>
-        <li v-for="item in activities" :key="`${item.id}-${item.status}`">
-          <details>
-            <summary>
-              <span class="activity-copy">
-                <b>{{ item.title }}</b>
-                <small>{{ formatTime(item.timestamp) }}</small>
-              </span>
-              <StatusLabel class="activity-status" :tone="statusTone(item)">
-                {{ wl(item.status) }}
-              </StatusLabel>
-              <span class="activity-amount">
-                <b class="tabular">{{ item.direction === 'out' ? '−' : '+' }}{{ item.amount }}</b>
-                <small>{{ assetSymbol(item.coinType, item.asset) }}</small>
-              </span>
-              <CaretDown class="activity-caret" :size="17" aria-hidden="true" />
-            </summary>
-            <div class="activity-detail">
-              <ActivityProgress :progress="item.progress" :status="item.status" />
-              <dl>
-                <div>
-                  <dt>{{ wt('w6') }}</dt>
-                  <dd>{{ item.direction === 'out' ? wt('w7') : wt('w8') }}</dd>
-                </div>
-                <div v-if="item.mode">
-                  <dt>{{ wt('w9') }}</dt>
-                  <dd>
-                    {{ transferModeLabel(item.mode) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{{ wt('w10') }}</dt>
-                  <dd class="mono">{{ item.txID }}</dd>
-                </div>
-              </dl>
-            </div>
-          </details>
-        </li>
-      </ol>
+      <template v-else>
+        <SegmentedControl
+          v-model="phase"
+          class="activity-phases"
+          compact
+          semantics="buttons"
+          :label="wt('motionPhase')"
+          :options="phases"
+        />
+        <p v-if="!filteredActivities.length" class="wallet-empty">{{ wt('motionEmpty') }}</p>
+        <ol>
+          <li v-for="item in filteredActivities" :key="`${item.id}-${item.status}`">
+            <details>
+              <summary>
+                <span class="activity-copy">
+                  <b>{{ item.title }}</b>
+                  <small>{{ formatTime(item.timestamp) }}</small>
+                </span>
+                <StatusLabel class="activity-status" :tone="statusTone(item)">
+                  {{ wl(item.status) }}
+                </StatusLabel>
+                <span class="activity-amount">
+                  <b class="tabular">{{ item.direction === 'out' ? '−' : '+' }}{{ item.amount }}</b>
+                  <small>{{ assetSymbol(item.coinType, item.asset) }}</small>
+                </span>
+                <CaretDown class="activity-caret" :size="17" aria-hidden="true" />
+              </summary>
+              <div class="activity-detail">
+                <ActivityProgress :progress="item.progress" :status="item.status" />
+                <dl>
+                  <div>
+                    <dt>{{ wt('w6') }}</dt>
+                    <dd>{{ item.direction === 'out' ? wt('w7') : wt('w8') }}</dd>
+                  </div>
+                  <div v-if="item.mode">
+                    <dt>{{ wt('w9') }}</dt>
+                    <dd>
+                      {{ transferModeLabel(item.mode) }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ wt('w10') }}</dt>
+                    <dd class="mono">{{ item.txID }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </details>
+          </li>
+        </ol>
+      </template>
     </section>
   </div>
 </template>
 
 <style scoped>
+.activity-phases {
+  margin-bottom: 0.65rem;
+}
 .wallet-section__heading > span {
   color: var(--text-muted);
   font-size: 0.72rem;
