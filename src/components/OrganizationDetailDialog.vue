@@ -16,6 +16,7 @@ import type {
   WalletEntryOrganizationNode,
   WalletEntryOrganizationNodeRole,
 } from '@/wallet/entryService'
+import CurveMark from './CurveMark.vue'
 import AppButton from './AppButton.vue'
 import IconButton from './IconButton.vue'
 
@@ -139,9 +140,9 @@ onBeforeUnmount(() => {
     <article class="organization-dialog__surface" @click.stop>
       <header>
         <div class="organization-dialog__identity">
-          <span class="organization-dialog__mark" aria-hidden="true">
-            <ShieldCheck :size="23" weight="regular" />
-          </span>
+          <CurveMark v-if="open" motion="once" :size="44"
+            ><ShieldCheck :size="22" weight="duotone"
+          /></CurveMark>
           <div>
             <p>{{ wt('w86') }}</p>
             <h2 id="organization-detail-title">{{ organization?.name || wt('w319') }}</h2>
@@ -151,7 +152,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div v-if="busy" class="organization-dialog__loading" role="status" aria-live="polite">
-        <span aria-hidden="true" />
+        <CurveMark variant="link" :size="40" />
         <strong> {{ wt('w321') }} </strong>
         <small> {{ wt('w322') }} </small>
       </div>
@@ -328,17 +329,6 @@ onBeforeUnmount(() => {
 
 .organization-dialog__identity {
   gap: 0.8rem;
-}
-
-.organization-dialog__mark {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: none;
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--accent) 11%, var(--surface-raised));
-  color: var(--accent);
-  place-items: center;
 }
 
 .organization-dialog__identity div,
@@ -583,15 +573,6 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.organization-dialog__loading > span {
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--hairline);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: organization-spin 0.8s linear infinite;
-}
-
 .organization-dialog__loading small,
 .organization-dialog__error small {
   color: var(--text-muted);
@@ -610,12 +591,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 1rem;
   padding-top: 0.2rem;
-}
-
-@keyframes organization-spin {
-  to {
-    transform: rotate(1turn);
-  }
 }
 
 @media (max-width: 700px) {
@@ -666,10 +641,6 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .organization-dialog {
     transition-duration: 0.01ms;
-  }
-
-  .organization-dialog__loading > span {
-    animation: none;
   }
 }
 </style>

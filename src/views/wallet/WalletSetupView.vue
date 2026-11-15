@@ -5,13 +5,13 @@ import {
   PhCheckCircle as CheckCircle,
   PhDownloadSimple as DownloadSimple,
   PhKey as Key,
-  PhLockKey as LockKey,
   PhUploadSimple as UploadSimple,
   PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+import CurveMark from '@/components/CurveMark.vue'
 import AppButton from '@/components/AppButton.vue'
 import FormField from '@/components/FormField.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
@@ -224,9 +224,7 @@ async function importWallet(): Promise<void> {
         aria-live="polite"
         aria-busy="true"
       >
-        <div class="verification-mark" aria-hidden="true">
-          <LockKey :size="30" weight="regular" />
-        </div>
+        <CurveMark variant="weave" :size="58" />
         <span class="verification-eyebrow"> {{ wt('w258') }} </span>
         <h1>{{ verificationTitle }}</h1>
         <p>{{ verificationDescription }}</p>
@@ -543,32 +541,6 @@ async function importWallet(): Promise<void> {
   letter-spacing: 0.12em;
 }
 
-.verification-mark {
-  position: relative;
-  display: grid;
-  width: 58px;
-  height: 58px;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface-raised));
-  color: var(--accent);
-}
-
-.verification-mark::before,
-.verification-mark::after {
-  position: absolute;
-  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
-  border-radius: inherit;
-  content: '';
-  inset: -7px;
-  animation: verification-pulse 1.7s var(--ease-standard) infinite;
-}
-
-.verification-mark::after {
-  inset: -15px;
-  animation-delay: 420ms;
-}
-
 .import-feedback {
   min-height: 34px;
 }
@@ -604,22 +576,6 @@ async function importWallet(): Promise<void> {
 .import-error-leave-to {
   opacity: 0;
   transform: translateY(-3px);
-}
-
-@keyframes verification-pulse {
-  0% {
-    opacity: 0;
-    transform: scale(0.88);
-  }
-
-  42% {
-    opacity: 0.58;
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(1.08);
-  }
 }
 
 .setup-copy-enter-active,
@@ -795,12 +751,6 @@ async function importWallet(): Promise<void> {
   .setup-panel-leave-to,
   .setup-subpanel-leave-to {
     transform: none;
-  }
-
-  .verification-mark::before,
-  .verification-mark::after {
-    animation: none;
-    opacity: 0.32;
   }
 
   .verification-stage-enter-active,

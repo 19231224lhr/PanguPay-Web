@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { wt, wl } from '@/i18n/walletText'
 
-import {
-  PhArrowRight as ArrowRight,
-  PhLockKey as LockKey,
-  PhWarningCircle as WarningCircle,
-} from '@phosphor-icons/vue'
+import { PhArrowRight as ArrowRight, PhWarningCircle as WarningCircle } from '@phosphor-icons/vue'
 import { nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+import CurveMark from '@/components/CurveMark.vue'
 import AppButton from '@/components/AppButton.vue'
 import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
@@ -57,7 +54,7 @@ async function unlock(): Promise<void> {
 <template>
   <WalletAccessFrame figure="key" compact>
     <section class="access-panel">
-      <LockKey class="unlock-mark" :size="24" weight="regular" />
+      <CurveMark class="unlock-mark" :size="40" />
       <h1>{{ wt('w286') }}</h1>
       <p>{{ wt('w287') }}</p>
       <form class="access-form" @submit.prevent="unlock">
@@ -95,7 +92,6 @@ async function unlock(): Promise<void> {
 <style scoped>
 .unlock-mark {
   margin-bottom: 0.9rem;
-  color: var(--accent);
 }
 
 .unlock-feedback {

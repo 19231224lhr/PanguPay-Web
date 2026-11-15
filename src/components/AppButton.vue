@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { PhCheck, PhWarning, PhSpinnerGap } from '@phosphor-icons/vue'
+import CurveMark from './CurveMark.vue'
+import { PhCheck, PhWarning } from '@phosphor-icons/vue'
 import { RouterLink } from 'vue-router'
 
 const props = withDefaults(
@@ -77,8 +78,14 @@ const feedback = computed(() =>
         class="app-button__feedback"
         role="status"
       >
-        <PhSpinnerGap v-if="busy" class="app-button__spinner" :size="16" aria-hidden="true" />
-        <PhCheck v-else-if="activeState === 'success'" :size="16" aria-hidden="true" />
+        <CurveMark v-if="busy" variant="weave" :size="22" style="color: inherit" />
+        <CurveMark
+          v-else-if="activeState === 'success'"
+          motion="once"
+          :size="24"
+          style="color: inherit"
+          ><PhCheck :size="13" weight="bold"
+        /></CurveMark>
         <PhWarning v-else :size="16" aria-hidden="true" />
         <span>{{ feedback }}</span>
       </span>
@@ -208,14 +215,6 @@ const feedback = computed(() =>
 .app-button[data-state='error'] {
   color: var(--danger);
 }
-.app-button__spinner {
-  animation: button-spin 900ms linear infinite;
-}
-@keyframes button-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 .button-feedback-enter-active,
 .button-feedback-leave-active {
   transition:
@@ -234,9 +233,6 @@ const feedback = computed(() =>
   .app-button {
     transition: none;
     transform: none !important;
-  }
-  .app-button__spinner {
-    animation: none;
   }
   .button-feedback-enter-active,
   .button-feedback-leave-active {
