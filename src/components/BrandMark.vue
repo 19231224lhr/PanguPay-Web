@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import brandMarkMask from '@/assets/brand-mark-mask.png?inline'
+
+const asset = 'url(' + brandMarkMask + ')'
+
 withDefaults(
   defineProps<{
     label?: string
@@ -20,6 +24,7 @@ withDefaults(
     :aria-label="label"
     :style="{
       '--brand-size': `${size}px`,
+      '--brand-image': asset,
       viewTransitionName: transitionName || undefined,
     }"
   >
@@ -41,7 +46,7 @@ withDefaults(
   width: 100%;
   height: 100%;
   background: currentColor;
-  mask: url('/brand-mark-mask.png') center / contain no-repeat;
-  -webkit-mask: url('/brand-mark-mask.png') center / contain no-repeat;
+  mask: var(--brand-image) center / contain no-repeat;
+  -webkit-mask: var(--brand-image) center / contain no-repeat;
 }
 </style>
