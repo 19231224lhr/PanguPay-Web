@@ -158,7 +158,7 @@ async function returnHome(): Promise<void> {
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
-  padding-block: clamp(2.5rem, 6vh, 4rem) 2rem;
+  padding-block: clamp(64px, 10vh, 96px) 2rem;
   scrollbar-gutter: stable;
 }
 
@@ -256,7 +256,7 @@ async function returnHome(): Promise<void> {
 .wallet-access--compact .wallet-access__form {
   width: min(440px, 100%);
   align-content: safe center;
-  padding-block: 24px;
+  padding-block: clamp(64px, 10vh, 96px) 24px;
 }
 .wallet-access--compact :deep(.access-panel h1) {
   font-size: clamp(28px, 2.6vw, 36px);
@@ -281,7 +281,7 @@ async function returnHome(): Promise<void> {
 @media (max-width: 480px), (max-height: 650px) {
   .wallet-access--compact .wallet-access__form {
     align-content: start;
-    padding-block: 20px;
+    padding-block: 56px 20px;
   }
 }
 </style>
