@@ -12,7 +12,7 @@ import {
   PhStack,
   PhUsersThree,
 } from '@phosphor-icons/vue'
-import { computed, ref, type Component } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch, type Component } from 'vue'
 
 import AppButton from '@/components/AppButton.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
@@ -55,6 +55,40 @@ const exitBusy = ref(false)
 const exitError = ref('')
 const pendingExit = ref<(() => Promise<void>) | 'sync'>()
 const exitDecision = ref<{ allowed: boolean; reasons: string[] }>({ allowed: false, reasons: [] })
+
+interface MembershipResult {
+  action: 'join' | 'leave'
+  organization: { id: string; name?: string }
+}
+
+const awaitingMembership = shallowRef<MembershipResult>()
+const membershipNotice = shallowRef<MembershipResult>()
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
+function dismissMembershipNotice(): void {
+  clearTimeout(noticeTimer)
+  membershipNotice.value = undefined
+}
+
+watch([awaitingMembership, () => dashboard.snapshot], ([result, snapshot]) => {
+  if (!result || snapshot?.source !== 'live' || snapshot.accountId !== wallet.accountId) return
+  if (result.action === 'join') {
+    if (snapshot.organization?.id !== result.organization.id) return
+    pendingJoin.value = undefined
+  } else {
+    if (snapshot.organization) return
+    pendingExit.value = undefined
+    exitStage.value = 'idle'
+    selected.value = ''
+    void directory.refresh()
+  }
+  awaitingMembership.value = undefined
+  dismissMembershipNotice()
+  membershipNotice.value = result
+  noticeTimer = setTimeout(dismissMembershipNotice, 6500)
+})
+
+onBeforeUnmount(dismissMembershipNotice)
 
 const nodeGroupDefinitions: Array<{
   role: WalletEntryOrganizationNodeRole
@@ -137,8 +171,11 @@ async function join(): Promise<void> {
     if (typeof pending === 'function') await pending()
     else if (!pending) await service.join(groupId)
     pendingJoin.value = 'sync'
+    awaitingMembership.value = {
+      action: 'join',
+      organization: organizations.value.find((item) => item.id === groupId) ?? { id: groupId },
+    }
     await dashboard.sync(true)
-    if (dashboard.current.organization?.id === groupId) pendingJoin.value = undefined
   } catch (cause) {
     if (cause instanceof WalletEntryConfirmationPending) pendingJoin.value = cause.confirm
     else error.value = cause instanceof Error ? cause.message : wt('w81')
@@ -180,12 +217,11 @@ async function leaveOrganization(): Promise<void> {
     if (typeof pending === 'function') await pending()
     else if (!pending) await service.leave(current.id)
     pendingExit.value = 'sync'
+    awaitingMembership.value = {
+      action: 'leave',
+      organization: current.name === current.id ? { id: current.id } : current,
+    }
     await dashboard.sync(true)
-    if (dashboard.current.organization) return
-    pendingExit.value = undefined
-    exitStage.value = 'idle'
-    selected.value = ''
-    await directory.refresh()
   } catch (cause) {
     if (cause instanceof WalletEntryConfirmationPending) pendingExit.value = cause.confirm
     else exitError.value = cause instanceof Error ? cause.message : wt('w85')
@@ -202,6 +238,19 @@ async function leaveOrganization(): Promise<void> {
       <slot name="header-action" />
     </Teleport>
     <WalletPageHeader v-else :title="wt('w86')" :description="wt('w87')" />
+
+    <Teleport to="body">
+      <InlineNotice
+        v-if="membershipNotice"
+        class="organization-membership-notice"
+        tone="success"
+        :title="wt(membershipNotice.action === 'join' ? 'organizationJoinConfirmed' : 'organizationExitConfirmed')"
+        :action-label="wt('organizationDismissNotice')"
+        @action="dismissMembershipNotice"
+      >
+        {{ organizationLabel(membershipNotice.organization) }}
+      </InlineNotice>
+    </Teleport>
 
     <section v-if="dashboard.current.organization" class="member-organization">
       <header v-if="!$slots['header-action']" class="member-organization__hero">
@@ -372,6 +421,14 @@ async function leaveOrganization(): Promise<void> {
 <style scoped>
 .organization-page {
   width: min(1120px, 100%);
+}
+.organization-membership-notice {
+  position: fixed;
+  z-index: 90;
+  inset-block-start: max(16px, env(safe-area-inset-top));
+  inset-inline-end: max(16px, env(safe-area-inset-right));
+  width: min(22rem, calc(100% - 32px));
+  box-sizing: border-box;
 }
 .organization-chooser {
   display: grid;

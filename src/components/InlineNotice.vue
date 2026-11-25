@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { PhInfo as Info, PhWarningCircle as WarningCircle } from '@phosphor-icons/vue'
+import { PhCheck as Check, PhInfo as Info, PhWarningCircle as WarningCircle } from '@phosphor-icons/vue'
 import { computed } from 'vue'
 
 const props = withDefaults(
   defineProps<{
     actionLabel?: string
     title: string
-    tone?: 'info' | 'warning' | 'danger'
+    tone?: 'info' | 'success' | 'warning' | 'danger'
   }>(),
   { tone: 'info' },
 )
@@ -14,7 +14,8 @@ const props = withDefaults(
 const emit = defineEmits<{ action: [] }>()
 
 const role = computed(() => (props.tone === 'danger' ? 'alert' : 'status'))
-const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
+const icons = { info: Info, success: Check, warning: WarningCircle, danger: WarningCircle }
+const icon = computed(() => icons[props.tone])
 </script>
 
 <template>
@@ -49,6 +50,11 @@ const icon = computed(() => (props.tone === 'info' ? Info : WarningCircle))
 
 .inline-notice--warning {
   --notice-color: var(--warning);
+  --notice-mix: 4%;
+}
+
+.inline-notice--success {
+  --notice-color: var(--success);
   --notice-mix: 4%;
 }
 

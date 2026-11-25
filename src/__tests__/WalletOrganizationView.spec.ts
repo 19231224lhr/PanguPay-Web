@@ -238,12 +238,16 @@ describe('WalletOrganizationView', () => {
     await flushPromises()
     expect(service.leave).toHaveBeenCalledWith('10000000')
     expect(wrapper.text()).toContain('暂未收到退出结果')
+    expect(document.querySelector('.organization-membership-notice')).toBeNull()
     const retry = wrapper.findAll('button').find((button) => button.text() === '检查退出状态')
     await retry!.trigger('click')
     await flushPromises()
     expect(checkExitStatus).toHaveBeenCalledOnce()
     expect(service.leave).toHaveBeenCalledTimes(1)
     expect(wrapper.find('.organization-exit').exists()).toBe(false)
+    expect(document.querySelector('.organization-membership-notice')?.textContent).toContain(
+      '退出已确认',
+    )
     wrapper.unmount()
   })
 })
