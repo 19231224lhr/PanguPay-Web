@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { wt } from '@/i18n/walletText'
 
-import { PhLockKey as LockKey } from '@phosphor-icons/vue'
+import { PhLockKey as LockKey, PhSignOut as SignOut, PhSlidersHorizontal } from '@phosphor-icons/vue'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { AppShellItem } from './AppShell.vue'
@@ -11,44 +11,28 @@ const props = withDefaults(
     accountId?: string
     accountName?: string
     accountAvatar?: string
-    items?: AppShellItem[]
-    utilityItems?: AppShellItem[]
+    settingsItem?: AppShellItem
+    editCardsLabel?: string
     lockLabel?: string
+    signOutLabel?: string
     menuLabel?: string
-    itemsLabel?: string
-    mobileUtilityLabel?: string
     open: boolean
   }>(),
   {
     accountId: '',
     accountName: 'Wallet',
     accountAvatar: '',
-    items: () => [],
-    utilityItems: () => [],
     lockLabel: wt('w308'),
     menuLabel: wt('w354'),
-    itemsLabel: wt('w355'),
-    mobileUtilityLabel: wt('w356'),
   },
 )
 
-const emit = defineEmits<{ close: []; lock: [] }>()
+const emit = defineEmits<{ close: []; editCards: []; lock: []; signOut: [] }>()
 const panel = ref<HTMLElement>()
 
 let trigger: HTMLElement | undefined
 function menuItems() {
-  return Array.from(panel.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []).filter(
-    (item) => {
-      for (
-        let parent: HTMLElement | null = item;
-        parent && parent !== panel.value;
-        parent = parent.parentElement
-      ) {
-        if (getComputedStyle(parent).display === 'none' || parent.hidden) return false
-      }
-      return true
-    },
-  )
+  return Array.from(panel.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
 }
 watch(
   () => props.open,
@@ -62,6 +46,21 @@ watch(
 function close(restore = true): void {
   emit('close')
   if (restore) nextTick(() => trigger?.isConnected && trigger.focus({ preventScroll: true }))
+}
+
+function requestSignOut(): void {
+  close()
+  emit('signOut')
+}
+
+function requestLock(): void {
+  close(false)
+  emit('lock')
+}
+
+function requestCardEdit(): void {
+  close(false)
+  emit('editCards')
 }
 
 function onPointerDown(event: PointerEvent): void {
@@ -116,7 +115,7 @@ onBeforeUnmount(() => {
       role="menu"
       :aria-label="menuLabel"
     >
-      <header>
+      <header role="presentation">
         <span class="wallet-account-menu__avatar">
           <img v-if="accountAvatar" :src="accountAvatar" alt="" />
           <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
@@ -127,46 +126,36 @@ onBeforeUnmount(() => {
         </span>
       </header>
 
-      <nav
-        v-if="items.length"
-        class="wallet-account-menu__items"
-        data-account-items
-        :aria-label="itemsLabel"
-      >
+      <div class="wallet-account-menu__items" role="presentation">
         <RouterLink
-          v-for="item in items"
-          :key="item.to"
-          :to="item.to"
+          v-if="settingsItem"
+          :to="settingsItem.to"
+          :aria-current-value="settingsItem.current === false ? 'false' : 'page'"
           role="menuitem"
-          @click="close(false)"
+          @click="close()"
         >
-          <component :is="item.icon" :size="18" weight="regular" aria-hidden="true" />
-          <span>{{ item.label }}</span>
+          <component :is="settingsItem.icon" :size="18" weight="regular" aria-hidden="true" />
+          <span>{{ settingsItem.label }}</span>
         </RouterLink>
-      </nav>
-
-      <nav
-        v-if="utilityItems.length"
-        class="wallet-account-menu__mobile-utilities"
-        data-mobile-utilities
-        :aria-label="mobileUtilityLabel"
-      >
-        <RouterLink
-          v-for="item in utilityItems"
-          :key="item.to"
-          :to="item.to"
+        <button v-if="editCardsLabel" type="button" role="menuitem" @click="requestCardEdit">
+          <PhSlidersHorizontal :size="18" weight="regular" aria-hidden="true" />
+          <span>{{ editCardsLabel }}</span>
+        </button>
+        <button type="button" role="menuitem" @click="requestLock">
+          <LockKey :size="18" weight="regular" aria-hidden="true" />
+          <span>{{ lockLabel }}</span>
+        </button>
+        <button
+          v-if="signOutLabel"
+          type="button"
           role="menuitem"
-          @click="close(false)"
+          class="wallet-account-menu__sign-out"
+          @click="requestSignOut"
         >
-          <component :is="item.icon" :size="18" weight="regular" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </nav>
-
-      <button type="button" role="menuitem" :aria-label="lockLabel" @click="emit('lock')">
-        <LockKey :size="18" weight="regular" aria-hidden="true" />
-        <span>{{ lockLabel }}</span>
-      </button>
+          <SignOut :size="18" weight="regular" aria-hidden="true" />
+          <span>{{ signOutLabel }}</span>
+        </button>
+      </div>
     </section>
   </Transition>
 </template>
@@ -175,8 +164,8 @@ onBeforeUnmount(() => {
 .wallet-account-menu {
   position: fixed;
   z-index: 60;
-  top: 5.85rem;
-  left: 0.8rem;
+  bottom: var(--wallet-sidebar-block-inset, 1.35rem);
+  left: calc(var(--sidebar-width, 0px) + 6px);
   display: grid;
   width: min(248px, calc(100vw - 1.6rem));
   overflow: hidden;
@@ -186,7 +175,7 @@ onBeforeUnmount(() => {
   background: var(--menu-surface);
   box-shadow: var(--shadow-menu);
   backdrop-filter: blur(22px) saturate(145%);
-  transform-origin: 1.5rem 0;
+  transform-origin: left bottom;
 }
 
 header {
@@ -229,16 +218,13 @@ header small {
   place-items: center;
 }
 
-.wallet-account-menu__items,
-.wallet-account-menu__mobile-utilities {
+.wallet-account-menu__items {
   display: grid;
-  padding-block: 0.3rem;
-  border-block: 1px solid var(--hairline);
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--hairline);
 }
 
-.wallet-account-menu__items a,
-.wallet-account-menu__mobile-utilities a,
-button {
+.wallet-account-menu__items :is(a, button) {
   display: flex;
   min-height: 44px;
   align-items: center;
@@ -252,17 +238,11 @@ button {
   text-align: left;
 }
 
-.wallet-account-menu__items a:hover,
-.wallet-account-menu__mobile-utilities a:hover,
-button:hover {
+.wallet-account-menu__items :is(a, button):is(:hover, :focus-visible) {
   background: var(--surface-hover);
 }
 
-.wallet-account-menu__mobile-utilities {
-  display: none;
-}
-
-button {
+.wallet-account-menu__items .wallet-account-menu__sign-out {
   color: var(--danger);
 }
 
@@ -278,21 +258,16 @@ button {
 .account-menu-leave-to {
   opacity: 0;
   filter: blur(4px);
-  transform: translateY(-5px) scale(0.98);
+  transform: translateY(4px) scale(0.98);
 }
 
 @media (max-width: 767px) {
   .wallet-account-menu {
-    top: auto;
     right: 0.75rem;
     bottom: calc(78px + env(safe-area-inset-bottom));
     left: 0.75rem;
     width: auto;
     transform-origin: 85% 100%;
-  }
-
-  .wallet-account-menu__mobile-utilities {
-    display: grid;
   }
 }
 

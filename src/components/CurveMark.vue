@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LinkFlow from './LinkFlow.vue'
 import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from 'vue'
 
 // Original implementation of mathematical curves, inspired by Math Curve Loaders.
@@ -107,6 +108,13 @@ onMounted(() => {
   }
   paint()
 })
+watch(root, (element, previousRoot) => {
+  if (previousRoot) observer?.unobserve?.(previousRoot)
+  visible = false
+  circles = Array.from(trail.value?.querySelectorAll('circle') ?? [])
+  if (element) observer?.observe(element)
+  sync()
+}, { flush: 'post' })
 onBeforeUnmount(() => {
   stop()
   observer?.disconnect()
@@ -117,7 +125,8 @@ onBeforeUnmount(() => {
 
 <template>
   <span class="curve-mark" :style="{ width: `${size}px`, height: `${size}px` }" aria-hidden="true">
-    <svg ref="root" viewBox="0 0 100 100" focusable="false">
+    <LinkFlow v-if="variant === 'link' && motion === 'loop' && !$slots.default" />
+    <svg v-else ref="root" viewBox="0 0 100 100" focusable="false">
       <g ref="group">
         <path
           :d="path"

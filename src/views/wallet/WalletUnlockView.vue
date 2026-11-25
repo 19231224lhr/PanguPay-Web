@@ -11,8 +11,9 @@ import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
 
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
-import { unlockPhase, resetUnlockAnimation, revealUnlockedPage } from '@/composables/useEntryUnlock'
+import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
 import { useWalletStore } from '@/stores/wallet'
+import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { resolveWalletArrival } from '@/wallet/entryService'
 
 const router = useRouter()
@@ -38,7 +39,9 @@ async function unlock(): Promise<void> {
     await wallet.unlock(password.value)
     password.value = ''
     const destination = await resolveWalletArrival(wallet.accountId)
-    await revealUnlockedPage(() => router.replace(destination))
+    await navigateWithSpatialTransition(
+      router, destination, destination === '/wallet' ? 'wallet' : 'access', 'replace',
+    )
   } catch {
     resetUnlockAnimation()
     transitioning.value = false
@@ -55,7 +58,7 @@ async function unlock(): Promise<void> {
   <WalletAccessFrame figure="key" compact>
     <section class="access-panel">
       <div class="unlock-heading">
-        <CurveMark :size="42" />
+        <CurveMark variant="link" :size="42" />
         <h1>{{ wt('w286') }}</h1>
       </div>
       <p>{{ wt('w287') }}</p>

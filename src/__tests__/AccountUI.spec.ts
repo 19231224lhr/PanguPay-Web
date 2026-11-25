@@ -52,7 +52,12 @@ it.each(['zh-CN', 'en-US'] as const)(
     i18n.global.locale.value = locale
     const wallet = useWalletStore(),
       dashboard = useDashboardStore()
-    const clear = vi.spyOn(wallet, 'clearLocalWallet').mockResolvedValue()
+    let finishClearing!: () => void
+    const clear = vi.spyOn(wallet, 'clearLocalWallet')
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockImplementation(
+        () => new Promise<void>((resolve) => { finishClearing = resolve }),
+      )
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
       value: function (this: HTMLDialogElement) {
@@ -70,7 +75,7 @@ it.each(['zh-CN', 'en-US'] as const)(
     const reset = vi.spyOn(dashboard, 'reset')
     const wrapper = mount(WalletSettingsView, { global: { plugins: [pinia, i18n] } })
     expect(wrapper.find('[data-testid="sign-out"]').text()).toBe(
-      locale === 'en-US' ? 'Sign out' : '退出当前账户',
+      locale === 'en-US' ? 'Sign out' : '退出钱包',
     )
     await wrapper.find('[data-testid="sign-out"]').trigger('click')
     expect(clear).not.toHaveBeenCalled()
@@ -80,10 +85,27 @@ it.each(['zh-CN', 'en-US'] as const)(
     await wrapper.get('[data-testid=sign-out]').trigger('click')
     await wrapper.get('[data-testid=confirm-sign-out]').trigger('click')
     await flushPromises()
-    expect(clear).toHaveBeenCalledOnce()
-    expect(reset).toHaveBeenCalledOnce()
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      locale === 'en-US' ? 'Could not completely remove local wallet data. Please retry.' : '本地材料未能完全清除，请重试。',
+    )
+    expect(navigate).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid=confirm-sign-out]').trigger('click')
+    expect(wrapper.get('[role="status"]').text()).toBe(
+      locale === 'en-US' ? 'Removing wallet from this device…' : '正在清除本机钱包…',
+    )
+    expect(wrapper.find('[data-testid=confirm-sign-out]').exists()).toBe(false)
+    expect(navigate).not.toHaveBeenCalled()
+    finishClearing()
+    await flushPromises()
+    expect(clear).toHaveBeenCalledTimes(2)
+    expect(reset).toHaveBeenCalledTimes(2)
     expect(navigate).toHaveBeenCalledWith('/')
-    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(navigate.mock.invocationCallOrder[0]!)
+    expect(clear.mock.invocationCallOrder[1]).toBeLessThan(navigate.mock.invocationCallOrder[0]!)
+    expect(wrapper.get('[role="status"]').text()).toBe(
+      locale === 'en-US' ? 'Returning home…' : '正在返回首页…',
+    )
+    expect(wrapper.get('dialog').element.open).toBe(true)
+    sessionStorage.removeItem('pangupay.wallet-exit')
     wrapper.unmount()
   },
 )

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { wt } from '@/i18n/walletText'
+import { wt, wl } from '@/i18n/walletText'
 
 import {
+  PhArrowRight as ArrowRight,
   PhCheckCircle as CheckCircle,
   PhDownloadSimple as DownloadSimple,
   PhKey as Key,
+  PhLockKey as LockKey,
   PhUploadSimple as UploadSimple,
   PhWarningCircle as WarningCircle,
 } from '@phosphor-icons/vue'
@@ -13,10 +15,10 @@ import { useRouter } from 'vue-router'
 
 import CurveMark from '@/components/CurveMark.vue'
 import AppButton from '@/components/AppButton.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import FormField from '@/components/FormField.vue'
-import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
-import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
+import { resetUnlockAnimation } from '@/composables/useEntryUnlock'
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import { resolveWalletArrival } from '@/wallet/entryService'
@@ -37,12 +39,19 @@ const importValue = shallowRef<unknown>()
 const backupDownloaded = ref(false)
 const recoveryDownloaded = ref(false)
 const backupConfirmed = ref(false)
+const creating = ref(false)
+const continuing = ref(false)
+const panelStage = ref<HTMLElement>()
 const localError = ref('')
 const legacyScalar = ref('')
 const legacyRootSeed = ref('')
 const importStage = ref<'form' | 'verifying'>('form')
 const backupImportFailed = ref(false)
 const importPasswordField = ref<{ focus: () => void }>()
+
+function focusFailedImport(): void {
+  if (backupImportFailed.value) importPasswordField.value?.focus()
+}
 
 function newPasswordError(password: string, confirmation: string): string {
   if (password && new TextEncoder().encode(password).length < 12) return wt('w240')
@@ -85,6 +94,26 @@ watch([mode, importMethod], () => {
   wallet.clearError()
 })
 
+// Move the alternative action along with the form, even when a second switch
+// interrupts the first. Form controls themselves retain their natural size.
+let formResize: Animation | undefined
+watch([mode, importMethod, backupDownloaded], async (_next, _previous, onCleanup) => {
+  const stage = panelStage.value
+  if (!stage || !stage.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const before = stage.getBoundingClientRect().height
+  formResize?.cancel()
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
+  await nextTick()
+  if (cancelled || !stage.isConnected) return
+  const after = stage.getBoundingClientRect().height
+  if (Math.abs(before - after) < 1) return
+  formResize = stage.animate(
+    [{ height: before + 'px' }, { height: after + 'px' }],
+    { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  )
+})
+
 function downloadJSON(value: unknown, fileName: string): void {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -96,9 +125,12 @@ function downloadJSON(value: unknown, fileName: string): void {
 }
 
 async function createWallet(): Promise<void> {
+  if (creating.value || wallet.busy || backupDownloaded.value) return
   localError.value = ''
   if (createPasswordError.value || !createPasswordConfirm.value) return
+  creating.value = true
   try {
+    await paintPendingState()
     const envelope = await wallet.create(createPassword.value)
     const recoveryKit = wallet.exportRecoveryKit()
     downloadJSON(envelope, 'wallet.json')
@@ -108,26 +140,25 @@ async function createWallet(): Promise<void> {
   } catch (cause) {
     resetUnlockAnimation()
     localError.value = cause instanceof Error ? cause.message : wt('w251')
+  } finally {
+    creating.value = false
   }
 }
 
-async function enterCreatedWallet(): Promise<void> {
-  unlockPhase.value = 'loading'
+async function continueAfterBackup(): Promise<void> {
+  if (continuing.value || !backupConfirmed.value) return
+  continuing.value = true
   localError.value = ''
   try {
     await wallet.confirmCreatedWallet()
     createPassword.value = ''
     createPasswordConfirm.value = ''
-    const destination = await resolveWalletArrival(wallet.accountId)
-    await navigateWithSpatialTransition(
-      router,
-      destination,
-      destination === '/wallet' ? 'wallet' : 'access',
-      'replace',
-    )
+    await navigateWithSpatialTransition(router, '/wallet/entry', 'access', 'replace')
   } catch (cause) {
     resetUnlockAnimation()
     localError.value = cause instanceof Error ? cause.message : wt('w252')
+  } finally {
+    continuing.value = false
   }
 }
 
@@ -147,8 +178,7 @@ async function readFile(event: Event): Promise<void> {
   }
 }
 
-async function showVerificationStage(): Promise<void> {
-  importStage.value = 'verifying'
+async function paintPendingState(): Promise<void> {
   await nextTick()
   await new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
@@ -156,6 +186,7 @@ async function showVerificationStage(): Promise<void> {
 }
 
 async function importWallet(): Promise<void> {
+  if (wallet.busy || importStage.value !== 'form') return
   localError.value = ''
   wallet.clearError()
   backupImportFailed.value = false
@@ -165,8 +196,8 @@ async function importWallet(): Promise<void> {
     localError.value = !importValue.value ? wt('w254') : wt('w255')
     return
   }
-  await showVerificationStage()
-  unlockPhase.value = 'loading'
+  importStage.value = 'verifying'
+  await paintPendingState()
   try {
     if (importMethod.value === 'keys') {
       await wallet.importLegacy(
@@ -196,13 +227,14 @@ async function importWallet(): Promise<void> {
     }
     importStage.value = 'form'
     await nextTick()
-    if (importMethod.value === 'backup') importPasswordField.value?.focus()
+    focusFailedImport()
   }
 }
 </script>
 
 <template>
   <WalletAccessFrame
+    class="wallet-setup"
     compact
     :figure="
       importStage === 'verifying'
@@ -216,7 +248,7 @@ async function importWallet(): Promise<void> {
               : 'import'
     "
   >
-    <Transition name="verification-stage" mode="out-in">
+    <Transition name="verification-stage" mode="out-in" @after-enter="focusFailedImport">
       <section
         v-if="importStage === 'verifying'"
         key="verifying"
@@ -224,10 +256,9 @@ async function importWallet(): Promise<void> {
         aria-live="polite"
         aria-busy="true"
       >
-        <span class="verification-eyebrow"> {{ wt('w258') }} </span>
         <div class="verification-heading">
-          <CurveMark variant="weave" :size="44" />
           <h1>{{ verificationTitle }}</h1>
+          <CurveMark variant="link" :size="36" />
         </div>
         <p>{{ verificationDescription }}</p>
         <small> {{ wt('w259') }} </small>
@@ -235,29 +266,22 @@ async function importWallet(): Promise<void> {
 
       <section v-else key="form" class="access-panel">
         <div class="setup-copy" aria-live="polite">
-          <Transition name="setup-copy" mode="out-in">
-            <div :key="`${mode}:${importMethod}`" class="setup-copy__content">
+          <Transition name="setup-copy">
+            <div
+              :key="backupDownloaded ? 'backup-ready' : `${mode}:${importMethod}`"
+              class="setup-copy__content"
+            >
               <h1>{{ setupTitle }}</h1>
               <p v-if="setupDescription" class="setup-copy__description">{{ setupDescription }}</p>
             </div>
           </Transition>
         </div>
 
-        <SegmentedControl
-          v-if="!backupDownloaded"
-          v-model="mode"
-          :label="wt('w260')"
-          :options="[
-            { label: wt('w261'), value: 'create' },
-            { label: wt('w262'), value: 'import' },
-          ]"
-        />
-
-        <div class="setup-panel-stage">
-          <Transition name="setup-panel" mode="out-in">
+        <div ref="panelStage" class="setup-panel-stage">
+          <Transition name="setup-panel">
             <form
               v-if="mode === 'create'"
-              key="create"
+              :key="backupDownloaded ? 'backup-ready' : 'create'"
               class="access-form"
               data-setup-panel="create"
               @submit.prevent="createWallet"
@@ -265,27 +289,40 @@ async function importWallet(): Promise<void> {
               <div v-if="!backupDownloaded" class="password-pair">
                 <FormField
                   id="create-password"
+                  :readonly="creating"
                   v-model="createPassword"
                   :label="wt('w263')"
                   type="password"
                   autocomplete="new-password"
-                  :help="wt('w264')"
-                  :error="createPasswordError"
+                  described-by="create-password-guidance"
+                  :invalid="!!createPasswordError"
                 />
                 <FormField
                   id="create-password-confirm"
+                  :readonly="creating"
                   v-model="createPasswordConfirm"
                   :label="wt('w265')"
                   type="password"
                   autocomplete="new-password"
-                  :error="createPasswordError"
+                  described-by="create-password-guidance"
+                  :invalid="!!createPasswordError"
                 />
+                <p
+                  id="create-password-guidance"
+                  class="password-pair__guidance"
+                  :class="{ 'password-pair__guidance--error': createPasswordError }"
+                  :role="createPasswordError ? 'alert' : undefined"
+                >
+                  {{ createPasswordError || wt('w264') }}
+                </p>
               </div>
               <AppButton
                 v-if="!backupDownloaded"
+                class="setup-action"
                 type="submit"
                 size="large"
-                :loading="wallet.busy"
+                :loading="creating"
+                :loading-label="wt('setupCreatingWallet')"
                 :disabled="!!createPasswordError || !createPasswordConfirm"
               >
                 {{ wt('w266') }} <template #icon><DownloadSimple :size="18" /></template>
@@ -315,13 +352,14 @@ async function importWallet(): Promise<void> {
               </label>
               <AppButton
                 v-if="backupDownloaded"
+                class="setup-action"
                 size="large"
                 variant="secondary"
                 :disabled="!recoveryDownloaded || !backupConfirmed"
-                :loading="wallet.busy"
-                @click="enterCreatedWallet"
+                :loading="continuing"
+                @click="continueAfterBackup"
               >
-                {{ wt('w272') }}
+                {{ wt('w272') }} <template #icon><ArrowRight :size="17" /></template>
               </AppButton>
             </form>
 
@@ -332,16 +370,21 @@ async function importWallet(): Promise<void> {
               data-setup-panel="import"
               @submit.prevent="importWallet"
             >
-              <SegmentedControl
-                v-model="importMethod"
-                :label="wt('w273')"
-                :options="[
-                  { label: 'wallet.json', value: 'backup' },
-                  { label: wt('w274'), value: 'keys' },
-                ]"
-              />
+              <div class="import-source">
+                <span aria-hidden="true">{{ wt('w273') }}</span>
+                <AppSelect
+                  id="wallet-import-source"
+                  v-model="importMethod"
+                  inline
+                  :label="wt('w273')"
+                  :options="[
+                    { label: 'wallet.json', value: 'backup' },
+                    { label: wt('w274'), value: 'keys' },
+                  ]"
+                />
+              </div>
 
-              <Transition name="setup-subpanel" mode="out-in">
+              <Transition name="setup-subpanel">
                 <div v-if="importMethod === 'backup'" key="backup" class="setup-import-panel">
                   <label class="file-picker" :class="{ 'file-picker--selected': importValue }">
                     <input
@@ -354,9 +397,7 @@ async function importWallet(): Promise<void> {
                     <UploadSimple v-else :size="20" />
                     <span class="file-picker__copy">
                       <strong>{{ fileName || wt('w275') }}</strong>
-                      <small>
-                        {{ importValue ? wt('w276') : wt('w277') }}
-                      </small>
+                      <small v-if="importValue">{{ wt('w276') }}</small>
                     </span>
                   </label>
                   <FormField
@@ -366,23 +407,24 @@ async function importWallet(): Promise<void> {
                     :label="wt('w278')"
                     type="password"
                     autocomplete="current-password"
-                    :help="wt('w279')"
                     :invalid="backupImportFailed"
                     described-by="import-feedback"
                   />
                   <AppButton
+                    class="setup-action"
                     type="submit"
                     size="large"
                     :loading="wallet.busy"
                     :disabled="!importValue || !backupPassword"
                   >
                     {{ wt('w280') }}
+                    <template #icon><ArrowRight :size="17" /></template>
                   </AppButton>
                   <div id="import-feedback" class="import-feedback">
                     <Transition name="import-error">
                       <span v-if="backupImportFailed || localError" role="alert">
                         <WarningCircle :size="16" weight="regular" />
-                        {{ localError }}
+                        {{ wl(localError) }}
                       </span>
                     </Transition>
                   </div>
@@ -422,6 +464,7 @@ async function importWallet(): Promise<void> {
                     />
                   </div>
                   <AppButton
+                    class="setup-action"
                     type="submit"
                     size="large"
                     :loading="wallet.busy"
@@ -433,6 +476,7 @@ async function importWallet(): Promise<void> {
                     "
                   >
                     {{ wt('w284') }}
+                    <template #icon><ArrowRight :size="17" /></template>
                   </AppButton>
                 </div>
               </Transition>
@@ -445,8 +489,15 @@ async function importWallet(): Promise<void> {
           class="access-error"
           role="alert"
         >
-          {{ localError || wt('w285') }}
+          {{ wl(localError) || wt('w285') }}
         </p>
+        <div v-if="!backupDownloaded" class="setup-alternative">
+          <span>{{ mode === 'create' ? wt('setupAlreadyHaveWallet') : wt('setupNeedWallet') }}</span>
+          <button type="button" :disabled="creating || wallet.busy" @click="mode = mode === 'create' ? 'import' : 'create'">
+            {{ mode === 'create' ? wt('w262') : wt('w261') }}
+            <ArrowRight :size="15" aria-hidden="true" />
+          </button>
+        </div>
       </section>
     </Transition>
   </WalletAccessFrame>
@@ -459,6 +510,16 @@ async function importWallet(): Promise<void> {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+.password-pair__guidance {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.password-pair__guidance--error {
+  color: var(--danger);
+}
 @media (max-width: 380px) {
   .password-pair {
     grid-template-columns: 1fr;
@@ -468,6 +529,24 @@ async function importWallet(): Promise<void> {
 .access-panel {
   display: grid;
   gap: 0;
+}
+
+.setup-copy,
+.setup-panel-stage,
+.import-form {
+  position: relative;
+}
+
+.setup-copy-leave-active,
+.setup-panel-leave-active,
+.setup-subpanel-leave-active {
+  position: absolute;
+  inset-inline: 0;
+}
+
+.setup-subpanel-leave-active {
+  bottom: auto;
+  grid-row: 2;
 }
 
 .setup-copy {
@@ -490,13 +569,77 @@ async function importWallet(): Promise<void> {
   line-height: 1.55;
 }
 
-.setup-copy + .segmented-control,
 .setup-panel-stage {
-  margin-top: 1rem;
+  margin-top: 1.4rem;
 }
 
-.segmented-control {
-  width: 100%;
+.setup-alternative {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.setup-alternative button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 44px;
+  padding: 0 0.2rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.setup-alternative button:hover { text-decoration: underline; text-underline-offset: 4px; }
+.setup-alternative button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.setup-alternative button:disabled { opacity: 0.55; cursor: wait; }
+
+.import-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.import-source > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.import-source :deep(.app-select__menu li) {
+  text-transform: none;
+}
+
+#app .setup-action {
+  justify-self: start;
+  min-inline-size: min(11rem, 100%);
+  max-inline-size: 100%;
+  border-radius: 10px;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+#app .setup-action:disabled:not([aria-busy="true"]) {
+  opacity: 1;
+  background: var(--surface-subtle);
+  color: var(--text-faint);
+  border-color: var(--hairline);
+}
+
+@media (max-width: 480px) {
+  #app .setup-action {
+    inline-size: 100%;
+  }
 }
 
 .setup-import-panel {
@@ -506,7 +649,6 @@ async function importWallet(): Promise<void> {
 
 .verification-panel {
   align-content: center;
-  min-height: 280px;
   justify-items: start;
 }
 
@@ -520,15 +662,7 @@ async function importWallet(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 12px;
 }
-.verification-panel h1 {
-  margin-top: 0;
-  font-size: clamp(28px, 2.6vw, 36px);
-  letter-spacing: -0.065em;
-  line-height: 0.98;
-}
-
 .verification-panel p {
   margin-top: 0.9rem;
   color: var(--text-muted);
@@ -541,16 +675,8 @@ async function importWallet(): Promise<void> {
   font-size: 0.75rem;
 }
 
-.verification-eyebrow {
-  margin-top: 0;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-}
-
-.import-feedback {
-  min-height: 34px;
+.import-feedback:empty {
+  display: none;
 }
 
 .import-feedback > span {
@@ -598,6 +724,7 @@ async function importWallet(): Promise<void> {
 .setup-copy-leave-active,
 .setup-panel-leave-active,
 .setup-subpanel-leave-active {
+  pointer-events: none;
   will-change: opacity, transform;
   transition:
     opacity 90ms ease-out,
@@ -608,7 +735,7 @@ async function importWallet(): Promise<void> {
 .setup-panel-enter-from,
 .setup-subpanel-enter-from {
   opacity: 0;
-  transform: translateY(5px);
+  transform: translateY(8px);
 }
 
 .setup-copy-leave-to,
@@ -619,15 +746,16 @@ async function importWallet(): Promise<void> {
 }
 
 .file-picker {
+  position: relative;
   display: flex;
-  min-height: 64px;
+  min-height: 48px;
   align-items: center;
   justify-content: flex-start;
   gap: 0.65rem;
-  padding-inline: 1rem;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  padding: 0.72rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
   cursor: pointer;
   color: var(--text-muted);
   transition:
@@ -638,6 +766,9 @@ async function importWallet(): Promise<void> {
 
 .file-picker input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
   pointer-events: none;
 }
@@ -645,6 +776,11 @@ async function importWallet(): Promise<void> {
 .file-picker:hover {
   border-color: var(--accent);
   color: var(--text);
+}
+
+.file-picker:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus);
 }
 
 .file-picker--selected {

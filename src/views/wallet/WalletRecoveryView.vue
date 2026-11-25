@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { wt } from '@/i18n/walletText'
+import { wt, wl } from '@/i18n/walletText'
 
 import { PhArrowLeft as ArrowLeft, PhUploadSimple as UploadSimple } from '@phosphor-icons/vue'
 import { computed, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
-import WalletRemovalDialog from '@/components/WalletRemovalDialog.vue'
+import WalletSignOutDialog from '@/components/WalletSignOutDialog.vue'
 import FormField from '@/components/FormField.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -54,17 +54,6 @@ async function recoverWallet(): Promise<void> {
   }
 }
 
-async function clearLocalWallet(): Promise<void> {
-  localError.value = ''
-  try {
-    dashboard.reset()
-    await wallet.clearLocalWallet()
-    // A fresh document also releases all in-memory signing and monitoring state.
-    window.location.replace(import.meta.env.BASE_URL)
-  } catch (cause) {
-    localError.value = cause instanceof Error ? cause.message : wt('w161')
-  }
-}
 </script>
 
 <template>
@@ -112,23 +101,17 @@ async function clearLocalWallet(): Promise<void> {
         </AppButton>
       </form>
 
-      <p v-if="localError" class="recovery-error" role="alert">{{ localError }}</p>
+      <p v-if="localError" class="recovery-error" role="alert">{{ wl(localError) }}</p>
 
       <div class="recovery-footer">
-        <AppButton class="clear-wallet-entry" variant="ghost" @click="revealClear = true">
+        <AppButton class="clear-wallet-entry" variant="ghost" :disabled="wallet.busy" @click="revealClear = true">
           {{ wt('w170') }}
         </AppButton>
         <RouterLink class="back-link" to="/wallet/unlock">
           <ArrowLeft :size="16" /> {{ wt('w171') }}
         </RouterLink>
       </div>
-      <WalletRemovalDialog
-        :open="revealClear"
-        :busy="wallet.busy"
-        :error="localError"
-        @close="revealClear = false"
-        @confirm="clearLocalWallet"
-      />
+      <WalletSignOutDialog v-model:open="revealClear" />
     </section>
   </WalletAccessFrame>
 </template>
@@ -203,10 +186,6 @@ async function clearLocalWallet(): Promise<void> {
 }
 
 @media (min-width: 901px) and (max-height: 820px) {
-  .recovery-panel h1 {
-    font-size: 2.25rem;
-  }
-
   .recovery-panel :deep(.form-field) {
     gap: 0.36rem;
   }

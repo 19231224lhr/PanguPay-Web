@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { wt, wl } from '@/i18n/walletText'
+import { groupedPledgeAmount } from '@/i18n/pledgeAmount'
+import { wCount, organizationLabel, wt, wl } from '@/i18n/walletText'
 
 import {
   PhArrowClockwise as ArrowClockwise,
@@ -69,7 +70,9 @@ const nodeGroupDefinitions: Array<{
   },
   {
     role: 'guarantor',
-    title: 'GuarNode',
+    get title() {
+      return wt('w93')
+    },
     get description() {
       return wt('w73')
     },
@@ -96,14 +99,6 @@ function nodeStatus(status?: string): string {
   return status
 }
 
-function groupedAmount(value?: string): string {
-  if (!value) return wt('w74')
-  const [integer, fraction] = value.split('.', 2)
-  const sign = integer?.startsWith('-') ? '-' : ''
-  const digits = (integer ?? '').replace(/^-/, '')
-  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${sign}${grouped}${fraction === undefined ? '' : `.${fraction}`} CAL`
-}
 
 function close(): void {
   emit('close')
@@ -145,13 +140,13 @@ onBeforeUnmount(() => {
           /></CurveMark>
           <div>
             <p>{{ wt('w86') }}</p>
-            <h2 id="organization-detail-title">{{ organization?.name || wt('w319') }}</h2>
+            <h2 id="organization-detail-title">{{ organizationLabel(organization) || wt('w319') }}</h2>
           </div>
         </div>
         <IconButton :label="wt('w320')" @click="close"><X :size="18" /></IconButton>
       </header>
 
-      <div v-if="busy" class="organization-dialog__loading" role="status" aria-live="polite">
+      <div v-if="busy && !detail" class="organization-dialog__loading" role="status" aria-live="polite">
         <div class="organization-dialog__loading-title"><CurveMark variant="link" :size="36" /><strong>{{ wt('w321') }}</strong></div>
         <small> {{ wt('w322') }} </small>
       </div>
@@ -160,14 +155,14 @@ onBeforeUnmount(() => {
         <WarningCircle :size="22" />
         <div>
           <strong> {{ wt('w323') }} </strong>
-          <small>{{ wl(error) }}</small>
+          <small>{{ detail ? wt('networkCachedData') : wl(error) }}</small>
         </div>
-        <AppButton variant="secondary" @click="emit('retry')">
+        <AppButton variant="secondary" :disabled="busy" @click="emit('retry')">
           <template #icon><ArrowClockwise :size="16" /></template> {{ wt('w324') }}
         </AppButton>
       </div>
 
-      <template v-else-if="detail">
+      <template v-if="detail">
         <section class="organization-dialog__services" :aria-label="wt('w325')">
           <span><CheckCircle :size="16" weight="fill" /> {{ wt('w48') }} </span>
           <span><CheckCircle :size="16" weight="fill" /> {{ wt('w326') }} </span>
@@ -176,15 +171,15 @@ onBeforeUnmount(() => {
         <dl class="organization-dialog__metrics">
           <div>
             <dt>{{ wt('w92') }}</dt>
-            <dd>{{ groupedAmount(detail.pledgeAmount) }}</dd>
+            <dd>{{ groupedPledgeAmount(detail.pledgeAmount) }}</dd>
           </div>
           <div>
             <dt>{{ wt('w327') }}</dt>
-            <dd>{{ detail.guarantorCount }} {{ wt('w328') }}</dd>
+            <dd>{{ detail.guarantorCount }} {{ wCount('w328', detail.guarantorCount) }}</dd>
           </div>
           <div>
             <dt>{{ wt('w329') }}</dt>
-            <dd>{{ detail.certifierCount }} {{ wt('w330') }}</dd>
+            <dd>{{ detail.certifierCount }} {{ wCount('w330', detail.certifierCount) }}</dd>
           </div>
         </dl>
 

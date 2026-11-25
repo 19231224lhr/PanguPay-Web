@@ -1,4 +1,4 @@
-/* oxlint-disable vitest/no-conditional-expect -- Shared cases explicitly test both worker and synchronous delivery. */
+/* oxlint-disable vitest/no-conditional-expect -- Shared cases explicitly test worker and local geometry delivery. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildShape,
@@ -6,6 +6,29 @@ import {
   type EntryShape,
   type Particle,
 } from '@/graphics/entryParticles'
+
+// Fixed, visible particle identities let us compare the same dot across consecutive frames.
+vi.mock('@/graphics/entryShapeGeometry', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/graphics/entryShapeGeometry')>()
+  const positions = { brand: 0, wallet: -90, key: 85, import: 40, create: -40, organization: 55, shield: -55 }
+  const fixture = (shape: EntryShape): Particle[] =>
+    Array.from({ length: 12 }, (_, i) => ({
+      x: positions[shape] + i,
+      y: i * 2,
+      z: 1,
+      radius: 1,
+      alpha: 1,
+      group: 0,
+    }))
+  return {
+    ...original,
+    buildShape: fixture,
+    *buildShapeRows(shape: EntryShape) {
+      yield
+      return fixture(shape)
+    },
+  }
+})
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -108,7 +131,9 @@ describe('entry particle scene continuity', () => {
             ),
           ),
         ).toBeLessThan(0.0001)
-        for (let time = 4040; time <= 5360; time += 40) callback(time)
+        for (let time = 4040; time <= 5320; time += 40) callback(time)
+        const preceding = dots
+        callback(5360)
         const interrupted = dots
         scene.setShape('wallet')
         await Promise.resolve()
@@ -121,6 +146,21 @@ describe('entry particle scene continuity', () => {
             ),
           ),
         ).toBeLessThan(0.0001)
+        callback(5368)
+        // A rapid second click preserves the current direction and speed on its first frame.
+        const prior = interrupted[0]![0]! - preceding[0]![0]!
+        const after = dots[0]![0]! - interrupted[0]![0]!
+        expect(Math.abs(prior)).toBeGreaterThan(1)
+        expect(after / 0.008 / (prior / 0.04)).toBeCloseTo(1, 1)
+
+        scene.setShape('brand')
+        worker?.deliver('brand')
+        callback(5368)
+        for (let frame = 1; frame <= 65; frame++) {
+          callback(5368 + frame * 40)
+          if (frame === 25) expect(Number(canvas.dataset.progress)).toBeCloseTo(1 / 2.6, 2)
+        }
+        expect(canvas.dataset.progress).toBe('1.00')
       } finally {
         scene.destroy()
         if (worker) expect(worker.terminate).toHaveBeenCalledOnce()

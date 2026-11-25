@@ -41,7 +41,7 @@ defineExpose({ focus })
 <template>
   <div class="form-field" :class="{ 'form-field--error': error || invalid }">
     <label :for="id">{{ label }}</label>
-    <div class="form-field__control">
+    <div class="form-field__control" :class="{ 'form-field__control--password': type === 'password' }">
       <input
         ref="input"
         :id="id"
@@ -108,6 +108,32 @@ input {
   outline: 0;
   background: transparent;
   color: var(--text);
+}
+
+/* Password managers paint the input itself, including while previewing a suggestion. */
+.form-field__control--password {
+  position: relative;
+  align-items: stretch;
+  overflow: hidden;
+  padding-inline: 0;
+}
+.form-field__control--password input {
+  flex: 1;
+  padding-inline: 0.82rem;
+  border-radius: calc(var(--radius-md) - 1px);
+  caret-color: var(--text);
+}
+.form-field__control--password input:is(:autofill, :-webkit-autofill) {
+  box-shadow: inset 0 0 0 100vmax var(--surface-raised);
+  -webkit-text-fill-color: var(--text);
+}
+.form-field__control--password::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inherit;
+  pointer-events: none;
+  content: '';
 }
 
 input::placeholder {

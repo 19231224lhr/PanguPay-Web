@@ -1,23 +1,15 @@
 /// <reference lib="webworker" />
 
-import { decryptWalletEnvelope } from '@/wallet/keystore'
-import type { WalletKeystoreEnvelope } from '@/wallet/types'
+import { createEncryptedWallet, openWalletEnvelope } from '@/wallet/keystore'
+import type { WalletWorkerRequest } from '@/wallet/unlockWorker'
 
-interface UnlockRequest {
-  envelope: WalletKeystoreEnvelope
-  password: string
-}
-
-self.onmessage = async (event: MessageEvent<UnlockRequest>) => {
+self.onmessage = async ({ data }: MessageEvent<WalletWorkerRequest>) => {
   try {
-    const record = await decryptWalletEnvelope(event.data.envelope, event.data.password)
-    self.postMessage({ ok: true, record })
+    const value = data.operation === 'create'
+      ? await createEncryptedWallet(data.password)
+      : await openWalletEnvelope(data.envelope, data.password)
+    self.postMessage({ ok: true, value })
   } catch (cause) {
-    self.postMessage({
-      ok: false,
-      error: cause instanceof Error ? cause.message : 'wallet unlock failed',
-    })
+    self.postMessage({ ok: false, error: cause instanceof Error ? cause.message : `wallet ${data.operation} failed` })
   }
 }
-
-export {}

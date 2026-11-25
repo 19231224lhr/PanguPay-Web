@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
-import BrandMark from '@/components/BrandMark.vue'
 
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
@@ -32,13 +31,6 @@ async function enterWallet(): Promise<void> {
 
 <template>
   <main class="landing">
-    <header class="landing__header">
-      <RouterLink to="/" class="landing__brand" aria-label="PanguPay home">
-        <BrandMark :size="34" transition-name="pangu-mobile-brand" />
-        <span>PanguPay</span>
-      </RouterLink>
-    </header>
-
     <section class="landing__hero">
       <svg
         class="landing__signal-bridge"
@@ -105,32 +97,19 @@ async function enterWallet(): Promise<void> {
   display: grid;
   min-height: 100dvh;
   overflow: hidden;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  padding: max(1.15rem, env(safe-area-inset-top)) clamp(1rem, 4vw, 4rem)
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: calc(var(--entry-top, 1rem) + var(--entry-header-height, 44px))
+    var(--entry-gutter, 1.125rem)
     max(1.1rem, env(safe-area-inset-bottom));
   isolation: isolate;
-}
-
-.landing__header {
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.landing__brand {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 0.68rem;
-  font-size: 1rem;
-  font-weight: 730;
-  letter-spacing: -0.04em;
 }
 
 .landing__hero {
   position: relative;
   display: grid;
+  min-width: 0;
+  width: min(var(--entry-content-width, 1380px), 100%);
+  margin-inline: auto;
   min-height: 0;
   align-items: center;
   grid-template-columns: minmax(340px, 0.88fr) minmax(460px, 1.12fr);
@@ -165,6 +144,8 @@ async function enterWallet(): Promise<void> {
 
 .landing__copy {
   z-index: 2;
+  min-width: 0;
+  container-type: inline-size;
   max-width: 700px;
   padding-block: 3rem;
   animation: page-enter var(--duration-enter) var(--ease-standard) both;
@@ -202,6 +183,14 @@ h1 {
   line-height: 0.94;
 }
 
+.landing__value-line:lang(en) {
+  font-size: min(1em, 18cqi);
+}
+
+.landing__value-line:is(:lang(fr), :lang(es)) {
+  font-size: min(1em, 14cqi);
+}
+
 .landing__actions {
   display: flex;
   flex-wrap: wrap;
@@ -209,7 +198,7 @@ h1 {
   margin-top: clamp(2.25rem, 4.4vh, 3.5rem);
 }
 
-.landing__actions :deep(.app-button) {
+#app .landing__actions :deep(.app-button) {
   min-width: 176px;
   min-height: 56px;
   justify-content: space-between;
@@ -219,16 +208,16 @@ h1 {
   background: var(--action-frosted);
   box-shadow: var(--action-frosted-shadow);
   color: var(--text);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
   backdrop-filter: blur(22px) saturate(150%);
   transition:
     background var(--duration-state) var(--ease-standard),
     border-color var(--duration-state) var(--ease-standard),
     box-shadow var(--duration-state) var(--ease-standard),
     transform var(--duration-press) var(--ease-press);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
 }
 
-.landing__actions :deep(.app-button:hover) {
+#app .landing__actions :deep(.app-button:hover) {
   background: var(--action-frosted-hover);
 }
 
@@ -299,7 +288,7 @@ h1 {
   }
 
   .landing__hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 
@@ -324,10 +313,6 @@ h1 {
 }
 
 @media (max-width: 599px) {
-  .landing {
-    padding-inline: 1rem;
-  }
-
   .landing__copy {
     padding-top: 3rem;
   }
@@ -355,16 +340,16 @@ h1 {
     display: block;
   }
 
-  .landing__actions :deep(.app-button) {
+  #app .landing__actions :deep(.app-button) {
     width: 100%;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .landing__actions :deep(.app-button) {
+  #app .landing__actions :deep(.app-button) {
     background: var(--surface-raised);
-    backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

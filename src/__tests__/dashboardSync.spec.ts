@@ -1,3 +1,4 @@
+import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,8 @@ const gateway = vi.hoisted(() => ({
   pollCrossOrganizationTXCers: vi.fn<(groupID: string, accountID: string) => Promise<unknown>>(),
   groupInfo: vi.fn<(groupID: string) => Promise<unknown>>(),
   certifiers: vi.fn<(groupID: string) => Promise<unknown>>(),
+  gqncStatus: vi.fn<() => Promise<unknown>>(),
+  gqncCertifiedBlock: vi.fn<(height: number) => Promise<unknown>>(),
 }))
 
 const repository = vi.hoisted(() => ({
@@ -31,6 +34,8 @@ vi.mock('@/services/gatewayClient', () => ({
     pollCrossOrganizationTXCers = gateway.pollCrossOrganizationTXCers
     groupInfo = gateway.groupInfo
     certifiers = gateway.certifiers
+    gqncStatus = gateway.gqncStatus
+    gqncCertifiedBlock = gateway.gqncCertifiedBlock
   },
 }))
 
@@ -45,7 +50,11 @@ vi.mock('@/wallet/repository', () => ({
 
 import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
+import { createWalletNetwork } from '@/composables/useWalletNetwork'
+import WalletActivityView from '@/views/wallet/WalletActivityView.vue'
 import { buildDashboardSnapshot } from '@/wallet/dashboard'
+import * as credentials from '@/wallet/credentials'
+import { wt } from '@/i18n/walletText'
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -171,6 +180,187 @@ describe('dashboard fast synchronization', () => {
     issuance.resolve({ records: [] })
     deliveries.resolve([])
     await flushPromises()
+  })
+
+  it('restores settled receipts from Assign account updates after their blocks leave the recent feed', async () => {
+    const ordinaryID = 'a'.repeat(64)
+    const quickID = 'b'.repeat(64)
+    const changeID = 'c'.repeat(64)
+    const liveID = 'e'.repeat(64)
+    const output = { ToAddress: 'address-1', ToValue: '1.25', Type: 0 }
+    const ordinary = {
+      TXID: ordinaryID,
+      TXType: 8,
+      TXInputsNormal: [{ FromAddress: 'external-sender' }],
+      TXOutputs: [output],
+    }
+    const quick = {
+      TXID: quickID,
+      TXType: 1,
+      TXInputsCertificate: [{ ToAddress: 'external-sender' }],
+      TXOutputs: [output, { ...output, ToValue: '0.5' }],
+    }
+    const change = {
+      TXID: changeID,
+      TXType: 1,
+      TXInputsCertificate: [{ ToAddress: 'address-1' }],
+      TXOutputs: [output],
+    }
+    gateway.txCerStatuses.mockResolvedValue({ statuses: [] })
+    gateway.accountUpdates.mockResolvedValue({
+      updates: [
+        {
+          IsNoWalletChange: false,
+          WalletChangeData: {
+            In: {
+              'address-1': [ordinary, quick, quick, change].map((UTXO) => ({
+                UTXOData: { UTXO, Time: 900 },
+              })),
+            },
+          },
+          Timestamp: 1_000,
+        },
+        { IsNoWalletChange: true, Timestamp: 1_001 },
+      ],
+    })
+    gateway.issuanceRecords.mockResolvedValue({ records: [] })
+    gateway.pollCrossOrganizationTXCers.mockResolvedValue([])
+
+    const dashboard = useDashboardStore()
+    await dashboard.sync()
+    await vi.waitFor(() => expect(dashboard.current.activities).toHaveLength(2))
+
+    gateway.gqncStatus.mockResolvedValue({
+      status: { protocolVersion: 'gqnc-master-v2', safetyStatus: 'NORMAL', certifiedHeight: 1 },
+    })
+    gateway.gqncCertifiedBlock.mockResolvedValue({
+      envelope: {
+        QC: { QCID: 'd'.repeat(64), Threshold: 3, Signers: ['1', '2', '3'] },
+        Block: {
+          Head: { BlockHeight: 1, Timestamp: 901 },
+          Body: {
+            Transactions: [
+              { AggregateTX: { AllTransactions: [ordinary, { ...quick, TXID: liveID }, change] } },
+            ],
+          },
+        },
+      },
+    })
+    const network = createWalletNetwork(dashboard.observeCertifiedBlock)
+    const activity = mount(WalletActivityView)
+    try {
+      await network.refreshChain()
+
+      expect(activity.findAll('.activity-row')).toHaveLength(3)
+      expect(activity.findAll('.activity-amount b').map((amount) => amount.text()).sort()).toEqual([
+        '+1.25',
+        '+1.75',
+        '+1.75',
+      ])
+      expect(activity.findAll('.activity-status').map((status) => status.attributes('data-tone')))
+        .toEqual(['success', 'success', 'success'])
+      expect(activity.text()).toContain(ordinaryID)
+      expect(activity.text()).toContain(quickID)
+      expect(activity.text()).toContain(liveID)
+    } finally {
+      activity.unmount()
+      network.dispose()
+    }
+  })
+
+  it('notifies once as the incoming transaction becomes spend-ready, then updates the same activity to settled', async () => {
+    const txID = '9'.repeat(64)
+    const txCerId = 'a'.repeat(64)
+    const userID = '25226118'
+    const groupID = '10000000'
+    const issuance = {
+      RecordID: 'record-1',
+      TXID: txID,
+      TXCerID: txCerId,
+      UserID: userID,
+      ToAddress: 'address-1',
+      TXCer: { ToAddress: 'address-1', ToGuarGroupID: groupID, Value: '1.1' },
+      Ack: { userID, groupID, status: 'RegisteredActive', registeredAt: 8 },
+      FastEvidence: { Reservation: { SoftKeys: ['address_spend:external-sender'] } },
+    }
+    gateway.txCerStatuses.mockResolvedValue({
+      statuses: [{ txCerID: txCerId, userID, address: 'address-1', sourceTXID: txID, status: 'Active', value: '1.1' }],
+    })
+    gateway.accountUpdates.mockResolvedValue([])
+    gateway.issuanceRecords.mockResolvedValue({ records: [] })
+    gateway.pollCrossOrganizationTXCers.mockResolvedValue({
+      txcers: [{ ToAddress: 'address-1', TXCer: { TXCerID: txCerId, ...issuance.TXCer }, IssuanceRecord: issuance }],
+    })
+    const verification = vi.spyOn(credentials, 'normalizeCredentialSummaries').mockReturnValue([
+      {
+        txCerId,
+        recordId: issuance.RecordID,
+        lifecycle: 'Active',
+        amount: '1.1',
+        toAddress: 'address-1',
+        fastEvidenceStatus: 'Verified',
+        cfaaAuditStatus: 'Pending',
+        error: '',
+        hasFastEvidence: true,
+        hasAssignAck: true,
+        hasLiabilityReceipt: true,
+        hasCFAAProof: false,
+        rootIds: [],
+        exposureShares: [],
+      },
+    ])
+    const dashboard = useDashboardStore()
+    const activity = mount(WalletActivityView)
+    try {
+      await dashboard.sync()
+      await vi.waitFor(() => expect(dashboard.current.activities).toHaveLength(1))
+      expect(activity.find('.activity-status').text()).toBe(wt('activitySpendReady'))
+      expect(dashboard.receiveNotices).toMatchObject([{ id: txID, amount: '1.1' }])
+
+      dashboard.dismissReceiveNotices()
+      await dashboard.sync()
+      await vi.waitFor(() => expect(verification).toHaveBeenCalledTimes(2))
+      expect(dashboard.receiveNotices).toEqual([])
+
+      dashboard.observeCertifiedBlock({
+        envelope: {
+          QC: { QCID: 'b'.repeat(64), Threshold: 3, Signers: ['1', '2', '3'] },
+          Block: { Body: { Transactions: [{ AggregateTX: { AllTransactions: [{
+            TXID: txID,
+            TXInputsNormal: [{ FromAddress: 'external-sender' }],
+            TXOutputs: [{ ToAddress: 'address-1', ToValue: '1.1', Type: 0 }],
+          }] } }] } },
+        },
+      }, { timestamp: 10 })
+      await flushPromises()
+      expect(activity.findAll('.activity-row')).toHaveLength(1)
+      expect(activity.find('.activity-status').text()).toBe(wt('activitySettled'))
+      expect(dashboard.receiveNotices).toEqual([])
+    } finally {
+      activity.unmount()
+      verification.mockRestore()
+    }
+  })
+
+  it('polls for incoming receipts without showing a manual refresh in progress', async () => {
+    gateway.txCerStatuses.mockResolvedValue([])
+    gateway.accountUpdates.mockResolvedValue([])
+    gateway.issuanceRecords.mockResolvedValue([])
+    gateway.pollCrossOrganizationTXCers.mockResolvedValue([])
+    const dashboard = useDashboardStore()
+    const firstSave = dashboard.sync()
+    await firstSave
+    await vi.waitFor(() => expect(repository.saveDashboard).toHaveBeenCalledTimes(2))
+
+    const pending = deferred<unknown>()
+    gateway.queryAddresses.mockReturnValueOnce(pending.promise)
+    dashboard.pollReceipts()
+    dashboard.pollReceipts()
+    expect(gateway.queryAddresses).toHaveBeenCalledTimes(2)
+    expect(dashboard.loading).toBe(false)
+
+    pending.resolve({ AddressData: {} })
+    await vi.waitFor(() => expect(repository.saveDashboard).toHaveBeenCalledTimes(4))
   })
 
   it('reuses successful authority responses during the same wallet session', async () => {

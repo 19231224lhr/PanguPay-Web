@@ -4,17 +4,16 @@ import { wt, wl } from '@/i18n/walletText'
 import {
   PhArrowClockwise as ArrowClockwise,
   PhArrowRight as ArrowRight,
-  PhCaretRight as CaretRight,
-  PhCheckCircle as CheckCircle,
   PhCloudSlash as CloudSlash,
 } from '@phosphor-icons/vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import CurveMark from '@/components/CurveMark.vue'
 import AppButton from '@/components/AppButton.vue'
-import OrganizationDetailDialog from '@/components/OrganizationDetailDialog.vue'
+import OrganizationChooser from '@/components/OrganizationChooser.vue'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
-import { unlockPhase, resetUnlockAnimation } from '@/composables/useEntryUnlock'
+import { waitForEntryBrandKey } from '@/composables/useEntryFigure'
 import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
 import { useWalletStore } from '@/stores/wallet'
 import {
@@ -28,9 +27,10 @@ import {
 import {
   getWalletEntryService,
   type WalletEntryOrganization,
-  type WalletEntryOrganizationDetail,
+  WalletEntryConfirmationPending,
 } from '@/wallet/entryService'
 
+const waitForBrand = inject(waitForEntryBrandKey, undefined)
 const router = useRouter()
 const wallet = useWalletStore()
 const decision = ref<OrganizationEntryDecision>()
@@ -39,23 +39,26 @@ const selectedGroupId = ref('')
 const busy = ref(true)
 const error = ref('')
 const connectionInterrupted = ref(false)
-const stage = ref(wt('w34'))
-const pendingAction = ref<'join' | 'retail'>()
-const detailOpen = ref(false)
-const detailOrganization = ref<WalletEntryOrganization>()
-const organizationDetail = ref<WalletEntryOrganizationDetail>()
-const detailBusy = ref(false)
-const detailError = ref('')
+const stage = ref<'w34' | 'w37' | 'w38' | 'w39' | 'w40' | 'w42'>('w34')
+type EntryAction = 'join' | 'retail'
+const pendingAction = ref<EntryAction>()
+const confirmation = ref<{ action: EntryAction; check: () => Promise<void> }>()
 
 const isChoosing = computed(() => decision.value?.kind === 'chooser')
 const isRepairing = computed(() => decision.value?.kind === 'repair-no-group')
-const fieldActive = computed(() => busy.value && !!decision.value)
+const entryPanel = computed(() => {
+  if (isChoosing.value) return 'organizations'
+  if (isRepairing.value) return 'repair'
+  if (error.value) return connectionInterrupted.value ? 'connection' : 'error'
+  return 'checking'
+})
 const selectedOrganization = computed(() =>
   organizations.value.find((organization) => organization.id === selectedGroupId.value),
 )
 
 let reconnectTimer: number | undefined
 let reconnectAttempted = false
+let disposed = false
 
 function clearReconnectTimer(): void {
   if (reconnectTimer === undefined) return
@@ -64,7 +67,7 @@ function clearReconnectTimer(): void {
 }
 
 function scheduleReconnect(): void {
-  if (reconnectAttempted || reconnectTimer !== undefined) return
+  if (disposed || reconnectAttempted || reconnectTimer !== undefined) return
   reconnectAttempted = true
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = undefined
@@ -73,7 +76,8 @@ function scheduleReconnect(): void {
 }
 
 async function enterWallet(): Promise<void> {
-  await navigateWithSpatialTransition(router, '/wallet', 'wallet')
+  if (disposed) return
+  await navigateWithSpatialTransition(router, '/wallet', 'wallet', 'replace')
 }
 
 async function restore(manual = false): Promise<void> {
@@ -91,29 +95,24 @@ async function restore(manual = false): Promise<void> {
     return
   }
   try {
-    decision.value = resolveOrganizationEntry({
-      ...(await service.recover()),
+    const recovered = await service.recover()
+    if (disposed) return
+    const next = resolveOrganizationEntry({
+      ...recovered,
       localSkipped: hasLocalNoGroupChoice(wallet.accountId),
     })
-    if (decision.value.kind === 'inconsistent') {
-      error.value = wt('w36')
-      return
-    }
-    if (decision.value.kind === 'chooser') {
-      organizations.value = await service.listOrganizations()
-      reconnectAttempted = false
-      return
-    }
-    if (decision.value.kind === 'member') stage.value = wt('w37')
-    if (decision.value.kind === 'no-group') {
-      rememberLocalNoGroupChoice(wallet.accountId)
-      stage.value = wt('w38')
-    }
-    if (decision.value.kind === 'repair-no-group') stage.value = wt('w39')
+    if (next.kind === 'chooser') organizations.value = await service.listOrganizations()
+    decision.value = next
     reconnectAttempted = false
-    if (decision.value.kind !== 'repair-no-group') await enterWallet()
+    if (next.kind === 'inconsistent') error.value = wt('w36')
+    if (next.kind === 'member') stage.value = 'w37'
+    if (next.kind === 'no-group') {
+      rememberLocalNoGroupChoice(wallet.accountId)
+      stage.value = 'w38'
+    }
+    if (next.kind === 'repair-no-group') stage.value = 'w39'
+    if (next.kind === 'member' || next.kind === 'no-group') await enterWallet()
   } catch (cause) {
-    resetUnlockAnimation()
     connectionInterrupted.value = isWalletEntryConnectionError(cause)
     error.value = formatWalletEntryError(cause)
     if (connectionInterrupted.value) scheduleReconnect()
@@ -122,197 +121,147 @@ async function restore(manual = false): Promise<void> {
   }
 }
 
-async function chooseGroup(): Promise<void> {
+async function completeChoice(action: EntryAction): Promise<void> {
   const service = getWalletEntryService()
-  if (!service || !selectedGroupId.value) return
+  if (busy.value || !service || (action === 'join' && !selectedGroupId.value)) return
   busy.value = true
-  unlockPhase.value = 'loading'
-  pendingAction.value = 'join'
+  pendingAction.value = action
   error.value = ''
-  stage.value = wt('w40')
+  stage.value = action === 'join' ? 'w40' : 'w42'
   try {
-    await service.join(selectedGroupId.value)
-    stage.value = wt('w41')
+    if (confirmation.value) await confirmation.value.check()
+    else if (action === 'join') await service.join(selectedGroupId.value)
+    else await service.registerNoGroup()
+    if (disposed) return
+    if (action === 'retail') rememberLocalNoGroupChoice(wallet.accountId)
+    await waitForBrand?.()
     await enterWallet()
   } catch (cause) {
-    resetUnlockAnimation()
+    if (cause instanceof WalletEntryConfirmationPending) {
+      confirmation.value = { action, check: cause.confirm }
+    }
     error.value = formatWalletEntryError(cause)
   } finally {
     busy.value = false
     pendingAction.value = undefined
   }
-}
-
-async function chooseNoGroup(): Promise<void> {
-  const service = getWalletEntryService()
-  if (!service) return
-  busy.value = true
-  unlockPhase.value = 'loading'
-  pendingAction.value = 'retail'
-  error.value = ''
-  stage.value = wt('w42')
-  try {
-    await service.registerNoGroup()
-    rememberLocalNoGroupChoice(wallet.accountId)
-    stage.value = wt('w43')
-    await enterWallet()
-  } catch (cause) {
-    resetUnlockAnimation()
-    error.value = formatWalletEntryError(cause)
-  } finally {
-    busy.value = false
-    pendingAction.value = undefined
-  }
-}
-
-async function loadOrganizationDetail(): Promise<void> {
-  const service = getWalletEntryService()
-  const organization = detailOrganization.value
-  if (!service || !organization) return
-  detailBusy.value = true
-  detailError.value = ''
-  organizationDetail.value = undefined
-  try {
-    organizationDetail.value = await service.organization(organization.id, organization.name)
-  } catch (cause) {
-    detailError.value = formatWalletEntryError(cause)
-  } finally {
-    detailBusy.value = false
-  }
-}
-
-function showOrganizationDetail(organization: WalletEntryOrganization): void {
-  detailOrganization.value = organization
-  detailOpen.value = true
-  void loadOrganizationDetail()
-}
-
-function closeOrganizationDetail(): void {
-  detailOpen.value = false
 }
 
 onMounted(() => void restore())
-onBeforeUnmount(clearReconnectTimer)
+onBeforeUnmount(() => {
+  disposed = true
+  clearReconnectTimer()
+})
 </script>
 
 <template>
-  <WalletAccessFrame compact :field-active="fieldActive">
-    <section class="access-panel wallet-entry" :class="{ 'wallet-entry--busy': busy }">
-      <template v-if="isChoosing">
-        <h1>{{ wt('w44') }}</h1>
-        <p>{{ wt('w45') }}</p>
+  <WalletAccessFrame compact :figure="pendingAction ? 'brand' : isChoosing ? 'organization' : undefined">
+    <Transition name="entry-route" mode="out-in">
+      <section
+        :key="entryPanel"
+        class="access-panel wallet-entry"
+        :class="{ 'wallet-entry--busy': busy }"
+      >
+        <template v-if="isChoosing">
+          <h1>{{ wt('w44') }}</h1>
+          <p>{{ wt('w45') }}</p>
 
-        <div v-if="organizations.length" class="organization-list" :aria-label="wt('w46')">
-          <article
-            v-for="organization in organizations"
-            :key="organization.id"
-            class="organization-choice"
-          >
-            <label>
-              <input
-                v-model="selectedGroupId"
-                type="radio"
-                name="organization"
-                :value="organization.id"
-                :aria-label="organization.name"
-              />
-              <span class="organization-choice__indicator" aria-hidden="true" />
-              <span class="organization-choice__copy">
-                <strong>{{ organization.name }}</strong>
-                <small> {{ wt('w47') }} {{ organization.id }}</small>
-                <span class="organization-choice__services">
-                  <b> {{ wt('w48') }} </b><b> {{ wt('w49') }} </b>
-                </span>
-              </span>
-            </label>
-            <button
-              type="button"
-              class="organization-choice__detail"
-              :aria-label="wt('w50', [organization.name])"
-              @click="showOrganizationDetail(organization)"
+          <OrganizationChooser
+            v-if="organizations.length"
+            v-model="selectedGroupId"
+            :organizations="organizations"
+            :disabled="busy || !!confirmation"
+          />
+
+          <div v-else class="organization-empty">
+            <strong> {{ wt('w52') }} </strong>
+            <span> {{ wt('w53') }} </span>
+          </div>
+
+          <div v-if="!confirmation" class="entry-actions">
+            <AppButton
+              size="large"
+              :disabled="busy || !selectedOrganization"
+              :loading="pendingAction === 'join'"
+              @click="completeChoice('join')"
             >
-              {{ wt('w51') }} <CaretRight :size="15" />
-            </button>
-          </article>
-        </div>
+              {{ wt('w54') }} <template #icon><ArrowRight :size="18" /></template>
+            </AppButton>
+            <AppButton
+              size="large"
+              variant="secondary"
+              :disabled="busy"
+              :loading="pendingAction === 'retail'"
+              @click="completeChoice('retail')"
+            >
+              {{ wt('w55') }}
+            </AppButton>
+          </div>
+          <p v-if="!pendingAction && !error" class="entry-note">{{ wt('w56') }}</p>
+        </template>
 
-        <div v-else class="organization-empty">
-          <strong> {{ wt('w52') }} </strong>
-          <span> {{ wt('w53') }} </span>
-        </div>
-
-        <div class="entry-actions">
+        <template v-else-if="isRepairing">
+          <h1>{{ wt('w57') }}</h1>
+          <p>{{ wt('w58') }}</p>
           <AppButton
+            v-if="!confirmation"
             size="large"
-            :disabled="busy || !selectedOrganization"
-            :loading="pendingAction === 'join'"
-            @click="chooseGroup"
-          >
-            {{ wt('w54') }} <template #icon><ArrowRight :size="18" /></template>
-          </AppButton>
-          <AppButton
-            size="large"
-            variant="secondary"
-            :disabled="busy"
-            :loading="pendingAction === 'retail'"
-            @click="chooseNoGroup"
-          >
-            {{ wt('w55') }}
-          </AppButton>
-        </div>
-        <p class="entry-note">{{ wt('w56') }}</p>
-      </template>
-
-      <template v-else-if="isRepairing">
-        <h1>{{ wt('w57') }}</h1>
-        <p>{{ wt('w58') }}</p>
-        <AppButton size="large" :loading="busy" @click="chooseNoGroup">
-          {{ wt('w59') }} <template #icon><ArrowRight :size="18" /></template>
-        </AppButton>
-      </template>
-
-      <template v-else-if="error && connectionInterrupted">
-        <div class="entry-service-state" data-service-interruption role="alert">
-          <span class="entry-service-state__icon" aria-hidden="true">
-            <CloudSlash :size="24" weight="regular" />
-          </span>
-          <h1>{{ wt('w60') }}</h1>
-          <p>{{ wt('w61') }}</p>
-          <div class="entry-service-state__status"><span aria-hidden="true" /> {{ wt('w62') }}</div>
-          <AppButton
-            class="entry-service-state__retry"
-            size="large"
-            variant="secondary"
             :loading="busy"
-            @click="restore(true)"
+            @click="completeChoice('retail')"
           >
-            {{ wt('w63') }} <template #icon><ArrowClockwise :size="18" /></template>
+            {{ wt('w59') }} <template #icon><ArrowRight :size="18" /></template>
           </AppButton>
-        </div>
-      </template>
+        </template>
 
-      <template v-else-if="error">
-        <h1>{{ wt('w64') }}</h1>
-        <p class="entry-error" role="alert">{{ wl(error) }}</p>
-        <AppButton size="large" @click="restore(true)"> {{ wt('w65') }} </AppButton>
-      </template>
+        <template v-else-if="error && connectionInterrupted">
+          <div class="entry-service-state" data-service-interruption role="alert">
+            <span class="entry-service-state__icon" aria-hidden="true">
+              <CloudSlash :size="24" weight="regular" />
+            </span>
+            <h1>{{ wt('w60') }}</h1>
+            <p>{{ wt('w61') }}</p>
+            <div class="entry-service-state__status">
+              <span aria-hidden="true" /> {{ wt('w62') }}
+            </div>
+            <AppButton
+              class="entry-service-state__retry"
+              size="large"
+              variant="secondary"
+              :loading="busy"
+              @click="restore(true)"
+            >
+              {{ wt('w63') }} <template #icon><ArrowClockwise :size="18" /></template>
+            </AppButton>
+          </div>
+        </template>
 
-      <template v-else>
-        <CheckCircle class="entry-mark" :size="34" weight="regular" />
-        <h1>{{ wt('w66') }}</h1>
-        <p>{{ stage }}</p>
-      </template>
-    </section>
+        <template v-else-if="error">
+          <h1>{{ wt('w64') }}</h1>
+          <p class="entry-error" role="alert">{{ wl(error) }}</p>
+          <AppButton size="large" @click="restore(true)"> {{ wt('w65') }} </AppButton>
+        </template>
 
-    <OrganizationDetailDialog
-      :open="detailOpen"
-      :organization="detailOrganization"
-      :detail="organizationDetail"
-      :busy="detailBusy"
-      :error="detailError"
-      @close="closeOrganizationDetail"
-      @retry="loadOrganizationDetail"
-    />
+        <template v-else>
+          <h1>{{ wt('w66') }}</h1>
+          <div class="entry-preparation" role="status">
+            <CurveMark variant="link" :size="44" />
+            <span>{{ wt(stage) }}</span>
+          </div>
+        </template>
+        <template v-if="isChoosing || isRepairing">
+          <p v-if="pendingAction" class="entry-note" role="status">{{ wt(stage) }}</p>
+          <p v-else-if="error" class="entry-error" role="alert">{{ wl(error) }}</p>
+          <AppButton
+            v-if="confirmation"
+            size="large"
+            :loading="busy"
+            @click="completeChoice(confirmation.action)"
+          >
+            {{ wt('entryConfirmAgain') }}
+          </AppButton>
+        </template>
+      </section>
+    </Transition>
   </WalletAccessFrame>
 </template>
 
@@ -323,16 +272,21 @@ onBeforeUnmount(clearReconnectTimer)
   row-gap: 0;
 }
 
-.wallet-entry > h1 {
-  margin: 0;
-}
-
 .wallet-entry > p {
   margin: 10px 0 20px;
 }
 
-.entry-mark {
-  color: var(--accent);
+.entry-preparation {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.925rem;
+  line-height: 1.5;
+}
+.entry-preparation :deep(.curve-mark) {
+  color: var(--text);
 }
 
 .entry-service-state {
@@ -350,11 +304,6 @@ onBeforeUnmount(clearReconnectTimer)
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent) 9%, var(--surface));
   color: var(--accent-strong);
-}
-
-.entry-service-state > h1 {
-  max-width: 9em;
-  font-size: clamp(2.25rem, 4vw, 2.75rem);
 }
 
 .entry-service-state > p {
@@ -391,123 +340,8 @@ onBeforeUnmount(clearReconnectTimer)
   min-width: 172px;
 }
 
-.organization-list {
-  display: grid;
-  margin-bottom: 1.15rem;
-  border-block: 1px solid var(--hairline);
-}
-
-.organization-choice {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.25rem 0.35rem;
-  border-radius: var(--radius-md);
-  transition: background var(--duration-state) var(--ease-standard);
-}
-
-.organization-choice + .organization-choice {
-  border-top: 1px solid var(--hairline);
-}
-
-.organization-choice:has(input:checked) {
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-}
-
-.organization-choice label {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.8rem;
-  min-height: 80px;
-  cursor: pointer;
-}
-
-.organization-choice input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.organization-choice__indicator {
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 5px transparent;
-  transition:
-    border-color var(--duration-state) var(--ease-standard),
-    background var(--duration-state) var(--ease-standard),
-    box-shadow var(--duration-state) var(--ease-standard);
-}
-
-.organization-choice input:checked + .organization-choice__indicator {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: inset 0 0 0 5px var(--surface);
-}
-
-.organization-choice input:focus-visible + .organization-choice__indicator {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-
-.organization-choice__copy {
-  display: grid;
-  min-width: 0;
-  gap: 0.16rem;
-}
-
-.organization-choice__copy strong {
-  font-size: 0.94rem;
-  letter-spacing: -0.012em;
-}
-
-.organization-choice__copy small,
-.entry-note,
-.organization-empty span {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  line-height: 1.45;
-}
-
-.organization-choice__services {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding-top: 0.3rem;
-}
-
-.organization-choice__services b {
-  padding: 0.18rem 0.42rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--accent-strong);
-  font-size: 0.66rem;
-  font-weight: 650;
-}
-
-.organization-choice__detail {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0 0.55rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 620;
-  transition: color var(--duration-state) var(--ease-standard);
-}
-
-.organization-choice__detail:hover {
-  color: var(--accent);
-}
-
 .entry-actions {
+  margin-top: 1.15rem;
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 0.8rem;
@@ -515,6 +349,13 @@ onBeforeUnmount(clearReconnectTimer)
 
 .entry-actions :deep(.app-button) {
   width: 100%;
+}
+
+.entry-note,
+.organization-empty span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
 .entry-note {
@@ -545,47 +386,8 @@ onBeforeUnmount(clearReconnectTimer)
     padding-bottom: 1.25rem;
   }
 
-  .wallet-entry h1 {
-    max-width: 8em;
-    font-size: 28px;
-    line-height: 1.02;
-  }
-
   .wallet-entry > p {
     margin-block: 0.65rem 1.35rem;
-  }
-
-  .organization-list {
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-    border: 0;
-  }
-
-  .organization-choice {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--hairline);
-    border-radius: 18px;
-  }
-
-  .organization-choice + .organization-choice {
-    border-top: 1px solid var(--hairline);
-  }
-
-  .organization-choice label {
-    min-height: 0;
-    align-items: start;
-    padding-block: 0.15rem 0.55rem;
-  }
-
-  .organization-choice__detail {
-    width: 100%;
-    justify-content: space-between;
-    justify-self: stretch;
-    margin-top: 0;
-    padding: 0.65rem 0 0.05rem;
-    border-top: 1px solid var(--hairline);
   }
 
   .entry-actions {

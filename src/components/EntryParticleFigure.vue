@@ -23,6 +23,7 @@ watch(
     if (phase === 'idle') scene?.setShape(props.shape)
   },
 )
+defineExpose({ waitForBrand: () => scene?.waitForBrand() })
 onBeforeUnmount(() => scene?.destroy())
 </script>
 <template>

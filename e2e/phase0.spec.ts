@@ -101,10 +101,8 @@ test.describe('Phase 0 visual baseline', () => {
       if (!localStorage.getItem('pangupay.locale')) localStorage.setItem('pangupay.locale', 'zh-CN')
     })
     await page.goto('/')
-    const darkFieldMaterial = await page.locator('[data-value-fold-field]').evaluate((element) => {
-      return getComputedStyle(element, '::before').backgroundImage
-    })
-    expect(darkFieldMaterial).toContain('rgba(7, 19, 31, 0.46)')
+    const entrySurface = page.locator('[data-entry-experience]')
+    await expect(entrySurface).toHaveCSS('background-color', 'rgb(8, 8, 10)')
     await page.evaluate(() => {
       localStorage.setItem('pangupay.theme', 'light')
       localStorage.setItem('pangupay.locale', 'en-US')
@@ -112,10 +110,7 @@ test.describe('Phase 0 visual baseline', () => {
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
-    const lightFieldMaterial = await page.locator('[data-value-fold-field]').evaluate((element) => {
-      return getComputedStyle(element, '::before').backgroundImage
-    })
-    expect(lightFieldMaterial).not.toContain('rgba(7, 19, 31, 0.46)')
+    await expect(entrySurface).toHaveCSS('background-color', 'rgb(242, 243, 245)')
     await page.goto('/__foundation')
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Foundation')
     await page.reload()
@@ -130,7 +125,7 @@ test.describe('Phase 0 visual baseline', () => {
     })
     await page.goto('/')
 
-    const mark = page.locator('.landing__brand .brand-mark__shape')
+    const mark = page.locator('.entry-experience__brand .brand-mark__shape')
     await expect(mark).toHaveCount(1)
     const darkColors = await mark.evaluate((element) => {
       const style = getComputedStyle(element)
@@ -250,6 +245,42 @@ test.describe('Phase 0 visual baseline', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
     expect(overflow).toBeLessThanOrEqual(0)
+  })
+
+  test('long translations fit narrow landing and wallet setup controls', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 700 })
+    await page.goto('/')
+    const heading = page.getByRole('heading', { level: 1 })
+    for (const language of ['en-US', 'es-ES', 'fr-FR'] as const) {
+      await page.locator('.wallet-language button').click()
+      await page.getByRole('option', { name: { 'en-US': 'English', 'es-ES': 'Español', 'fr-FR': 'Français' }[language] }).click()
+      await expect(page.locator('html')).toHaveAttribute('lang', language)
+      await expect
+        .poll(() =>
+          heading.evaluate((el) => {
+            const right = el.getBoundingClientRect().left + el.scrollWidth
+            return right - document.documentElement.clientWidth
+          }),
+        )
+        .toBeLessThanOrEqual(0)
+    }
+    await page.locator('.landing__actions button').click()
+    await expect(page.locator('#create-password')).toBeVisible()
+    await expect(page.locator('.entry-preferences')).toHaveCount(0)
+    const form = page.locator('.wallet-access__form')
+    const overflow = () => form.evaluate((el) => el.scrollWidth - el.clientWidth)
+    await expect.poll(overflow).toBeLessThanOrEqual(1)
+    const button = page.locator('.setup-action')
+    const label = button.locator('.app-button__content')
+    const buttonBounds = await button.boundingBox()
+    const labelBounds = await label.boundingBox()
+    expect(labelBounds!.x).toBeGreaterThanOrEqual(buttonBounds!.x)
+    expect(labelBounds!.x + labelBounds!.width).toBeLessThanOrEqual(
+      buttonBounds!.x + buttonBounds!.width,
+    )
+    await page.locator('.setup-alternative button').click()
+    await expect(page.locator('#import-password')).toBeVisible()
+    await expect.poll(overflow).toBeLessThanOrEqual(1)
   })
 
   test('reduced motion preserves the mathematical field without animation', async ({ page }) => {

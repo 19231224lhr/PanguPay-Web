@@ -23,9 +23,9 @@ beforeEach(() => {
 })
 
 describe('Wallet decorative figures', () => {
-  it('updates intensity without remounting and never autoplays', async () => {
+  it('starts the idle animation and updates intensity without remounting', async () => {
     const w = mount(WalletFigure, { props: { kind: 'drawer' } })
-    expect(mocks.drawer).toHaveBeenCalledWith(w.element, { intensity: 0.35, play: false })
+    expect(mocks.drawer).toHaveBeenCalledWith(w.element, { intensity: 0.35, play: true })
     expect(w.attributes('aria-hidden')).toBe('true')
     await w.setProps({ intensity: 0.5 })
     expect(mocks.update).toHaveBeenCalledWith({ intensity: 0.5 })

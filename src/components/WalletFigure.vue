@@ -19,7 +19,7 @@ function mountFigure() {
   if (!host.value) return
   figure = { drawer, settle, stack, branches, phone, format }[props.kind](host.value, {
     intensity: props.intensity,
-    play: false,
+    play: true,
   })
 }
 onMounted(mountFigure)
@@ -32,7 +32,7 @@ onBeforeUnmount(() => figure?.destroy())
 </script>
 
 <template>
-  <div ref="host" class="wallet-figure" :data-figure="kind" aria-hidden="true" />
+  <div ref="host" class="wallet-figure wallet-figure--hairline" :data-figure="kind" aria-hidden="true" />
 </template>
 
 <style scoped>

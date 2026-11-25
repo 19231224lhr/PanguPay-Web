@@ -1,4 +1,5 @@
 import { computed, onMounted } from 'vue'
+import { wl, wt } from '@/i18n/walletText'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import {
@@ -12,6 +13,7 @@ import type { WalletActivity } from '@/wallet/types'
 
 export interface ActivityRow extends WalletActivity {
   txID: string
+  statusLabel?: string
   progress?: TransferProgress
   mode?: TransferMode
   phase?: TransferPhase
@@ -23,7 +25,7 @@ export interface ActivityRow extends WalletActivity {
 export const activityAssetSymbol = (coinType?: number, explicit?: string) =>
   (explicit === 'PGC' ? 'CAL' : explicit) ||
   ['CAL', 'BTC', 'ETH'][coinType ?? 0] ||
-  `Asset ${coinType ?? 0}`
+  wt('assetType', [coinType ?? 0])
 
 /** Keep the overview and full ledger on the same account-scoped activity feed. */
 export function useWalletActivities() {
@@ -33,7 +35,22 @@ export function useWalletActivities() {
 
   return computed<ActivityRow[]>(() => {
     const merged = new Map<string, ActivityRow>()
-    for (const item of dashboard.current.activities) merged.set(item.id, { ...item, txID: item.id })
+    for (const item of dashboard.current.activities) {
+      const status = item.status.toLowerCase()
+      const phase = status === 'settled' || status === 'spend-ready' ? status : undefined
+      merged.set(item.id, {
+        ...item,
+        txID: item.id,
+        phase,
+        title: item.title === '转入' ? wt('w8') : item.title === '账户更新' ? wt('w496') : item.title,
+        statusLabel:
+          phase === 'settled'
+            ? wt('activitySettled')
+            : phase === 'spend-ready'
+              ? wt('activitySpendReady')
+              : wl(item.status),
+      })
+    }
     for (const item of transfer.history) {
       merged.set(item.txID, {
         id: item.txID,

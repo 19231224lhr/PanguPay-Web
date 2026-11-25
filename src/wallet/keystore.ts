@@ -1,7 +1,7 @@
 import { argon2idAsync } from '@noble/hashes/argon2.js'
 
 import { bytesToBase64, bytesToHex, hexToBytes } from '@/protocol-v2/canonical'
-import { accountIdFromPrivateScalar, deriveAddressFromRootSeed } from '@/wallet/identity'
+import { accountIdFromPrivateScalar, createWalletIdentity, deriveAddressFromRootSeed } from '@/wallet/identity'
 import type { WalletAddressRecord, WalletKeystoreEnvelope, WalletRecord } from '@/wallet/types'
 
 const encoder = new TextEncoder()
@@ -123,28 +123,39 @@ export function validateWalletRecord(record: WalletRecord): WalletRecord {
   return structuredClone(record)
 }
 
-async function deriveKey(password: string, salt: Uint8Array): Promise<Uint8Array> {
-  return argon2idAsync(assertPassword(password), salt, {
-    t: 3,
-    m: 65536,
-    p: 4,
-    dkLen: 32,
-    asyncTick: 8,
-    maxmem: 96 * 1024 * 1024,
-  })
+async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  const passwordBytes = assertPassword(password)
+  try {
+    const keyBytes = await argon2idAsync(passwordBytes, salt, {
+      t: 3,
+      m: 65536,
+      p: 4,
+      dkLen: 32,
+      asyncTick: 8,
+      maxmem: 96 * 1024 * 1024,
+    })
+    try {
+      return await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt', 'decrypt'])
+    } finally {
+      keyBytes.fill(0)
+    }
+  } finally {
+    passwordBytes.fill(0)
+  }
 }
 
 export async function decryptWalletEnvelope(
   envelopeValue: WalletKeystoreEnvelope,
   password: string,
 ): Promise<WalletRecord> {
+  return (await openWalletEnvelope(envelopeValue, password)).record
+}
+
+export async function openWalletEnvelope(envelopeValue: WalletKeystoreEnvelope, password: string) {
   const envelope = parseWalletEnvelope(envelopeValue)
   try {
     const salt = decodeBase64(envelope.crypto.kdf.salt)
-    const keyBytes = await deriveKey(password, salt)
-    const key = await crypto.subtle.importKey('raw', arrayBuffer(keyBytes), 'AES-GCM', false, [
-      'decrypt',
-    ])
+    const key = await deriveKey(password, salt)
     const plaintext = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
@@ -155,7 +166,7 @@ export async function decryptWalletEnvelope(
       arrayBuffer(decodeBase64(envelope.ciphertext)),
     )
     const parsed = JSON.parse(decoder.decode(plaintext)) as WalletRecord
-    return validateWalletRecord(parsed)
+    return { record: validateWalletRecord(parsed), key }
   } catch {
     throw new Error('wallet unlock failed')
   }
@@ -165,9 +176,29 @@ export async function encryptWalletRecord(
   recordValue: WalletRecord,
   password: string,
 ): Promise<WalletKeystoreEnvelope> {
-  assertPassword(password)
-  const record = validateWalletRecord(recordValue)
+  return (await sealWalletRecord(recordValue, password)).envelope
+}
+
+export async function sealWalletRecord(record: WalletRecord, password: string) {
   const salt = crypto.getRandomValues(new Uint8Array(16))
+  const key = await deriveKey(password, salt)
+  const envelope = await reencryptWalletRecord(record, key, {
+    name: 'argon2id',
+    time: 3,
+    memory_kib: 65536,
+    threads: 4,
+    key_len: 32,
+    salt: rawBase64(salt),
+  })
+  return { envelope, key }
+}
+
+export async function reencryptWalletRecord(
+  recordValue: WalletRecord,
+  key: CryptoKey,
+  kdf: WalletKeystoreEnvelope['crypto']['kdf'],
+): Promise<WalletKeystoreEnvelope> {
+  const record = validateWalletRecord(recordValue)
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const envelope: WalletKeystoreEnvelope = {
     version: 1,
@@ -175,22 +206,11 @@ export async function encryptWalletRecord(
     id: record.account_id,
     public: { account_id: record.account_id },
     crypto: {
-      kdf: {
-        name: 'argon2id',
-        time: 3,
-        memory_kib: 65536,
-        threads: 4,
-        key_len: 32,
-        salt: rawBase64(salt),
-      },
+      kdf: { ...kdf },
       nonce: rawBase64(nonce),
     },
     ciphertext: '',
   }
-  const keyBytes = await deriveKey(password, salt)
-  const key = await crypto.subtle.importKey('raw', arrayBuffer(keyBytes), 'AES-GCM', false, [
-    'encrypt',
-  ])
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: arrayBuffer(nonce), additionalData: arrayBuffer(walletAAD(envelope)) },
     key,
@@ -198,6 +218,14 @@ export async function encryptWalletRecord(
   )
   envelope.ciphertext = rawBase64(new Uint8Array(ciphertext))
   return envelope
+}
+
+export async function createEncryptedWallet(password: string) {
+  const identity = createWalletIdentity()
+  const record = makeWalletRecord(identity.accountId, identity.privateScalarHex, [
+    { address: identity.address, type: 0, rootSeedHex: identity.rootSeedHex },
+  ])
+  return { record, ...(await sealWalletRecord(record, password)) }
 }
 
 export function makeWalletRecord(

@@ -15,11 +15,80 @@
           (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        document.querySelector('meta[name="theme-color"]').content = dark ? '#08080A' : '#F2F3F5'
+        const language = localStorage.getItem('pangupay.locale')
+        document.documentElement.lang =
+          ['zh-CN', 'en-US', 'ja-JP', 'es-ES', 'fr-FR'].includes(language) ? language : 'zh-CN'
+        try {
+          if (sessionStorage.getItem('pangupay.wallet-exit') === '1') {
+            sessionStorage.removeItem('pangupay.wallet-exit')
+            if (location.pathname === '%BASE_URL%') document.documentElement.dataset.walletExit = ''
+          }
+        } catch {
+          // The homepage can load without a stored transition.
+        }
       })()
     </script>
+    <!-- Keep the handoff visible while the homepage's JavaScript is loading. -->
+    <style>
+      .wallet-exit-progress {
+        position: fixed;
+        z-index: 1000;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: var(--background, #f2f3f5);
+        color: var(--text, #1d1d1f);
+        font: 550 0.95rem/1.5 system-ui, sans-serif;
+        text-align: center;
+        outline: none;
+      }
+      :root[data-theme='dark'] .wallet-exit-progress {
+        background: var(--background, #08080a);
+        color: var(--text, #f5f5f7);
+      }
+      .wallet-exit-mark { width: 44px; height: 44px; overflow: visible; }
+      #wallet-exit-loading,
+      #wallet-exit-loading > [lang] {
+        display: none;
+      }
+      :root[data-wallet-exit] #wallet-exit-loading {
+        display: grid;
+      }
+      html:lang(zh) #wallet-exit-loading > [lang="zh"],
+      html:lang(en) #wallet-exit-loading > [lang="en"],
+      html:lang(ja) #wallet-exit-loading > [lang="ja"],
+      html:lang(es) #wallet-exit-loading > [lang="es"],
+      html:lang(fr) #wallet-exit-loading > [lang="fr"] {
+        display: block;
+      }
+      .wallet-exit-progress--done {
+        pointer-events: none;
+        animation: wallet-exit-reveal 220ms ease-out forwards;
+      }
+      @keyframes wallet-exit-reveal {
+        to { opacity: 0; visibility: hidden; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .wallet-exit-progress--done { animation: none; }
+        .wallet-exit-progress--done { visibility: hidden; }
+      }
+    </style>
     <title>PanguPay</title>
   </head>
   <body>
+    <div id="wallet-exit-loading" class="wallet-exit-progress" role="status">
+      <svg class="wallet-exit-mark" viewBox="0 0 100 100" aria-hidden="true"></svg>
+      <span lang="zh">正在返回首页…</span>
+      <span lang="en">Returning home…</span>
+      <span lang="ja">ホームに戻っています…</span>
+      <span lang="es">Volviendo al inicio…</span>
+      <span lang="fr">Retour à l’accueil…</span>
+    </div>
+    <!-- wallet-exit-flow-script -->
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

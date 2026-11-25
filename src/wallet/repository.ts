@@ -8,6 +8,11 @@ import type {
 export interface WalletRepository {
   loadEnvelope(): Promise<WalletKeystoreEnvelope | undefined>
   saveEnvelope(envelope: unknown): Promise<void>
+  saveAddressUpdate(
+    envelope: WalletKeystoreEnvelope,
+    metadata: WalletPublicMetadata,
+    previousCiphertext: string,
+  ): Promise<void>
   loadDashboard(): Promise<WalletDashboardSnapshot | undefined>
   saveDashboard(snapshot: WalletDashboardSnapshot): Promise<void>
   loadMetadata(accountId: string): Promise<WalletPublicMetadata | undefined>
@@ -74,6 +79,40 @@ export class IndexedDBWalletRepository implements WalletRepository {
     )
   }
 
+  async saveAddressUpdate(
+    value: WalletKeystoreEnvelope,
+    metadata: WalletPublicMetadata,
+    previousCiphertext: string,
+  ): Promise<void> {
+    const envelope = parseWalletEnvelope(value)
+    const database = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction([ENVELOPE_STORE, PUBLIC_STORE], 'readwrite')
+      const keystore = transaction.objectStore(ENVELOPE_STORE)
+      const current = keystore.get(PRIMARY_KEY)
+      let stale = false
+      current.onsuccess = () => {
+        if (current.result?.ciphertext !== previousCiphertext) {
+          stale = true
+          transaction.abort()
+          return
+        }
+        keystore.put(envelope, PRIMARY_KEY)
+        transaction.objectStore(PUBLIC_STORE).put(metadata, metadataKey(metadata.accountId))
+      }
+      transaction.oncomplete = () => {
+        database.close()
+        resolve()
+      }
+      transaction.onabort = () => {
+        database.close()
+        reject(stale
+          ? new Error('wallet changed in another tab')
+          : transaction.error ?? new Error('wallet database transaction failed'))
+      }
+    })
+  }
+
   async loadDashboard(): Promise<WalletDashboardSnapshot | undefined> {
     return requestValue<WalletDashboardSnapshot | undefined>(PUBLIC_STORE, 'readonly', (store) =>
       store.get(PRIMARY_KEY),
@@ -119,6 +158,17 @@ export class MemoryWalletRepository implements WalletRepository {
 
   async saveEnvelope(value: unknown): Promise<void> {
     this.envelope = parseWalletEnvelope(value)
+  }
+
+  async saveAddressUpdate(
+    value: WalletKeystoreEnvelope,
+    metadata: WalletPublicMetadata,
+    previousCiphertext: string,
+  ): Promise<void> {
+    if (this.envelope?.ciphertext !== previousCiphertext)
+      throw new Error('wallet changed in another tab')
+    this.envelope = parseWalletEnvelope(value)
+    this.metadata = structuredClone(metadata)
   }
 
   async loadDashboard(): Promise<WalletDashboardSnapshot | undefined> {

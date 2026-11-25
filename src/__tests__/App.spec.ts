@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, onMounted, onUnmounted } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../App.vue'
+import i18n from '@/i18n'
 import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
 import { unlockPhase } from '@/composables/useEntryUnlock'
 
@@ -60,7 +61,7 @@ describe('App entry experience', () => {
     await router.push('/')
     await router.isReady()
     const wrapper = mount(App, {
-      global: { plugins: [router], stubs: { EntryParticleFigure: figure } },
+      global: { plugins: [router, i18n], stubs: { EntryParticleFigure: figure } },
     })
     await flushPromises()
     const canvas = wrapper.get('canvas').element

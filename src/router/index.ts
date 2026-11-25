@@ -9,13 +9,13 @@ import WalletOverviewView from '@/views/wallet/WalletOverviewView.vue'
 import WalletReceiveView from '@/views/wallet/WalletReceiveView.vue'
 import WalletRecoveryView from '@/views/wallet/WalletRecoveryView.vue'
 import WalletSecurityView from '@/views/wallet/WalletSecurityView.vue'
-import WalletSendView from '@/views/wallet/WalletSendView.vue'
 import WalletSettingsView from '@/views/wallet/WalletSettingsView.vue'
 import WalletSetupView from '@/views/wallet/WalletSetupView.vue'
 import WalletEntryView from '@/views/wallet/WalletEntryView.vue'
 import WalletUnlockView from '@/views/wallet/WalletUnlockView.vue'
 import { pinia } from '@/stores/pinia'
 import { useWalletStore } from '@/stores/wallet'
+import { overviewCards, panelFromHash } from '@/wallet/overviewPanels'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -50,7 +50,7 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresWallet: true },
     children: [
       { path: '', name: 'wallet-overview', component: WalletOverviewView },
-      { path: 'send', name: 'wallet-send', component: WalletSendView },
+      { path: 'send', name: 'wallet-send', redirect: { name: 'wallet-overview', hash: '#send' } },
       { path: 'receive', name: 'wallet-receive', component: WalletReceiveView },
       { path: 'activity', name: 'wallet-activity', component: WalletActivityView },
       { path: 'security', name: 'wallet-security', component: WalletSecurityView },
@@ -75,11 +75,28 @@ if (import.meta.env.DEV) {
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior(to, from, savedPosition) {
+    if (from.name === 'wallet-settings' && savedPosition) return savedPosition
+    if (to.path !== from.path) return { top: 0 }
+    // Selecting an open panel again leaves the hash unchanged.
+    if (to.name !== 'wallet-overview' || to.fullPath !== from.fullPath) return false
+    const panel = panelFromHash(to.hash)
+    if (!panel) return false
+    const card = document.querySelector(`.overview [data-card="${overviewCards[panel]}"].is-expanded`)
+    if (!card) return false
+    return {
+      el: card,
+      top: Number.parseFloat(getComputedStyle(card).scrollMarginTop) || 0,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    }
+  },
   routes,
 })
 
 router.beforeEach(async (to) => {
+  if (to.name === 'wallet-overview' && to.hash === '#settings') {
+    return { name: 'wallet-settings', query: to.query, replace: true }
+  }
   const wallet = useWalletStore(pinia)
   await wallet.initialize()
   if (to.meta.requiresWallet && wallet.lifecycle !== 'unlocked') {

@@ -110,7 +110,7 @@ const activities = computed(() => [
                 >
               </span>
               <strong class="tabular" role="cell">{{ asset.balance }}</strong>
-              <span role="cell">Transfer Area</span>
+              <span role="cell">{{ t('walletText.transferArea') }}</span>
             </div>
           </div>
         </section>

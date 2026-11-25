@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { wt } from '@/i18n/walletText'
+import { organizationLabel, wt, wl } from '@/i18n/walletText'
 
 import { PhCheck as Check, PhCopy as Copy, PhShieldCheck as ShieldCheck } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
@@ -7,7 +7,6 @@ import { computed, ref, watch } from 'vue'
 import AppButton from '@/components/AppButton.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import ReceiveAddressQR from '@/components/ReceiveAddressQR.vue'
-import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import { generateWalletCapsule } from '@/services/capsuleService'
 import { GatewayClient } from '@/services/gatewayClient'
@@ -54,7 +53,7 @@ const addressOptions = computed(() =>
   wallet.addresses.map((address, index) => ({
     description: address.address,
     label: wt('w137', [
-      ['CAL', 'BTC', 'ETH'][Number(address.type)] ?? `Asset ${address.type}`,
+      ['CAL', 'BTC', 'ETH'][Number(address.type)] ?? wt('assetType', [address.type]),
       index + 1,
     ]),
     monospace: true,
@@ -102,25 +101,27 @@ watch(selected, () => {
 
 <template>
   <div class="wallet-page receive-page">
-    <WalletPageHeader :title="wt('w139')" :description="wt('w140')" />
-    <SegmentedControl
-      v-model="addressMode"
-      class="receive-mode"
-      :label="wt('w141')"
-      :options="modeOptions"
-    />
+    <WalletPageHeader
+      :inline-target="$slots['header-action'] ? '#intro-receive' : undefined"
+      :title="wt('w139')"
+      :description="$slots['header-action'] ? wt('overviewReceiveIntro') : wt('w140')"
+    ><slot name="header-action" /></WalletPageHeader>
     <section class="receive-plane">
-      <Transition name="qr-swap" mode="out-in">
-        <ReceiveAddressQR
-          :key="`${addressMode}:${displayedAddress || 'empty'}`"
-          :address="displayedAddress"
-          :empty-label="addressMode === 'capsule' ? wt('w142') : wt('w143')"
-        />
-      </Transition>
       <div class="receive-details">
+        <div class="receive-address-heading">
+          <label for="receive-address">{{ wt('w144') }}</label>
+          <AppSelect
+            id="receive-mode"
+            v-model="addressMode"
+            inline
+            :label="wt('w141')"
+            :options="modeOptions"
+          />
+        </div>
         <AppSelect
           id="receive-address"
           v-model="selected"
+          hide-label
           :label="wt('w144')"
           :options="addressOptions"
           :empty-label="wt('w145')"
@@ -138,7 +139,7 @@ watch(selected, () => {
                   <ShieldCheck :size="18" weight="fill" aria-hidden="true" />
                   <span>{{
                     capsuleSigner === 'organization'
-                      ? organization?.name || wt('w148', [capsuleOrgID])
+                      ? organizationLabel(organization) || wt('w148', [capsuleOrgID])
                       : wt('w149')
                   }}</span>
                   <small> {{ wt('w47') }} {{ capsuleOrgID }}</small>
@@ -161,7 +162,7 @@ watch(selected, () => {
             </div>
           </div>
         </Transition>
-        <p v-if="generationError" class="capsule-error" role="alert">{{ generationError }}</p>
+        <p v-if="generationError" class="capsule-error" role="alert">{{ wl(generationError) }}</p>
         <AppButton size="large" :disabled="!displayedAddress" @click="copyAddress">
           <component :is="copied ? Check : Copy" :size="19" />
           {{
@@ -169,31 +170,66 @@ watch(selected, () => {
           }}
         </AppButton>
       </div>
+      <div class="receive-qr-slot">
+        <Transition name="qr-swap" mode="out-in">
+          <ReceiveAddressQR
+            :key="`${addressMode}:${displayedAddress || 'empty'}`"
+            :address="displayedAddress"
+            :empty-label="addressMode === 'capsule' ? wt('w142') : wt('w143')"
+          />
+        </Transition>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
 .receive-page {
-  width: min(760px, 100%);
+  width: 100%;
+  container-type: inline-size;
 }
 
-.receive-mode {
-  width: min(360px, 100%);
-  margin-bottom: 1.25rem;
+.receive-address-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.4rem;
+  margin-bottom: -0.5rem;
+}
+
+.receive-address-heading > label {
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 650;
 }
 
 .receive-plane {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 36%);
   align-items: center;
-  gap: clamp(1.5rem, 4vw, 3.25rem);
+  gap: clamp(1.25rem, 5cqi, 3rem);
   padding-block: 0.5rem;
 }
 
 .receive-details {
   display: grid;
-  gap: 1rem;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.receive-qr-slot {
+  display: grid;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  justify-self: center;
+  place-items: center;
+}
+
+.receive-qr-slot :deep(.receive-qr) {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: none;
 }
 
 .receive-address-block {
@@ -204,14 +240,14 @@ watch(selected, () => {
 }
 
 .address-mode-content {
-  min-height: 168px;
+  min-height: 108px;
 }
 
 .capsule-content {
   position: relative;
   display: grid;
   align-content: center;
-  min-height: 168px;
+  min-height: 108px;
   gap: 0.75rem;
   overflow: hidden;
   padding-block: 0.8rem;
@@ -295,10 +331,8 @@ watch(selected, () => {
   justify-self: start;
 }
 
-.qr-swap-enter-active,
-.qr-swap-leave-active {
-  transition: opacity 160ms var(--ease-standard);
-}
+.qr-swap-enter-active { transition: opacity 135ms var(--ease-standard); }
+.qr-swap-leave-active { transition: opacity 85ms var(--ease-standard); }
 
 .qr-swap-enter-from,
 .qr-swap-leave-to {
@@ -328,7 +362,7 @@ watch(selected, () => {
   }
 }
 
-@media (max-width: 599px) {
+@container (max-width: 540px) {
   .receive-plane {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -348,7 +382,7 @@ watch(selected, () => {
   .qr-swap-leave-active,
   .address-mode-enter-active,
   .address-mode-leave-active {
-    transition-duration: 120ms;
+    transition: none;
   }
 
   .capsule-content[data-fresh]::after {

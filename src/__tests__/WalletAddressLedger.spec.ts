@@ -27,7 +27,7 @@ describe('WalletAddressLedger', () => {
 
   afterEach(() => configureWalletEntryService(undefined))
 
-  it('clears the wallet password as soon as address creation starts', async () => {
+  it('generates and registers an address without asking again for the wallet password', async () => {
     let resolveAddress!: (value: { address: string; type: string; root_seed: string }) => void
     const pendingAddress = new Promise<{ address: string; type: string; root_seed: string }>(
       (resolve) => {
@@ -35,6 +35,7 @@ describe('WalletAddressLedger', () => {
       },
     )
     const wallet = useWalletStore()
+    wallet.lifecycle = 'unlocked'
     const dashboard = useDashboardStore()
     vi.spyOn(wallet, 'addAddress').mockReturnValue(pendingAddress)
     vi.spyOn(wallet, 'setAddressMetadata').mockResolvedValue()
@@ -46,13 +47,15 @@ describe('WalletAddressLedger', () => {
       .find((button) => button.text().includes('新建地址'))
     await createToggle!.trigger('click')
 
-    const password = wrapper.get<HTMLInputElement>('#new-address-password')
-    await password.setValue('correct horse battery staple')
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false)
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
     await wrapper.get('form.address-create').trigger('submit')
-
-    expect(password.element.value).toBe('')
+    expect(wallet.addAddress).toHaveBeenCalledExactlyOnceWith(0)
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
 
     resolveAddress({ address: 'new-address', type: '0', root_seed: 'root-seed' })
     await flushPromises()
+    expect(service.registerAddress).toHaveBeenCalledWith('new-address', undefined)
+    expect(wrapper.find('form.address-create').exists()).toBe(false)
   })
 })

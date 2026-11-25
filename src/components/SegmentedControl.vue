@@ -12,6 +12,7 @@ export interface SegmentedControlOption {
 
 const props = withDefaults(
   defineProps<{
+    appearance?: 'glass' | 'metrics' | 'tabs'
     compact?: boolean
     semantics?: 'radio' | 'buttons'
     disabled?: boolean
@@ -20,6 +21,7 @@ const props = withDefaults(
     options: SegmentedControlOption[]
   }>(),
   {
+    appearance: 'glass',
     disabled: false,
     compact: false,
     semantics: 'radio',
@@ -76,7 +78,12 @@ function onKey(event: KeyboardEvent) {
   <fieldset
     ref="root"
     class="segmented-control"
-    :class="{ 'segmented-control--compact': compact, 'is-keyboard': keyboard }"
+    :class="{
+      'segmented-control--compact': compact,
+      'segmented-control--metrics': appearance === 'metrics',
+      'segmented-control--tabs': appearance === 'tabs',
+      'is-keyboard': keyboard,
+    }"
     :disabled="disabled"
     :style="controlStyle"
     @keydown="onKey"
@@ -84,7 +91,7 @@ function onKey(event: KeyboardEvent) {
   >
     <legend class="sr-only">{{ label }}</legend>
     <span
-      v-if="options.length"
+      v-if="options.length && appearance !== 'metrics'"
       class="segmented-control__indicator"
       data-segment-indicator
       aria-hidden="true"
@@ -269,6 +276,98 @@ input:disabled {
     flex-direction: column;
     gap: 0.2rem;
     font-size: 0.65rem;
+  }
+}
+
+.segmented-control--tabs {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.segmented-control--tabs .segmented-control__indicator {
+  inset: auto auto 0 0;
+  width: calc(100% / var(--segment-count));
+  height: 2px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.segmented-control--tabs .segmented-control__indicator::after {
+  display: block;
+  width: 1.25rem;
+  height: 100%;
+  margin-inline: auto;
+  border-radius: 1px;
+  background: var(--accent);
+  content: '';
+}
+
+.segmented-control--tabs .segmented-control__option {
+  min-width: 72px;
+}
+
+.segmented-control--tabs .segmented-control__option[data-selected] > span {
+  color: var(--wallet-selection-ink, var(--accent));
+}
+
+.segmented-control--metrics {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.segmented-control--metrics .segmented-control__option,
+.segmented-control--metrics .segmented-control__option > span {
+  min-width: 0;
+  min-height: 36px;
+}
+
+.segmented-control--metrics .segmented-control__option > span {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 clamp(6px, 2cqi, 11px);
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.segmented-control--metrics .segmented-control__option[data-selected] > span {
+  color: var(--wallet-selection-ink, var(--accent));
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.segmented-control--metrics strong {
+  min-width: 1ch;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 630;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (pointer: coarse) {
+  .segmented-control--metrics .segmented-control__option,
+  .segmented-control--metrics .segmented-control__option > span {
+    min-height: 44px;
   }
 }
 </style>

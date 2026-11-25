@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, nextTick } from 'vue'
 import App from './App.vue'
 import i18n from './i18n'
 import router from './router'
@@ -23,3 +23,28 @@ installGatewayWalletEntryService()
 initializePreferences()
 
 app.mount('#app')
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void router.isReady().then(() => navigator.serviceWorker.register(
+    `${import.meta.env.BASE_URL}wallet-shell-worker.js`,
+    { updateViaCache: 'none' },
+  )).catch(() => {
+    // Loading the wallet normally remains available if the browser blocks caching.
+  })
+}
+
+const exitProgress = document.querySelector<HTMLElement>(':root[data-wallet-exit] #wallet-exit-loading')
+if (exitProgress) {
+  const revealPage = () => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      exitProgress.dispatchEvent(new Event('wallet-exit-finished'))
+    } else {
+      exitProgress.addEventListener('animationend', () => {
+        exitProgress.dispatchEvent(new Event('wallet-exit-finished'))
+      }, { once: true })
+    }
+    exitProgress.classList.add('wallet-exit-progress--done')
+    exitProgress.setAttribute('aria-hidden', 'true')
+  }
+  void router.isReady().then(() => nextTick(revealPage), revealPage)
+}

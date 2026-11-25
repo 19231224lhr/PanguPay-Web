@@ -38,7 +38,7 @@ function rest() {
       stroke-width="0.9"
       stroke-linejoin="round"
     >
-      <g class="money-note">
+      <g class="money-note wallet-figure__float">
         <path d="M67 38 107 17 146 41 106 63Z" />
         <path d="M67 38v5l39 25 40-22v-5M106 63v5" />
         <path d="m80 38 27-14 26 17-27 15Z" class="money-detail" />
@@ -52,7 +52,7 @@ function rest() {
         <path d="M28 60v8c0 8 14 14 31 14s31-6 31-14v-8" />
         <ellipse cx="59" cy="60" rx="31" ry="14" />
       </g>
-      <g class="money-top">
+      <g class="money-top wallet-figure__float">
         <path d="M28 52v8c0 8 14 14 31 14s31-6 31-14v-8" />
         <ellipse cx="59" cy="52" rx="31" ry="14" />
         <ellipse cx="59" cy="52" rx="23" ry="9" class="money-detail" />
@@ -94,9 +94,11 @@ ellipse {
   transform-origin: center;
 }
 .money-top {
+  --wallet-figure-lift: -5px;
   transform: translateY(var(--coin-lift));
 }
 .money-note {
+  --wallet-figure-lift: -2.5px;
   transform: rotate(var(--note-lean));
 }
 @media (prefers-reduced-motion: reduce), (hover: none) {

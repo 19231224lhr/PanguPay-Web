@@ -89,30 +89,15 @@
   border-color: var(--hairline);
 }
 
-.wallet-refined.activity-page .detail-page-intro {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.wallet-page.wallet-refined .activity-ledger summary {
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  min-height: 76px;
-}
-
-.wallet-page.wallet-refined .activity-copy {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.wallet-page.wallet-refined .activity-copy b,
-.wallet-page.wallet-refined .activity-amount b {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.wallet-page.wallet-refined .activity-detail {
-  padding-top: 12px;
-  border-top: 1px solid var(--hairline);
+.wallet-record-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 31px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--wallet-selection-ink, var(--accent));
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
 .wallet-page.wallet-refined .security-metrics {
@@ -167,12 +152,6 @@
   border-top: 0;
 }
 
-.wallet-page.wallet-refined .security-addresses > details > summary {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  padding-block: 12px;
-}
-
 .wallet-refined.organization-page {
   width: 100%;
 }
@@ -213,24 +192,6 @@
 
 .wallet-page.wallet-refined .organization-roster {
   gap: 8px;
-}
-
-.wallet-page.wallet-refined .organization-roster__grid {
-  border: 0;
-}
-
-.wallet-page.wallet-refined .organization-roster__grid > article {
-  padding: 16px;
-}
-
-.wallet-page.wallet-refined .organization-roster article > header h3 {
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.wallet-page.wallet-refined .organization-roster article > header p {
-  margin-top: 4px;
-  line-height: 1.5;
 }
 
 .wallet-page.wallet-refined .organization-roster li strong {
@@ -274,20 +235,11 @@
     border-top: 1px solid var(--hairline);
   }
 
-  .wallet-page.wallet-refined .activity-detail,
-  .wallet-page.wallet-refined .organization-roster__grid,
   .wallet-page.wallet-refined .organization-technical dl,
   .wallet-page.wallet-refined .organization-exit {
     grid-template-columns: 1fr;
   }
 
-  .wallet-page.wallet-refined .organization-roster__grid > article:nth-child(even) {
-    border-left: 0;
-  }
-
-  .wallet-page.wallet-refined .organization-roster__grid > article + article {
-    border-top: 1px solid var(--hairline);
-  }
 }
 
 @container (max-width: 480px) {
@@ -304,27 +256,6 @@
 
   .wallet-page.wallet-refined .detail-page-intro {
     gap: 16px;
-  }
-
-  .wallet-page.wallet-refined .activity-ledger summary {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    padding-block: 16px;
-  }
-
-  .wallet-page.wallet-refined .activity-status {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: start;
-  }
-
-  .wallet-page.wallet-refined .activity-amount {
-    grid-column: 2;
-    grid-row: 1 / 3;
-  }
-
-  .wallet-page.wallet-refined .activity-caret {
-    grid-column: 3;
-    grid-row: 1 / 3;
   }
 
   .wallet-page.wallet-refined .security-metrics > div,

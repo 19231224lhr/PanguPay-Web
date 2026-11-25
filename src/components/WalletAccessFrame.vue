@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { wt } from '@/i18n/walletText'
 
-import { useRouter } from 'vue-router'
-
-import { navigateWithSpatialTransition } from '@/composables/useSpatialNavigation'
-
 import BrandMark from './BrandMark.vue'
 import { inject, watch } from 'vue'
 import { entryFigureKey } from '@/composables/useEntryFigure'
@@ -31,20 +27,10 @@ watch(
   },
   { immediate: true },
 )
-const router = useRouter()
-
-async function returnHome(): Promise<void> {
-  await navigateWithSpatialTransition(router, '/', 'access')
-}
 </script>
 
 <template>
   <main class="wallet-access" :class="{ 'wallet-access--compact': compact }">
-    <header class="wallet-access__header">
-      <RouterLink to="/" aria-label="PanguPay home" @click.prevent="returnHome">
-        <BrandMark :size="32" transition-name="pangu-mobile-brand" />PanguPay
-      </RouterLink>
-    </header>
     <section class="wallet-access__stage">
       <aside class="wallet-access__visual" aria-label="PanguPay">
         <div class="entry-figure-anchor" data-entry-figure-anchor aria-hidden="true" />
@@ -74,32 +60,16 @@ async function returnHome(): Promise<void> {
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  grid-template-rows: auto minmax(0, 1fr);
-  padding: max(1rem, env(safe-area-inset-top)) clamp(1rem, 3vw, 3rem)
+  grid-template-rows: minmax(0, 1fr);
+  padding: calc(var(--entry-top, 1rem) + var(--entry-header-height, 44px))
+    var(--entry-gutter, 1.125rem)
     max(1.15rem, env(safe-area-inset-bottom));
   background: transparent;
 }
 
-.wallet-access__header {
-  display: flex;
-  position: relative;
-  z-index: 2;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.wallet-access__header a {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 0.65rem;
-  font-weight: 730;
-  letter-spacing: -0.035em;
-}
-
 .wallet-access__stage {
   display: grid;
-  width: min(1380px, 100%);
+  width: min(var(--entry-content-width, 1380px), 100%);
   min-height: 0;
   height: 100%;
   grid-template-columns: minmax(380px, 5fr) minmax(0, 7fr);
@@ -152,6 +122,7 @@ async function returnHome(): Promise<void> {
   grid-column: 1;
   grid-row: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: min(420px, 100%);
   align-content: start;
   justify-self: center;
@@ -175,7 +146,21 @@ async function returnHome(): Promise<void> {
 
 :deep(.access-panel) {
   width: 100%;
+  min-width: 0;
   padding: 0;
+}
+
+:deep(.app-button__rest) {
+  max-inline-size: 100%;
+}
+
+:deep(.app-button__content) {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+:deep(.app-button__rest > svg) {
+  flex: none;
 }
 
 :deep(.access-panel h1) {
@@ -228,14 +213,6 @@ async function returnHome(): Promise<void> {
 }
 
 @media (max-width: 480px) {
-  .wallet-access {
-    padding-inline: 1.1rem;
-  }
-
-  .wallet-access__header > a {
-    font-size: 0;
-  }
-
   .wallet-access__form {
     grid-column: 1;
     grid-row: 1;
@@ -254,9 +231,13 @@ async function returnHome(): Promise<void> {
 }
 
 .wallet-access--compact .wallet-access__form {
-  width: min(440px, 100%);
-  align-content: safe center;
-  padding-block: clamp(64px, 10vh, 96px) 24px;
+  width: min(460px, 100%);
+  align-content: start;
+  padding-block: clamp(4.5rem, 16vh, 10rem) 1.5rem;
+}
+
+@media (min-width: 901px) {
+  .wallet-access--compact .wallet-access__form { justify-self: start; }
 }
 .wallet-access--compact :deep(.access-panel h1) {
   font-size: clamp(28px, 2.6vw, 36px);
@@ -281,7 +262,7 @@ async function returnHome(): Promise<void> {
 @media (max-width: 480px), (max-height: 650px) {
   .wallet-access--compact .wallet-access__form {
     align-content: start;
-    padding-block: 56px 20px;
+    padding-block: clamp(2.75rem, 8vh, 4.5rem) 1.25rem;
   }
 }
 </style>

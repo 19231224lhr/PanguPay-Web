@@ -80,10 +80,11 @@ export class GatewayClient {
     this.fetcher = options.fetcher ?? fetch.bind(globalThis)
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}, timeout?: number): Promise<unknown> {
     const readOnly =
       !init.method ||
       init.method === 'GET' ||
+      path === '/api/v1/re-online' ||
       path === '/api/v1/com/query-address' ||
       path === '/api/v1/com/query-address-group'
     const response = await this.fetcher(`${this.baseURL}${path}`, {
@@ -95,7 +96,7 @@ export class GatewayClient {
       },
       // Remote read-only snapshots may traverse a relayed private network.
       // Keep transaction submission deadlines unchanged.
-      signal: AbortSignal.timeout(readOnly ? 15_000 : 6_000),
+      signal: AbortSignal.timeout(timeout ?? (readOnly ? 15_000 : 6_000)),
     })
     const contentType = response.headers.get('content-type') ?? ''
     const text = await response.text()
@@ -157,10 +158,12 @@ export class GatewayClient {
   }
 
   joinGroup(groupID: string, message: unknown): Promise<unknown> {
-    return this.request(`/api/v1/${encodeURIComponent(groupID)}/assign/flow-apply`, {
-      method: 'POST',
-      body: stringifyGatewayJSON(message),
-    })
+    return this.request(
+      `/api/v1/${encodeURIComponent(groupID)}/assign/flow-apply`,
+      { method: 'POST', body: stringifyGatewayJSON(message) },
+      // The gateway can spend 10 seconds forwarding to Assign before returning.
+      20_000,
+    )
   }
 
   registerGroupAddress(groupID: string, message: unknown): Promise<unknown> {
@@ -279,8 +282,8 @@ export class GatewayClient {
     )
   }
 
-  gqncPerformance(): Promise<unknown> {
-    return this.request('/api/v1/committee/gqnc/performance')
+  gqncPerformance(timeout?: number): Promise<unknown> {
+    return this.request('/api/v1/committee/gqnc/performance', {}, timeout)
   }
 
   crossChainTransferStatus(txID: string): Promise<unknown> {

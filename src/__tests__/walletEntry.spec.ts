@@ -104,7 +104,7 @@ describe('organization entry', () => {
     await flushPromises()
 
     expect(recover).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('h1').text()).toBe('选择你的使用方式')
+    expect(wrapper.get('h1').text()).toBe('选择担保组织')
 
     wrapper.unmount()
   })

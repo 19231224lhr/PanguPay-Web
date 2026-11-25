@@ -18,7 +18,9 @@ const props = withDefaults(
     emptyLabel?: string
     error?: string
     help?: string
+    hideLabel?: boolean
     id: string
+    inline?: boolean
     label: string
     modelValue: string
     options: AppSelectOption[]
@@ -26,10 +28,8 @@ const props = withDefaults(
   }>(),
   {
     disabled: false,
-    emptyLabel: wt('w305'),
     error: '',
     help: '',
-    placeholder: wt('w306'),
   },
 )
 
@@ -182,11 +182,12 @@ onBeforeUnmount(() => {
   <div
     ref="root"
     class="app-select"
+    :class="{ 'app-select--inline': inline }"
     :data-open="open || undefined"
     :data-keyboard="keyboard || undefined"
     @pointerdown.capture="keyboard = false"
   >
-    <label :id="labelId" class="app-select__label" :for="id">
+    <label :id="labelId" class="app-select__label" :class="{ 'sr-only': inline || hideLabel }" :for="id">
       {{ label }}
     </label>
 
@@ -209,7 +210,7 @@ onBeforeUnmount(() => {
       >
         <span :id="valueId" class="app-select__value">
           <strong>{{
-            selectedOption?.label ?? (options.length ? placeholder : emptyLabel)
+            selectedOption?.label ?? (options.length ? placeholder ?? wt('w306') : emptyLabel ?? wt('w305'))
           }}</strong>
           <small
             v-if="selectedOption?.description"
@@ -221,7 +222,7 @@ onBeforeUnmount(() => {
         <CaretDown
           class="app-select__caret"
           :class="{ 'app-select__caret--open': open }"
-          :size="18"
+          :size="inline ? 12 : 18"
           weight="bold"
           aria-hidden="true"
         />
@@ -443,6 +444,61 @@ onBeforeUnmount(() => {
 .app-select__menu li[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.42;
+}
+
+.app-select--inline {
+  display: inline-flex;
+  position: relative;
+}
+
+#app .app-select--inline .app-select__trigger {
+  display: inline-flex;
+  gap: 0.25rem;
+  width: auto;
+  min-height: 32px;
+  padding: 0.25rem 0.375rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wallet-selection-ink, var(--accent));
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#app .app-select--inline .app-select__trigger[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #app .app-select--inline .app-select__trigger:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+}
+
+#app .app-select--inline .app-select__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#app .app-select--inline .app-select__caret {
+  color: currentColor;
+}
+
+.app-select--inline .app-select__value strong {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.app-select--inline .app-select__menu {
+  top: calc(100% + 4px);
+  right: auto;
+  width: max-content;
+  min-width: max(9rem, 100%);
+  transform-origin: top left;
+}
+
+.app-select--inline .app-select__menu li {
+  min-height: 40px;
 }
 
 .app-select__check {

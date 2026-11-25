@@ -1,29 +1,18 @@
 <script setup lang="ts">
-import { PhMoon as Moon, PhSun as Sun, PhTranslate as Translate } from '@phosphor-icons/vue'
-import { watch } from 'vue'
+import { PhMoon as Moon, PhSun as Sun } from '@phosphor-icons/vue'
+import WalletLanguageSelect from './WalletLanguageSelect.vue'
 import { useI18n } from 'vue-i18n'
 
 import { usePreferences } from '@/composables/usePreferences'
 import IconButton from './IconButton.vue'
 
-const { locale: i18nLocale, t } = useI18n()
+const { t } = useI18n()
 const preferences = usePreferences()
 
-watch(
-  preferences.locale,
-  (value) => {
-    i18nLocale.value = value
-  },
-  { immediate: true },
-)
-
-function toggleTheme(): void {
-  preferences.setTheme(preferences.resolvedTheme.value === 'dark' ? 'light' : 'dark')
+function toggleTheme(event: MouseEvent): void {
+  preferences.setTheme(preferences.resolvedTheme.value === 'dark' ? 'light' : 'dark', event.currentTarget as Element)
 }
 
-function toggleLocale(): void {
-  preferences.setLocale(preferences.locale.value === 'zh-CN' ? 'en-US' : 'zh-CN')
-}
 </script>
 
 <template>
@@ -35,12 +24,7 @@ function toggleLocale(): void {
       <Sun v-if="preferences.resolvedTheme.value === 'dark'" :size="19" weight="regular" />
       <Moon v-else :size="19" weight="regular" />
     </IconButton>
-    <IconButton
-      :label="preferences.locale.value === 'zh-CN' ? t('controls.english') : t('controls.chinese')"
-      @click="toggleLocale"
-    >
-      <Translate :size="19" weight="regular" />
-    </IconButton>
+    <WalletLanguageSelect />
   </div>
 </template>
 
@@ -48,6 +32,27 @@ function toggleLocale(): void {
 .preference-controls {
   display: flex;
   align-items: center;
-  gap: 0.42rem;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+}
+.preference-controls::before {
+  content: '';
+  order: 1;
+  height: 16px;
+  width: 1px;
+  background: var(--border);
+}
+.preference-controls .wallet-language { order: 2; }
+.preference-controls .icon-button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+}
+.preference-controls .icon-button:hover {
+  background: var(--surface-hover);
 }
 </style>

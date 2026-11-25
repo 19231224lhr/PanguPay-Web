@@ -19,7 +19,7 @@ defineEmits<{ more: [] }>()
 
 <template>
   <nav class="wallet-mobile-navigation" :aria-label="label">
-    <RouterLink v-for="item in items.slice(0, 3)" :key="item.to" :to="item.to">
+    <RouterLink v-for="item in items.slice(0, 3)" :key="item.to" :to="item.to" :aria-current-value="item.current === false ? 'false' : 'page'">
       <component :is="item.icon" :size="21" weight="regular" aria-hidden="true" />
       <span>{{ item.label }}</span>
     </RouterLink>
@@ -60,8 +60,9 @@ button {
   font-size: 0.64rem;
 }
 
-a.router-link-exact-active {
-  color: var(--accent);
+a[aria-current="page"] {
+  background: var(--wallet-selection-fill, transparent);
+  color: var(--wallet-selection-ink, var(--accent));
 }
 
 @media (max-width: 767px) {

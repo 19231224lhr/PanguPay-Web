@@ -5,6 +5,7 @@ import goEnvelope from '../../tests/fixtures/wallet-keystore-v1-go.json'
 import { accountIdFromPrivateScalar, deriveAddressFromRootSeed } from '@/wallet/identity'
 import { makeWalletRecord } from '@/wallet/keystore'
 import { MemoryWalletRepository } from '@/wallet/repository'
+import { queueWelcomeGuide, takeWelcomeGuide } from '@/wallet/welcomeGuide'
 
 const decryptOffThread = vi.hoisted(() =>
   vi.fn<(envelope: unknown, password: string) => Promise<unknown>>(),
@@ -36,12 +37,14 @@ describe('wallet backup import execution', () => {
         },
       ],
     )
-    decryptOffThread.mockResolvedValue(record)
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+    decryptOffThread.mockResolvedValue({ record, key })
 
     const store = useWalletStore()
     store.setRepositoryForTests(new MemoryWalletRepository())
     await store.initialize()
 
+    queueWelcomeGuide(record.account_id)
     await store.importEnvelope(goEnvelope, 'backup-password')
 
     expect(decryptOffThread).toHaveBeenCalledExactlyOnceWith(
@@ -49,5 +52,6 @@ describe('wallet backup import execution', () => {
       'backup-password',
     )
     expect(store.lifecycle).toBe('unlocked')
+    expect(takeWelcomeGuide(store.accountId)).toBe(false)
   })
 })

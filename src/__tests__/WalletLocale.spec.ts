@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import i18n from '@/i18n'
-import { walletMessages } from '@/i18n/walletMessages'
+import { localeNames } from '@/composables/usePreferences'
 import { describeTransferIssue } from '@/transfer/errors'
 import WalletSendView from '@/views/wallet/WalletSendView.vue'
 import WalletActivityView from '@/views/wallet/WalletActivityView.vue'
@@ -96,15 +96,27 @@ it('resolves error descriptions in the current language on each call', () => {
   expect(describeTransferIssue('insufficient spendable balance').title).toBe('可用余额不足')
 })
 
-it('has matching translations and interpolation parameters for every wallet message', () => {
-  expect(Object.keys(walletMessages['en-US'])).toEqual(Object.keys(walletMessages['zh-CN']))
-  for (const key of Object.keys(walletMessages['zh-CN']) as Array<
-    keyof (typeof walletMessages)['zh-CN']
-  >) {
-    const zh = walletMessages['zh-CN'][key],
-      en = walletMessages['en-US'][key]
-    expect(en.trim()).not.toBe('')
-    expect(en.match(/\{\d+\}/g) ?? []).toEqual(zh.match(/\{\d+\}/g) ?? [])
-    expect(key === 'w239' ? '' : en).not.toMatch(/[\u3400-\u9fff]/u)
+function leaves(tree: object, prefix = ''): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [name, value] of Object.entries(tree)) {
+    const key = prefix + name
+    if (typeof value === 'string') result[key] = value
+    else Object.assign(result, leaves(value, key + '.'))
   }
-})
+  return result
+}
+
+it.each(Object.keys(localeNames) as Array<keyof typeof localeNames>)(
+  'covers every UI message and interpolation parameter in %s',
+  (language) => {
+    const source = leaves(i18n.global.getLocaleMessage('zh-CN'))
+    const translated = leaves(i18n.global.getLocaleMessage(language))
+    expect(Object.keys(translated).sort()).toEqual(Object.keys(source).sort())
+    for (const [key, value] of Object.entries(translated)) {
+      expect(value.trim(), key).not.toBe('')
+      expect((value.match(/\{[^}]+\}/g) ?? []).sort(), key).toEqual(
+        (source[key]!.match(/\{[^}]+\}/g) ?? []).sort(),
+      )
+    }
+  },
+)

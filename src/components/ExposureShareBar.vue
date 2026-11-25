@@ -29,7 +29,7 @@ const short = (value: string) =>
 
 <template>
   <section v-if="normalized.length" class="exposure" :aria-label="wt('w318')">
-    <div class="exposure__bar" aria-hidden="true">
+    <div v-if="normalized.length > 1" class="exposure__bar" aria-hidden="true">
       <span
         v-for="share in normalized"
         :key="share.leafId"
@@ -39,7 +39,8 @@ const short = (value: string) =>
     </div>
     <ul>
       <li v-for="share in normalized" :key="share.leafId">
-        <span aria-hidden="true" />
+        <span v-if="normalized.length > 1" aria-hidden="true" />
+        <small v-else>{{ wt('w318') }}</small>
         <b>{{ share.amount }} CAL</b>
         <small :title="share.rootId">Root {{ short(share.rootId) }}</small>
       </li>
@@ -55,7 +56,7 @@ const short = (value: string) =>
 
 .exposure__bar {
   display: flex;
-  height: 7px;
+  height: 3px;
   gap: 2px;
   overflow: hidden;
   border-radius: 999px;

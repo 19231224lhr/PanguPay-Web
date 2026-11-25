@@ -71,13 +71,13 @@ async function ensureOrganizationMember(page) {
 
 async function importKeys(page, user, label, { joinGroup = false } = {}) {
   await page.goto(`${baseURL}/wallet/setup`, { waitUntil: 'domcontentloaded' })
-  await page.getByRole('radio', { name: '导入' }).check()
+  await page.getByRole('button', { name: '导入已有钱包' }).click()
   await page.getByRole('radio', { name: '私钥与 RootSeed' }).check()
   await page.locator('#legacy-scalar').fill(user.accountPrivateKey)
   await page.locator('#legacy-root').fill(user.addressRootSeedHex)
   await page.locator('#recovery-new-password').fill(password)
   await page.locator('#recovery-new-password-confirm').fill(password)
-  await page.getByRole('button', { name: '恢复并进入钱包' }).click()
+  await page.getByRole('button', { name: '恢复钱包' }).click()
   await page.waitForURL(/\/wallet(?:\/entry)?$/, { timeout: 60_000 })
   if (page.url().endsWith('/wallet/entry')) {
     await page.waitForURL(/\/wallet$/, { timeout: 60_000 })
@@ -91,13 +91,13 @@ async function importKeys(page, user, label, { joinGroup = false } = {}) {
 
 async function importRetailKeys(page) {
   await page.goto(`${baseURL}/wallet/setup`, { waitUntil: 'domcontentloaded' })
-  await page.getByRole('radio', { name: '导入' }).check()
+  await page.getByRole('button', { name: '导入已有钱包' }).click()
   await page.getByRole('radio', { name: '私钥与 RootSeed' }).check()
   await page.locator('#legacy-scalar').fill('2'.padStart(64, '0'))
   await page.locator('#legacy-root').fill('3'.padStart(64, '0'))
   await page.locator('#recovery-new-password').fill(password)
   await page.locator('#recovery-new-password-confirm').fill(password)
-  await page.getByRole('button', { name: '恢复并进入钱包' }).click()
+  await page.getByRole('button', { name: '恢复钱包' }).click()
   await page.waitForURL(/\/wallet(?:\/entry)?$/, { timeout: 60_000 })
   if (page.url().endsWith('/wallet/entry')) {
     await page.getByRole('button', { name: '暂不加入' }).click()

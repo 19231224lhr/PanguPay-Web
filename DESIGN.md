@@ -86,8 +86,8 @@
 ### Ledger Plane 页面合同
 
 - 桌面侧栏固定约 216px，正文最大宽度约 1240px。
-- 桌面主导航提供总览、发送、活动、安全、担保组织和区块链；设置固定在侧栏底部，主题与语言只在设置页管理。
-- 桌面账户菜单只保留账户信息和锁定；移动端“我的”提供担保组织、区块链、设置和锁定入口，总览同时提供紧凑快捷入口。
+- 桌面主导航紧跟品牌区，提供总览、发送、活动、安全、担保组织和区块链。头像固定在侧栏底部。
+- 桌面头像和移动端“我的”打开同一个账户菜单，提供设置、锁定钱包和退出钱包。移动端可从总览进入担保组织和区块链。
 - 钱包页面不默认包裹通用卡片。标题、留白和 hairline 负责分组，实体 surface 只用于表单或异常。
 - 总览采用“资产 / 凭证摘要 → 最近活动 / 收款地址 → 担保组织 / 认证链”的三组双栏摘要布局。
 - 凭证、活动、组织和认证链明细入口直接导航到对应页面，总览不展开这些明细；完整收款地址账本在页面底部默认完整显示，不提供折叠。
@@ -182,7 +182,7 @@
 ## Particle entry experience — 2026-11-15
 The entry routes preserve the original Obsidian/Pearl themes, typography, branded header, copy, buttons and controls. A persistent canvas occupies the original illustration slots, with the approved form-left/figure-right access arrangement. No paper/green palette, replacement headings or extra footer/caption is introduced.
 
-Only the illustration changes: rounded, finely sampled halftone solids; continuous dot-size midtones; a home composition of a wallet, Bitcoin coin and Ethereum diamond with slight independent float. These are decorative symbols, not a claim of asset support. Particle ink inherits the theme foreground and updates on theme changes. Transitions dissolve and reform over 3.4 seconds without blur. The shared scene survives access-route changes, and reduced-motion renders a settled target. Wallet operations and the overview remain unchanged.
+Only the illustration changes: rounded, finely sampled halftone solids; continuous dot-size midtones; a home composition of a wallet, Bitcoin coin and Ethereum diamond with slight independent float. These are decorative symbols, not a claim of asset support. Particle ink inherits the theme foreground and updates on theme changes. Shapes reform over 2.6 seconds. Interrupted morphs carry each particle’s current velocity into the next shape. The shared scene survives access-route changes, and reduced-motion renders a settled target. Wallet operations and the overview remain unchanged.
 
 ### 控件材质（2026-11-15 用户修订）
 

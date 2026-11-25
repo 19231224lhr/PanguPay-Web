@@ -1,25 +1,34 @@
 <script setup lang="ts">
-import { wt, walletLocale } from '@/i18n/walletText'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { PhArrowClockwise, PhArrowUpRight } from '@phosphor-icons/vue'
-import { GatewayClient } from '@/services/gatewayClient'
-import { getWalletEntryService, type WalletEntryOrganization } from '@/wallet/entryService'
-import { normalizeGQNCStatus, type GQNCStatusView } from '@/wallet/gqncExplorer'
+import { organizationLabel, wt, walletLocale } from '@/i18n/walletText'
+import { computed } from 'vue'
+import { PhArrowClockwise, PhCaretDown } from '@phosphor-icons/vue'
+import { useWalletNetwork } from '@/composables/useWalletNetwork'
 import type { OrganizationSummary } from '@/wallet/types'
+import OverviewDetail from './OverviewDetail.vue'
+import type { OverviewPanel } from '@/wallet/overviewPanels'
+import type { OverviewCardEdge } from '@/wallet/overviewLayout'
 import StatusLabel from './StatusLabel.vue'
 import WalletFigure from './WalletFigure.vue'
+import WalletPageHeader from './WalletPageHeader.vue'
 
-const props = defineProps<{ organization?: OrganizationSummary; offline: boolean }>()
-const client = new GatewayClient()
-const status = ref<GQNCStatusView>()
-const loading = ref(false)
-const error = ref('')
-const checkedAt = ref('')
-const organizations = ref<WalletEntryOrganization[]>([])
-const organizationError = ref('')
-const organizationsLoading = ref(true)
-let disposed = false
-let timer: ReturnType<typeof setInterval> | undefined
+defineProps<{
+  active?: OverviewPanel
+  card?: 'organization' | 'blockchain'
+  hidden?: boolean
+  editing?: boolean
+  edge?: OverviewCardEdge
+  organization?: OrganizationSummary
+  offline: boolean
+}>()
+const { chainStatus, chainLoading: loading, chainError, chainCheckedAt, refreshChain, directory } =
+  useWalletNetwork()
+const status = computed(() => (chainError.value ? undefined : chainStatus.value))
+const error = computed(() => (chainError.value ? wt('refinement16') : ''))
+const checkedAt = computed(() =>
+  chainCheckedAt.value ? new Date(chainCheckedAt.value).toLocaleTimeString(walletLocale()) : '',
+)
+const organizationError = computed(() => (directory.error.value ? wt('refinement17') : ''))
+const organizationCount = computed(() => directory.data.value?.length)
 const chainLabel = computed(() => {
   if (error.value) return wt('w315')
   if (!status.value) return wt('w19')
@@ -29,107 +38,138 @@ const chainLabel = computed(() => {
     : status.value.safetyStatus || wt('refinement14')
 })
 
-async function refresh(): Promise<void> {
-  if (loading.value) return
-  loading.value = true
-  try {
-    const next = normalizeGQNCStatus(await client.gqncStatus())
-    if (!next.protocolVersion || !next.safetyStatus) throw new Error(wt('refinement15'))
-    if (disposed) return
-    status.value = next
-    error.value = ''
-    checkedAt.value = new Date().toLocaleTimeString(walletLocale())
-  } catch {
-    if (disposed) return
-    status.value = undefined
-    error.value = wt('refinement16')
-  } finally {
-    if (!disposed) loading.value = false
-  }
-}
-
-async function loadOrganizations(): Promise<void> {
-  organizationsLoading.value = true
-  try {
-    const service = getWalletEntryService()
-    if (!service) throw new Error('Unavailable')
-    const result = await service.listOrganizations()
-    if (!disposed) {
-      organizations.value = result
-      organizationError.value = ''
-    }
-  } catch {
-    if (!disposed) organizationError.value = wt('refinement17')
-  } finally {
-    if (!disposed) organizationsLoading.value = false
-  }
-}
-
-watch(
-  () => props.organization?.id,
-  () => void loadOrganizations(),
-)
-onMounted(() => {
-  void refresh()
-  void loadOrganizations()
-  timer = setInterval(() => {
-    if (!document.hidden) void refresh()
-  }, 30_000)
-})
-onBeforeUnmount(() => {
-  disposed = true
-  if (timer) clearInterval(timer)
-})
 </script>
 
 <template>
-  <div class="network-overview overview-pair">
-    <section class="overview-panel" aria-labelledby="overview-organization">
-      <header class="overview-panel__heading">
+  <section
+    v-if="!card || card === 'organization'"
+    v-show="!hidden"
+    data-card="organization"
+    :data-overview-edge="edge"
+    class="overview-disclosure"
+    :class="{ 'is-expanded': active === 'organization' }"
+    aria-labelledby="overview-organization"
+  >
+    <slot name="edit-controls" />
+    <div class="overview-summary overview-panel" :inert="editing">
+      <WalletPageHeader
+        v-if="active === 'organization'"
+        heading-id="overview-organization"
+        :title="wt('w86')"
+        :description="wt('overviewOrganizationIntro')"
+      >
+        <div id="intro-organization" class="overview-header-action"></div>
+      </WalletPageHeader>
+      <header v-else class="overview-panel__heading">
         <h2 id="overview-organization">
-          <RouterLink to="/wallet/organization">{{ wt('w86') }}</RouterLink>
+          <RouterLink
+            to="/wallet#organization"
+            aria-expanded="false"
+            aria-controls="detail-organization"
+            >{{ wt('w86') }}</RouterLink
+          >
         </h2>
         <StatusLabel :tone="offline ? 'warning' : 'neutral'">{{
           offline ? wt('refinement18') : organization ? wt('refinement19') : wt('refinement20')
         }}</StatusLabel>
       </header>
       <div class="overview-panel__body">
-        <dl class="overview-rows">
-          <div>
+        <dl v-if="active === 'organization'" class="overview-summary-metrics">
+          <div class="overview-summary-metrics__primary">
             <dt>{{ wt('refinement21') }}</dt>
-            <dd>{{ organization?.name || (offline ? wt('refinement22') : wt('refinement23')) }}</dd>
+            <dd class="overview-summary-metrics__text">
+              {{ organizationLabel(organization) || (offline ? wt('refinement22') : wt('refinement23')) }}
+            </dd>
           </div>
           <div v-if="organization">
             <dt>{{ wt('refinement24') }}</dt>
-            <dd>{{ organization.role }}</dd>
+            <dd>{{ organization.role === 'member' ? wt('refinement35') : organization.role }}</dd>
+          </div>
+          <div v-if="organizationCount !== undefined">
+            <dt>{{ wt('refinement25') }}</dt>
+            <dd class="tabular">{{ organizationCount }}</dd>
+          </div>
+        </dl>
+        <dl v-else class="overview-rows">
+          <div>
+            <dt>{{ wt('refinement21') }}</dt>
+            <dd>
+              {{ organizationLabel(organization) || (offline ? wt('refinement22') : wt('refinement23')) }}
+            </dd>
+          </div>
+          <div v-if="organization">
+            <dt>{{ wt('refinement24') }}</dt>
+            <dd>{{ organization.role === 'member' ? wt('refinement35') : organization.role }}</dd>
           </div>
           <div>
             <dt>{{ wt('refinement25') }}</dt>
             <dd>
               {{
-                organizationsLoading
-                  ? wt('w19')
+                organizationCount !== undefined
+                  ? wt('refinement59', [organizationCount])
                   : organizationError
                     ? '—'
-                    : wt('refinement59', [organizations.length])
+                    : wt('w19')
               }}
             </dd>
           </div>
         </dl>
         <WalletFigure kind="settle" :intensity="0.3" />
       </div>
-      <p v-if="organizationError" class="network-error" role="status">
-        {{ organizationError }} <button @click="loadOrganizations">{{ wt('refinement26') }}</button>
+      <div v-if="active === 'organization' && (organization || offline)" class="overview-summary__footer overview-summary__meta">
+        <span v-if="offline">{{ wt('refinement18') }}</span>
+        <span v-else>{{ wt('w89') }}</span>
+        <span v-if="organization?.name && organization.name !== organization.id">
+          {{ wt('w47') }} <code>{{ organization.id }}</code>
+        </span>
+      </div>
+      <p v-if="organizationError && active !== 'organization'" class="network-error" role="status">
+        {{ organizationCount !== undefined ? wt('networkCachedData') : organizationError }}
+        <button :disabled="directory.loading.value" @click="directory.refresh()">
+          {{ wt('refinement26') }}
+        </button>
       </p>
-      <RouterLink class="network-detail" to="/wallet/organization">
-        {{ wt('refinement27') }} <PhArrowUpRight :size="15" aria-hidden="true" />
+      <RouterLink
+        v-if="active !== 'organization'"
+        class="network-detail"
+        to="/wallet#organization"
+        aria-expanded="false"
+        aria-controls="detail-organization"
+      >
+        {{ wt('refinement27') }}
+        <PhCaretDown :size="14" aria-hidden="true" />
       </RouterLink>
-    </section>
+    </div>
+    <OverviewDetail v-if="active === 'organization'" panel="organization" />
+  </section>
 
-    <section class="overview-panel" aria-labelledby="overview-chain">
-      <header class="overview-panel__heading">
+  <section
+    v-if="!card || card === 'blockchain'"
+    v-show="!hidden"
+    data-card="blockchain"
+    :data-overview-edge="edge"
+    class="overview-disclosure"
+    :class="{ 'is-expanded': active === 'blockchain' }"
+    aria-labelledby="overview-chain"
+  >
+    <slot name="edit-controls" />
+    <div class="overview-summary overview-panel" :inert="editing">
+      <WalletPageHeader
+        v-if="active === 'blockchain'"
+        heading-id="overview-chain"
+        :title="wt('refinement28')"
+        :description="wt('overviewChainIntro')"
+      >
+        <div id="intro-blockchain" class="overview-header-action"></div>
+      </WalletPageHeader>
+      <header v-else class="overview-panel__heading">
         <h2 id="overview-chain">
-          <RouterLink to="/wallet/blockchain">{{ wt('refinement28') }}</RouterLink>
+          <RouterLink
+            to="/wallet#blockchain"
+            aria-expanded="false"
+            aria-controls="detail-blockchain"
+            >{{ wt('refinement28') }}</RouterLink
+          >
         </h2>
         <div class="chain-actions">
           <StatusLabel :tone="chainLabel === wt('w181') ? 'success' : 'warning'">{{
@@ -139,14 +179,15 @@ onBeforeUnmount(() => {
             :aria-label="wt('refinement29')"
             :disabled="loading"
             :aria-busy="loading"
-            @click="refresh"
+            @click="refreshChain()"
           >
             <PhArrowClockwise :size="17" />
           </button>
         </div>
       </header>
       <div class="overview-panel__body">
-        <dl class="overview-metrics">
+        <div v-if="active === 'blockchain'" id="overview-chain-status"></div>
+        <dl v-else class="overview-metrics">
           <div>
             <dt>{{ wt('w16') }}</dt>
             <dd class="tabular">{{ status?.certifiedHeight ?? '—' }}</dd>
@@ -164,15 +205,23 @@ onBeforeUnmount(() => {
         </dl>
         <WalletFigure kind="branches" :intensity="0.3" />
       </div>
-      <p v-if="error" class="network-error" role="status">{{ error }}</p>
-      <div class="network-footer">
-        <RouterLink class="network-detail" to="/wallet/blockchain">
-          {{ wt('refinement30') }} <PhArrowUpRight :size="15" aria-hidden="true" />
+      <div v-if="active === 'blockchain'" id="overview-chain-footer" class="overview-summary__footer"></div>
+      <p v-if="error && active !== 'blockchain'" class="network-error" role="status">{{ error }}</p>
+      <div v-if="active !== 'blockchain'" class="network-footer">
+        <RouterLink
+          class="network-detail"
+          to="/wallet#blockchain"
+          aria-expanded="false"
+          aria-controls="detail-blockchain"
+        >
+          {{ wt('refinement30') }}
+          <PhCaretDown :size="14" aria-hidden="true" />
         </RouterLink>
         <span v-if="checkedAt">{{ checkedAt }} {{ wt('refinement31') }}</span>
       </div>
-    </section>
-  </div>
+    </div>
+    <OverviewDetail v-if="active === 'blockchain'" panel="blockchain" />
+  </section>
 </template>
 
 <style scoped>

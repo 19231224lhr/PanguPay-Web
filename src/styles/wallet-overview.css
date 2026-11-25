@@ -1,13 +1,84 @@
-.overview {
+:root {
   --overview-panel-surface: color-mix(in srgb, var(--surface) 55%, var(--background));
-  --overview-figure-width: 112px;
 }
-.overview .overview-pair {
+.overview {
+  --overview-figure-width: 112px;
+  --overview-card-surface: var(--overview-panel-surface);
+}
+.overview:has([data-card].is-expanded) {
+  --overview-card-surface: color-mix(in srgb, var(--overview-panel-surface) 42%, var(--background));
+}
+.overview-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--wallet-page-gap);
+}
+.overview-card-grid > [data-card] {
+  grid-column: 1 / -1;
   border: 1px solid var(--hairline);
-  border-radius: 16px;
-  background: var(--overview-panel-surface);
+  border-radius: var(--radius-lg);
+  background: var(--overview-card-surface);
+}
+.overview-card-grid > [data-overview-edge="start"] {
+  grid-column: 1;
+}
+.overview-card-grid > [data-overview-edge="end"] {
+  grid-column: 2;
+}
+.overview-card-grid > [data-card]:not(.is-expanded) > .overview-summary {
+  height: 100%;
+}
+.overview-card-grid.is-editing {
+  position: relative;
+}
+.overview-card-grid.is-editing > [data-card] {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+}
+.overview-card-grid.is-editing > [data-card]:not([data-overview-edge]) {
+  grid-column: 1;
+}
+.overview-card-grid.is-editing > [data-card] > .overview-summary {
+  flex: 1;
+  height: auto;
+}
+.overview-card-grid[data-overview-sorting] {
+  overflow-anchor: none;
+}
+.overview-card-grid[data-overview-sorting]::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: var(--overview-slot-x);
+  top: var(--overview-slot-y);
+  width: var(--overview-slot-width);
+  height: var(--overview-slot-height);
+  border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: var(--radius-lg);
+  background: var(--surface-hover);
+  pointer-events: none;
+}
+.overview-card-grid.is-editing > [data-overview-dragging] {
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: var(--shadow-menu);
+  animation: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .overview-card-grid.is-editing > [data-card]:not([data-overview-dragging]) {
+    animation: overview-card-wiggle 630ms ease-in-out infinite alternate;
+  }
+  .overview-card-grid.is-editing > [data-overview-edge="end"]:not([data-overview-dragging]) {
+    animation-delay: -630ms;
+  }
+}
+@keyframes overview-card-wiggle {
+  from { rotate: -0.42deg; }
+  to { rotate: 0.42deg; }
 }
 .overview .overview-panel {
   min-width: 0;
@@ -15,10 +86,7 @@
   flex-direction: column;
   padding: 0.75rem 1.25rem;
   gap: 0.25rem;
-  --figure-plate: var(--overview-panel-surface);
-}
-.overview .overview-panel + .overview-panel {
-  border-left: 1px solid var(--hairline);
+  --figure-plate: var(--overview-card-surface);
 }
 .overview .overview-panel__heading {
   display: flex;
@@ -32,6 +100,9 @@
   color: var(--text);
   font-size: 0.95rem;
   font-weight: 600;
+}
+.overview-header-action {
+  display: flex;
 }
 .overview .overview-panel__body {
   display: grid;
@@ -108,12 +179,11 @@
   border-color: transparent;
 }
 @container (max-width: 680px) {
-  .overview .overview-pair {
+  .overview-card-grid {
     grid-template-columns: 1fr;
   }
-  .overview .overview-panel + .overview-panel {
-    border-left: 0;
-    border-top: 1px solid var(--hairline);
+  .overview-card-grid > [data-overview-edge="end"] {
+    grid-column: 1;
   }
 }
 @container (max-width: 380px) {
@@ -127,4 +197,454 @@
   .overview .overview-panel__body {
     gap: 0.75rem;
   }
+}
+
+
+.overview-send-card {
+  min-width: 0;
+  scroll-margin-top: 12px;
+}
+.overview [data-card] { min-width: 0; scroll-margin-top: 12px; }
+.overview [data-card].is-expanded {
+  --overview-card-surface: var(--overview-panel-surface);
+  --overview-detail-inset: clamp(16px, 2.45cqi, 28px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--overview-card-surface);
+}
+.overview [data-card].is-expanded > .overview-summary {
+  --overview-figure-width: clamp(100px, 14.25cqi, 156px);
+  --overview-summary-heading-height: 54px;
+  --overview-summary-body-height: max(100px, calc(var(--overview-figure-width) * 0.8));
+  --overview-summary-footer-height: 36px;
+  --figure-plate: var(--overview-panel-surface);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows:
+    minmax(var(--overview-summary-heading-height), auto)
+    minmax(var(--overview-summary-body-height), 1fr)
+    minmax(var(--overview-summary-footer-height), auto);
+  gap: 5px;
+  min-width: 0;
+  padding: var(--overview-detail-inset);
+}
+.overview [data-card].is-expanded > .overview-summary:has(> .other-assets) {
+  grid-template-rows:
+    minmax(var(--overview-summary-heading-height), auto)
+    minmax(var(--overview-summary-body-height), 1fr)
+    auto
+    minmax(var(--overview-summary-footer-height), auto);
+}
+.overview .is-expanded > .overview-summary .wallet-page-header {
+  min-height: 0;
+  align-items: flex-start;
+  flex-direction: row;
+  gap: 12px;
+}
+.overview .is-expanded > .overview-summary .wallet-page-header > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overview .is-expanded > .overview-summary .overview-header-action {
+  flex: none;
+}
+.overview .is-expanded > .overview-summary .wallet-page-header :is(h1, h2) {
+  font-size: clamp(1.15rem, 2.2cqi, 1.55rem);
+  font-weight: 610;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+.overview .is-expanded > .overview-summary .wallet-page-header p {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+}
+.overview [data-card].is-expanded > .overview-summary > .overview-panel__body {
+  align-items: center;
+  min-height: 0;
+  margin: 0;
+}
+.overview-summary__footer {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.overview-summary__meta {
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 560px) {
+  .overview [data-card].is-expanded > .overview-summary {
+    --overview-summary-heading-height: 64px;
+    --overview-summary-body-height: 120px;
+  }
+}
+@media (pointer: coarse) {
+  .overview [data-card].is-expanded > .overview-summary {
+    --overview-summary-footer-height: 44px;
+  }
+}
+.overview .overview-detail, .overview #overview-send {
+  grid-column: 1 / -1;
+  padding: clamp(14px, 2vw, 24px) var(--overview-detail-inset, 24px);
+  min-width: 0;
+  border-top: 1px solid var(--hairline);
+}
+.overview .overview-detail .wallet-page, .overview #overview-send .wallet-page {
+  padding: 0;
+  gap: 1rem;
+}
+#overview-send .send-form,
+#overview-send .review-plane,
+#overview-send .result-plane {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  --figure-plate: var(--overview-panel-surface);
+}
+#overview-send .send-compose { column-gap: clamp(20px, 4cqi, 40px); }
+#overview-send .send-panel { padding: 16px 0 20px; border-inline: 0; }
+#overview-send .send-panel:first-child { padding-top: 0; }
+#overview-send .send-panel:last-child { padding-bottom: 0; }
+@container (min-width: 641px) {
+  #overview-send .send-panel { padding-block: 0; }
+}
+#overview-send .transfer-error-notice { margin: 16px 0 0; }
+.overview .overview-detail .wallet-refined > .wallet-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.overview .overview-detail .wallet-refined > .wallet-section + .wallet-section {
+  border-top: 1px solid var(--hairline);
+  padding-top: 1rem;
+}
+.overview .overview-detail .detail-page-intro { min-height: 44px; }
+.overview .overview-summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.55rem clamp(14px, 2.5cqi, 32px);
+  min-width: 0;
+  margin: 0;
+}
+.overview-summary-metrics > div {
+  min-width: 0;
+}
+.overview-summary-metrics .overview-summary-metrics__primary {
+  margin-inline-end: clamp(6px, 1.5cqi, 20px);
+}
+.overview-summary-metrics .wallet-balance-field__composition {
+  gap: inherit;
+}
+.overview-summary-metrics > div:not(.wallet-balance-field__composition),
+.overview-summary-metrics .wallet-balance-field__composition > span {
+  display: grid;
+  gap: 0.2rem;
+}
+.overview-summary-metrics > div:not(.overview-summary-metrics__primary),
+.overview-summary-metrics .wallet-balance-field__composition {
+  padding-bottom: 0.2rem;
+}
+.overview .overview-summary-metrics :is(dt, .balance-caption, .wallet-balance-field__composition small, .chain-status > div > span:first-child) {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.overview .overview-summary-metrics :is(dd, strong, .wallet-balance-field__composition b) {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.overview .overview-summary-metrics .overview-summary-metrics__primary :is(dd, strong) {
+  font-size: clamp(2rem, 4.4cqi, 3.25rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+.overview .overview-summary-metrics .overview-summary-metrics__primary .overview-summary-metrics__text {
+  font-size: clamp(1.25rem, 3cqi, 2rem);
+}
+.overview .overview-summary-metrics__primary small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+@container (max-width: 520px) {
+  .overview-summary-metrics .overview-summary-metrics__primary {
+    flex-basis: 100%;
+    margin-inline-end: 0;
+  }
+  .overview-summary-metrics > div:not(.overview-summary-metrics__primary, .wallet-balance-field__composition),
+  .overview-summary-metrics .wallet-balance-field__composition > span {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+  .overview .overview-summary-metrics > :not(.overview-summary-metrics__primary) :is(dd, strong, b) {
+    font-size: 0.78rem;
+  }
+}
+.overview :is(#detail-addresses, #detail-organization, #detail-activity) {
+  padding: 0 var(--overview-detail-inset) 6px;
+}
+.overview #detail-organization :is(.organization-chooser, .organization-roster) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.overview #detail-organization .organization-roster > .wallet-section__heading {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.overview #detail-organization .member-organization {
+  gap: 0;
+}
+.overview #detail-organization .organization-roster {
+  margin-top: 16px;
+}
+.overview #detail-organization .organization-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
+}
+.overview #detail-organization .organization-metrics > div {
+  padding: 14px clamp(6px, 2cqi, 20px);
+  border-top: 0;
+}
+.overview #detail-organization .organization-metrics > div:first-child {
+  padding-inline-start: 0;
+}
+.overview #detail-organization .organization-metrics > div + div {
+  border-inline-start: 1px solid var(--hairline);
+}
+.overview #detail-organization .organization-metrics dd {
+  font-size: clamp(0.85rem, 1.85cqi, 1.25rem);
+  font-weight: 580;
+}
+.overview #detail-organization .organization-technical {
+  padding: 0;
+  border-bottom: 0;
+}
+.overview #detail-organization .organization-technical dl {
+  padding-inline-start: 43px;
+}
+.overview #detail-organization .organization-exit {
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+}
+.overview #detail-organization .organization-exit > .app-button {
+  justify-self: end;
+  min-height: 44px;
+  padding-inline: 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+@container (max-width: 480px) {
+  .overview #detail-organization .organization-technical dl {
+    padding-inline-start: 0;
+  }
+}
+.overview .overview-summary a[aria-expanded="true"] svg { transform: rotate(-90deg); }
+.collapse-send {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  align-self: start;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.collapse-send:is(:hover, :focus-visible) { background: var(--surface-hover); color: var(--text); }
+
+.wallet-send-morph [data-card="balance"] { view-transition-name: overview-balance; }
+.wallet-send-morph [data-card="security"] { view-transition-name: overview-security; }
+.wallet-send-morph [data-card="activity"] { view-transition-name: overview-activity; }
+.wallet-send-morph [data-card="addresses-preview"] { view-transition-name: overview-addresses-preview; }
+.wallet-send-morph [data-card="organization"] { view-transition-name: overview-organization; }
+.wallet-send-morph [data-card="blockchain"] { view-transition-name: overview-blockchain; }
+.wallet-send-morph[data-morph-card="balance"] [data-card="balance"],
+.wallet-send-morph[data-morph-card="security"] [data-card="security"],
+.wallet-send-morph[data-morph-card="activity"] [data-card="activity"],
+.wallet-send-morph[data-morph-card="addresses-preview"] [data-card="addresses-preview"],
+.wallet-send-morph[data-morph-card="organization"] [data-card="organization"],
+.wallet-send-morph[data-morph-card="blockchain"] [data-card="blockchain"] { view-transition-name: overview-transfer; }
+.wallet-send-morph[data-morph-card="security"] [data-card="security"] > .overview-summary {
+  view-transition-name: overview-pinned-summary;
+}
+.wallet-send-morph[data-morph-card="activity"] [data-card="activity"] .overview-summary h2,
+.wallet-send-morph[data-morph-card="addresses-preview"] [data-card="addresses-preview"] .overview-summary h2,
+.wallet-send-morph[data-morph-card="organization"] [data-card="organization"] .overview-summary h2,
+.wallet-send-morph[data-morph-card="blockchain"] [data-card="blockchain"] .overview-summary h2 {
+  width: fit-content;
+  view-transition-name: overview-panel-title;
+}
+.wallet-send-morph[data-morph-card="security"] [data-card="security"] .overview-summary .wallet-figure,
+.wallet-send-morph[data-morph-card="activity"] [data-card="activity"] .overview-summary .wallet-figure,
+.wallet-send-morph[data-morph-card="addresses-preview"] [data-card="addresses-preview"] .overview-summary .wallet-figure,
+.wallet-send-morph[data-morph-card="organization"] [data-card="organization"] .overview-summary .wallet-figure,
+.wallet-send-morph[data-morph-card="blockchain"] [data-card="blockchain"] .overview-summary .wallet-figure {
+  view-transition-name: overview-panel-figure;
+}
+/* Match the ink bounds across layouts, including the caption that moves
+   from the card header to the balance. Both snapshots travel on one path. */
+.wallet-send-morph[data-morph-card="balance"] .wallet-balance-field {
+  & :is(#wallet-total-assets, .balance-caption) {
+    width: fit-content;
+    view-transition-name: wallet-balance-label;
+  }
+  & .wallet-balance-field__amount { view-transition-name: wallet-balance-amount; }
+  & .money-figure { view-transition-name: wallet-balance-figure; }
+  & .balance-sync { view-transition-name: wallet-balance-sync; }
+  & .wallet-balance-field__composition {
+    & small, & b { width: fit-content; }
+    & span:first-child small { view-transition-name: wallet-utxo-label; }
+    & span:first-child b { view-transition-name: wallet-utxo-value; }
+    & span:last-child small { view-transition-name: wallet-txcer-label; }
+    & span:last-child b { view-transition-name: wallet-txcer-value; }
+  }
+  & :is(#wallet-total-assets, .balance-caption, .wallet-balance-field__amount,
+        .money-figure, .balance-sync),
+  & .wallet-balance-field__composition :is(small, b) {
+    view-transition-class: wallet-moving-item;
+  }
+  & .balance-intro .wallet-page-header > div {
+    view-transition-name: wallet-action-title;
+  }
+}
+:root.wallet-send-morph::view-transition-group(.wallet-moving-item),
+:root.wallet-send-morph::view-transition-group(wallet-action-title) { z-index: 3; }
+/* Text and line art have transparent backgrounds. Isolate their blend
+   from the card surface so glyphs keep their weight through the handoff. */
+:root.wallet-send-morph::view-transition-image-pair(.wallet-moving-item) { isolation: isolate; }
+:root.wallet-send-morph::view-transition-old(.wallet-moving-item),
+:root.wallet-send-morph::view-transition-new(.wallet-moving-item) {
+  width: 100%;
+  height: 100%;
+  animation-duration: inherit;
+  object-fit: fill;
+}
+:root.wallet-send-morph::view-transition-new(wallet-action-title) {
+  animation: wallet-title-arrive 285ms 85ms cubic-bezier(.2,.65,.3,1) both;
+}
+:root.wallet-send-morph::view-transition-old(wallet-action-title) {
+  animation: send-content-out 160ms ease-out both;
+}
+@keyframes wallet-title-arrive {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+:root.wallet-send-morph::view-transition-group(overview-pinned-summary) { z-index: 3; }
+:root.wallet-send-morph::view-transition-old(overview-pinned-summary) { display: none; }
+:root.wallet-send-morph::view-transition-new(overview-pinned-summary) {
+  animation: none;
+  object-fit: none;
+  object-position: left top;
+}
+
+:root.wallet-send-morph::view-transition { pointer-events: none; }
+:root.wallet-send-morph::view-transition-old(root) { display: none; }
+:root.wallet-send-morph::view-transition-new(root) { animation: none; }
+:root.wallet-send-morph::view-transition-group(*) {
+  animation-duration: 440ms;
+  animation-timing-function: cubic-bezier(.28, .65, .22, 1);
+}
+:root.wallet-send-morph:not([data-morph-panel="send"], [data-morph-panel="security"])::view-transition-group(*) {
+  animation-duration: 290ms;
+  animation-timing-function: cubic-bezier(.24, .7, .25, 1);
+}
+:root.wallet-send-morph::view-transition-group(overview-panel-title),
+:root.wallet-send-morph::view-transition-group(overview-panel-figure) {
+  z-index: 3;
+}
+:root.wallet-send-morph::view-transition-old(overview-panel-title),
+:root.wallet-send-morph::view-transition-old(overview-panel-figure) {
+  display: none;
+}
+:root.wallet-send-morph::view-transition-new(overview-panel-title),
+:root.wallet-send-morph::view-transition-new(overview-panel-figure) {
+  animation: none;
+}
+
+/* The browser's additive snapshot blend clips pale surfaces to white. */
+:root.wallet-send-morph::view-transition-old(*),
+:root.wallet-send-morph::view-transition-new(*) {
+  mix-blend-mode: normal;
+}
+:root.wallet-send-morph::view-transition-old(.wallet-moving-item),
+:root.wallet-send-morph::view-transition-new(.wallet-moving-item) { mix-blend-mode: plus-lighter; }
+:root.wallet-send-morph::view-transition-group(overview-transfer) { z-index: 2; }
+:root.wallet-send-morph::view-transition-image-pair(overview-transfer) {
+  overflow: clip;
+  border-radius: 15px;
+  background: var(--overview-panel-surface);
+}
+:root.wallet-send-morph::view-transition-old(overview-transfer),
+:root.wallet-send-morph::view-transition-new(overview-transfer) {
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+:root.wallet-send-morph::view-transition-old(overview-transfer) {
+  animation: send-content-out 230ms ease-out both;
+}
+:root.wallet-send-morph::view-transition-new(overview-transfer) {
+  animation: send-content-in 315ms 65ms ease-out both;
+}
+:root.wallet-send-morph:not([data-morph-panel="send"], [data-morph-panel="security"])::view-transition-old(overview-transfer) {
+  animation: send-content-out 115ms ease-out both;
+}
+:root.wallet-send-morph:not([data-morph-panel="send"], [data-morph-panel="security"])::view-transition-new(overview-transfer) {
+  animation: send-content-in 185ms 35ms ease-out both;
+}
+@keyframes send-content-out { to { opacity: 0; } }
+@keyframes send-content-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The neighbouring cards move as solid objects; their contents do not change. */
+:root.wallet-send-morph::view-transition-old(overview-balance):not(:only-child),
+:root.wallet-send-morph::view-transition-old(overview-security):not(:only-child),
+:root.wallet-send-morph::view-transition-old(overview-activity):not(:only-child),
+:root.wallet-send-morph::view-transition-old(overview-addresses-preview):not(:only-child),
+:root.wallet-send-morph::view-transition-old(overview-organization):not(:only-child),
+:root.wallet-send-morph::view-transition-old(overview-blockchain):not(:only-child) { display: none; }
+:root.wallet-send-morph::view-transition-new(overview-balance),
+:root.wallet-send-morph::view-transition-new(overview-security),
+:root.wallet-send-morph::view-transition-new(overview-activity),
+:root.wallet-send-morph::view-transition-new(overview-addresses-preview),
+:root.wallet-send-morph::view-transition-new(overview-organization),
+:root.wallet-send-morph::view-transition-new(overview-blockchain) { animation: none; }
+
+/* The adjacent preview changes column width. Keep its text at reading size. */
+:root.wallet-send-morph[data-morph-card="balance"]::view-transition-image-pair(overview-security) {
+  overflow: clip;
+  background: var(--overview-panel-surface);
+}
+:root.wallet-send-morph[data-morph-card="balance"]::view-transition-old(overview-security):not(:only-child),
+:root.wallet-send-morph[data-morph-card="balance"]::view-transition-new(overview-security) {
+  display: block;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+:root.wallet-send-morph[data-morph-card="balance"]::view-transition-new(overview-security) {
+  animation: send-content-in 250ms 100ms ease-out both;
 }

@@ -1,10 +1,18 @@
+import japanese from './ja-JP'
+import spanish from './es-ES'
+import french from './fr-FR'
 import { walletMessages } from './walletMessages'
+import { welcomeGuideMessages } from './welcomeGuide'
 import { createI18n } from 'vue-i18n'
 
 import { getInitialLocale } from '@/composables/usePreferences'
 
 const messages = {
+  'ja-JP': { ...japanese, welcomeGuide: welcomeGuideMessages['ja-JP'] },
+  'es-ES': { ...spanish, welcomeGuide: welcomeGuideMessages['es-ES'] },
+  'fr-FR': { ...french, welcomeGuide: welcomeGuideMessages['fr-FR'] },
   'zh-CN': {
+    welcomeGuide: welcomeGuideMessages['zh-CN'],
     walletText: walletMessages['zh-CN'],
     brand: 'PanguPay',
     common: {
@@ -77,6 +85,7 @@ const messages = {
         preferences: '外观与语言',
       },
       settings: {
+        back: '返回',
         title: '设置与备份',
         description: '管理钱包外观、语言和本机加密备份。',
         preferences: '外观与语言',
@@ -133,6 +142,7 @@ const messages = {
     },
   },
   'en-US': {
+    welcomeGuide: welcomeGuideMessages['en-US'],
     walletText: walletMessages['en-US'],
     brand: 'PanguPay',
     common: {
@@ -205,6 +215,7 @@ const messages = {
         preferences: 'Appearance & language',
       },
       settings: {
+        back: 'Back',
         title: 'Settings & backup',
         description: 'Manage appearance, language, and encrypted local backups.',
         preferences: 'Appearance & language',

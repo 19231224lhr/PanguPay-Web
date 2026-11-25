@@ -61,10 +61,15 @@ describe('foundation components', () => {
     })
 
     expect(wrapper.get('.wallet-balance-field__amount').text()).toContain('12')
-    expect(wrapper.get('.balance-state').text()).toBe('离线快照')
+    expect(wrapper.get('.balance-sync').text()).toContain('离线快照')
     expect(wrapper.get('.balance-sync').attributes('aria-label')).toContain('缓存于')
     await wrapper.get('.balance-sync').trigger('click')
     expect(wrapper.emitted('refresh')).toHaveLength(1)
+    await wrapper.setProps({ offline: false })
+    expect(wrapper.get('header').text()).not.toContain('已同步')
+    expect(wrapper.get('.balance-sync').text()).toContain('已同步')
+    await wrapper.setProps({ panel: 'send' })
+    expect(wrapper.get('.balance-sync').text()).toContain('已同步')
     wrapper.unmount()
   })
 
@@ -242,7 +247,7 @@ describe('foundation components', () => {
     expect(wrapper.text()).not.toContain('wallet unlock failed')
   })
 
-  it('keeps settings at the desktop sidebar bottom and the account menu compact', async () => {
+  it('groups settings, lock and sign-out behind the footer avatar', async () => {
     const TestIcon = markRaw(defineComponent({ template: '<span aria-hidden="true" />' }))
     const RouterLinkStub = {
       props: ['to'],
@@ -258,8 +263,8 @@ describe('foundation components', () => {
           { label: '活动', icon: TestIcon, to: '/wallet/activity' },
           { label: '安全', icon: TestIcon, to: '/wallet/security' },
         ],
-        accountItems: [{ label: '担保组织', icon: TestIcon, to: '/wallet/organization' }],
-        utilityItems: [{ label: '设置与备份', icon: TestIcon, to: '/wallet/settings' }],
+        settingsItem: { label: '设置', icon: TestIcon, to: '/wallet/settings' },
+        signOutLabel: '退出钱包',
         navigationLabel: '钱包导航',
       },
       global: {
@@ -270,18 +275,19 @@ describe('foundation components', () => {
       },
     })
 
-    expect(wrapper.get('[data-sidebar-utilities]').text()).toContain('设置与备份')
-
-    await wrapper.get('button[aria-label="打开账户菜单"]').trigger('click')
+    const footerAvatar = wrapper.get('.app-shell__footer button[aria-label="打开账户菜单"]')
+    await footerAvatar.trigger('click')
 
     expect(wrapper.emitted('lock')).toBeUndefined()
-    expect(wrapper.get('[data-account-items]').text()).toContain('担保组织')
-    expect(wrapper.get('[data-account-items]').text()).not.toContain('设置与备份')
-    expect(wrapper.get('[data-mobile-utilities]').text()).toContain('设置与备份')
-    expect(wrapper.find('.wallet-account-menu__preferences').exists()).toBe(false)
+    expect(wrapper.findAll('[role=menuitem]').map((item) => item.text())).toEqual([
+      '设置', '锁定钱包', '退出钱包',
+    ])
 
-    await wrapper.get('button[aria-label="锁定钱包"]').trigger('click')
+    await wrapper.findAll('[role=menuitem]')[1]!.trigger('click')
     expect(wrapper.emitted('lock')).toHaveLength(1)
+    await footerAvatar.trigger('click')
+    await wrapper.findAll('[role=menuitem]')[2]!.trigger('click')
+    expect(wrapper.emitted('signOut')).toHaveLength(1)
   })
 
   it('keeps the mobile primary navigation to three tasks plus a My entry', () => {
@@ -300,8 +306,7 @@ describe('foundation components', () => {
           { label: '活动', icon: TestIcon, to: '/wallet/activity' },
           { label: '安全', icon: TestIcon, to: '/wallet/security' },
         ],
-        accountItems: [],
-        utilityItems: [{ label: '设置', icon: TestIcon, to: '/wallet/settings' }],
+        settingsItem: { label: '设置', icon: TestIcon, to: '/wallet/settings' },
         navigationLabel: '钱包导航',
       },
       global: {
@@ -317,12 +322,12 @@ describe('foundation components', () => {
     expect(mobileNavigation.get('button').text()).toContain('我的')
   })
 
-  it('derives the utility navigation label from the translated item', () => {
+  it('uses the translated settings link in the account menu', async () => {
     const TestIcon = markRaw(defineComponent({ template: '<span aria-hidden="true" />' }))
     const wrapper = mount(AppShell, {
       props: {
         items: [],
-        utilityItems: [{ label: 'Settings', icon: TestIcon, to: '/wallet/settings' }],
+        settingsItem: { label: 'Settings', icon: TestIcon, to: '/wallet/settings' },
         navigationLabel: 'Wallet navigation',
       },
       global: {
@@ -335,7 +340,10 @@ describe('foundation components', () => {
       },
     })
 
-    expect(wrapper.get('[data-sidebar-utilities]').attributes('aria-label')).toBe('Settings')
+    await wrapper.get('.app-shell__account').trigger('click')
+    const settings = wrapper.get('a[role=menuitem]')
+    expect(settings.text()).toBe('Settings')
+    expect(settings.attributes('href')).toBe('/wallet/settings')
   })
 
   it('keeps the access form available inside the shared entry scene', () => {

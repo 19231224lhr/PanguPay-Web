@@ -1,5 +1,8 @@
+import { brandRelief } from './brandRelief'
+
 // Original procedural solids, shaded before halftone sampling. No image or model downloads.
-export type EntryShape = 'wallet' | 'key' | 'create' | 'import' | 'shield'
+export const entryShapes = ['brand', 'create', 'import', 'key', 'shield', 'organization', 'wallet'] as const
+export type EntryShape = (typeof entryShapes)[number]
 export type Particle = {
   x: number
   y: number
@@ -13,7 +16,7 @@ const smooth = (n: number) => {
   const t = clamp(n)
   return t * t * t * (t * (t * 6 - 15) + 10)
 }
-const count = 26000
+const count = 14000
 const cache = new Map<EntryShape, Particle[]>()
 
 function box(x: number, y: number, z: number, w: number, h: number, d: number, r: number) {
@@ -34,6 +37,26 @@ function wallet(x: number, y: number, z: number) {
   const stud = Math.hypot(x - 71, y - 5, z - 42) - 7
   return Math.min(body, clasp, stud)
 }
+// The identity card emerges through the wallet lip. Its front carries a
+// raised portrait and plus, both cut from the same face rather than floating.
+const cardTilt = -0.11
+const cardCos = Math.cos(cardTilt), cardSin = Math.sin(cardTilt)
+function newAccountWallet(x: number, y: number, z: number) {
+  const body = wallet((x + 3) / 0.8, (y - 43) / 0.8, z / 0.8) * 0.8
+  const u = cardCos * x + cardSin * (y + 49)
+  const v = -cardSin * x + cardCos * (y + 49)
+  const cornerX = Math.abs(u) - 63, cornerY = Math.abs(v) - 35
+  const outline = Math.hypot(Math.max(0, cornerX), Math.max(0, cornerY))
+    + Math.min(Math.max(cornerX, cornerY), 0) - 8
+  const card = Math.max(outline, Math.abs(z + 1) - 2.5) - 2
+  const head = Math.hypot(u + 26, v + 17) - 10.5
+  const shoulders = Math.max(Math.hypot(u + 26, v - 18) - 20, v - 14)
+  const plus = Math.min(Math.max(Math.abs(u - 27) - 15, Math.abs(v + 6) - 3.5),
+    Math.max(Math.abs(u - 27) - 3.5, Math.abs(v + 6) - 15))
+  const emboss = Math.max(Math.min(head, shoulders, plus), Math.abs(z - 4) - 1.5) - 1.5
+  return Math.min(body, card, emboss)
+}
+
 function bitcoinMark(x: number, y: number) {
   const upper = Math.max(Math.abs(Math.hypot(x + 1, y + 13) - 14) - 3.5, -x - 1)
   const lower = Math.max(Math.abs(Math.hypot(x + 1, y - 12) - 15) - 3.5, -x - 1)
@@ -70,17 +93,95 @@ function homeParts(x: number, y: number, z: number) {
     eth,
   ]
 }
-function distance(kind: EntryShape, x: number, y: number, z: number) {
-  if (kind === 'wallet') return Math.min(...homeParts(x, y, z))
-  if (kind === 'create') {
-    const body = wallet((x + 18) / 0.84, (y - 15) / 0.84, z / 0.84) * 0.84
-    const disc = Math.hypot(Math.hypot(x - 103, y + 72) - 34, z - 30) - 9
-    const plus = Math.min(
-      box(x - 103, y + 72, z - 31, 19, 5, 8, 2),
-      box(x - 103, y + 72, z - 31, 5, 19, 8, 2),
-    )
-    return Math.min(body, disc, plus)
+// The rounded crest follows the broad shoulders, curved sides and pointed base of a shield.
+const crest = [
+  [0, -91],
+  [39, -78],
+  [77, -73],
+  [76, -17],
+  [69, 18],
+  [55, 46],
+  [33, 72],
+  [0, 97],
+] as const
+const crestEdges = crest.slice(1).map(([x, y], i) => {
+  const [ax, ay] = crest[i]!
+  const length = Math.hypot(x - ax, y - ay)
+  return { ax, ay, nx: (y - ay) / length, ny: (ax - x) / length }
+})
+
+function crestEdge(x: number, y: number) {
+  const u = Math.abs(x)
+  // The two sloping top segments form a crown that dips toward the shoulders.
+  const brow = crestEdges[0]!,
+    shoulder = crestEdges[1]!
+  let edge = Math.min(
+    (u - brow.ax) * brow.nx + (y - brow.ay) * brow.ny,
+    (u - shoulder.ax) * shoulder.nx + (y - shoulder.ay) * shoulder.ny,
+  )
+  for (let i = 2; i < crestEdges.length; i++) {
+    const e = crestEdges[i]!
+    edge = Math.max(edge, (u - e.ax) * e.nx + (y - e.ay) * e.ny)
   }
+  return edge
+}
+
+function checkStroke(x: number, y: number) {
+  const left = clamp(((x + 33) * 25 + (y + 5) * 25) / 1250)
+  const right = clamp(((x + 8) * 48 - (y - 20) * 54) / 5220)
+  return Math.min(
+    Math.hypot(x + 33 - left * 25, y + 5 - left * 25),
+    Math.hypot(x + 8 - right * 48, y - 20 + right * 54),
+  )
+}
+
+function shield(x: number, y: number, z: number) {
+  const edge = crestEdge(x, y),
+    front = z + x * x * 0.0016 + y * y * 0.00045
+  const depth = Math.abs(front) - 9
+  const body =
+    Math.hypot(Math.max(0, edge), Math.max(0, depth)) + Math.min(Math.max(edge, depth), 0) - 8
+  const piping = Math.hypot(edge + 5, front - 17) - 3
+  return Math.min(body, piping, Math.hypot(checkStroke(x, y), front - 20) - 7)
+}
+
+function shieldInk(x: number, y: number, z: number, shading: number) {
+  if (z + x * x * 0.0016 + y * y * 0.00045 < 15 || crestEdge(x, y) > -10) return shading
+  return checkStroke(x, y) < 7 ? 0.63 + 0.36 * shading : 0.07 + 0.44 * shading
+}
+
+// A sphere and a softly beveled circular cone make up each figure.
+// The two smaller figures stand behind the central one in the same orthographic light.
+const figures = [
+  { x: -78, y: -8, z: -24, scale: 0.82 },
+  { x: 78, y: -8, z: -24, scale: 0.82 },
+  { x: 0, y: 5, z: 23, scale: 1 },
+] as const
+
+// A shared crest stands in front of the group, below the three heads.
+const organizationCrest = { x: -58, y: 68, z: 72, scale: 0.60 }
+const coneSlope = 0.45
+const coneNormalLength = Math.hypot(1, coneSlope)
+
+function organization(x: number, y: number, z: number) {
+  let distance = Infinity
+  for (const figure of figures) {
+    const px = (x - figure.x) / figure.scale
+    const py = (y - figure.y) / figure.scale
+    const pz = (z - figure.z) / figure.scale
+    const sphere = Math.hypot(px, py + 49, pz) - 23
+    const side = (Math.hypot(px, pz) - (py + 20) * coneSlope) / coneNormalLength
+    const cone = Math.max(side, py - 65) - 1.6
+    distance = Math.min(distance, Math.min(sphere, cone) * figure.scale)
+  }
+  const { x: bx, y: by, z: bz, scale } = organizationCrest
+  return Math.min(distance, shield((x - bx) / scale, (y - by) / scale, (z - bz) / scale) * scale)
+}
+
+function distance(kind: EntryShape, x: number, y: number, z: number) {
+  if (kind === 'brand') return brandRelief(x, y, z)
+  if (kind === 'wallet') return Math.min(...homeParts(x, y, z))
+  if (kind === 'create') return newAccountWallet(x, y, z)
   if (kind === 'key') {
     const u = x * 0.84 - y * 0.54,
       v = x * 0.54 + y * 0.84
@@ -100,33 +201,20 @@ function distance(kind: EntryShape, x: number, y: number, z: number) {
     const arrow = Math.max(Math.abs(x) + (y + 1) - 43, -(y + 39), Math.abs(z - 12) - 13)
     return Math.min(tray, shaft, arrow)
   }
-  const sy = y + 10
-  const shield = Math.max(
-    Math.abs(x) - (sy > 5 ? 85 - (sy - 5) * 0.53 : 85),
-    Math.abs(sy) - 101,
-    Math.abs(z) - (25 - (x * x) / 900),
-  )
-  const rim = Math.max(shield, -box(x, y + 20, z - 29, 64, 70, 13, 25))
-  // Screen-space Y points down: the check descends to its elbow, then rises right.
-  // Rounded strokes meet continuously, so the mark reads as a check, not an arrow.
-  const stroke = (ax: number, ay: number, bx: number, by: number) => {
-    const dx = bx - ax,
-      dy = by - ay
-    const t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy))
-    return Math.hypot(x - ax - t * dx, y - ay - t * dy, z - 35) - 7.5
-  }
-  return Math.min(rim, stroke(-39, -6, -12, 22), stroke(-12, 22, 43, -39))
+  return kind === 'organization' ? organization(x, y, z) : shield(x, y, z)
 }
 
-export function buildShape(kind: EntryShape): Particle[] {
+export function* buildShapeRows(kind: EntryShape): Generator<void, Particle[]> {
   const cached = cache.get(kind)
   if (cached) return cached
   // Fixed orthographic grid creates a deliberate print pattern. Normal lighting controls dot area.
   const points: Particle[] = []
-  const cy = Math.cos(0.38),
-    sy = Math.sin(0.38),
-    cx = Math.cos(-0.23),
-    sx = Math.sin(-0.23)
+  const yaw = 0.38
+  const pitch = -0.23
+  const cy = Math.cos(yaw),
+    sy = Math.sin(yaw),
+    cx = Math.cos(pitch),
+    sx = Math.sin(pitch)
   const field = (x: number, y: number, z: number) => {
     const yy = y * cx - z * sx,
       zz = y * sx + z * cx
@@ -159,6 +247,25 @@ export function buildShape(kind: EntryShape): Particle[] {
       )
       let ink = clamp(0.84 - diffuse * 0.76 - specular * 0.65 + occlusion * 0.12)
       let group = 0
+      if (kind === 'create') {
+        const yy = y * cx - z * sx, zz = y * sx + z * cx
+        const wz = x * sy + zz * cy
+        // Stronger ink on the raised glyphs keeps the account readable at small sizes.
+        if (yy < -24 && wz > 4) ink = 0.67 + ink * 0.32
+      }
+      if (kind === 'shield' || kind === 'organization') {
+        const yy = y * cx - z * sx,
+          zz = y * sx + z * cx
+        const wx = x * cy - zz * sy,
+          wz = x * sy + zz * cy
+        if (kind === 'shield') {
+          ink = shieldInk(wx, yy, wz, ink)
+        } else {
+          const { x: bx, y: by, z: bz, scale } = organizationCrest
+          const u = (wx - bx) / scale, v = (yy - by) / scale, w = (wz - bz) / scale
+          if (shield(u, v, w) * scale < 0.2) ink = shieldInk(u, v, w, ink)
+        }
+      }
       if (kind === 'wallet') {
         const yy = y * cx - z * sx,
           zz = y * sx + z * cx
@@ -186,6 +293,7 @@ export function buildShape(kind: EntryShape): Particle[] {
         group,
       })
     }
+    yield
   }
   // Transparent reserve points preserve particle identity across silhouettes of different area.
   const visible = points.length
@@ -202,4 +310,11 @@ export function buildShape(kind: EntryShape): Particle[] {
   }
   cache.set(kind, points)
   return points
+}
+
+export function buildShape(kind: EntryShape): Particle[] {
+  const rows = buildShapeRows(kind)
+  let row = rows.next()
+  while (!row.done) row = rows.next()
+  return row.value
 }

@@ -15,12 +15,15 @@ import {
   normalizeCredentialSummaries,
 } from '@/wallet/credentials'
 import {
+  certifiedReceiveActivities,
+  mergeWalletActivities,
   normalizeActivities,
   normalizeAddressState,
   normalizeOrganization,
+  spendReadyReceiveActivities,
 } from '@/wallet/gatewayDashboard'
 import { IndexedDBWalletRepository } from '@/wallet/repository'
-import type { OrganizationSummary, WalletDashboardSnapshot } from '@/wallet/types'
+import type { OrganizationSummary, WalletActivity, WalletDashboardSnapshot } from '@/wallet/types'
 
 function emptySnapshot(accountId: string, addresses: Array<{ address: string; type: string }>) {
   return buildDashboardSnapshot({
@@ -43,6 +46,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const groupInfoCache = new Map<string, unknown>()
   const certifierCache = new Map<string, unknown>()
   let syncGeneration = 0
+  let syncing = false
+  let detailsRequest: Promise<void> | undefined
+  const certifiedActivities = shallowRef<WalletActivity[]>([])
+  const receiveNotices = shallowRef<WalletActivity[]>([])
 
   const current = computed(
     () =>
@@ -52,6 +59,19 @@ export const useDashboardStore = defineStore('dashboard', () => {
         wallet.activeAddresses.map((address) => ({ address: address.address, type: address.type })),
       ),
   )
+
+  function observeCertifiedBlock(response: unknown, block: { timestamp: number }): void {
+    if (wallet.lifecycle !== 'unlocked') return
+    const addresses = new Set(wallet.addresses.map(item => item.address.toLowerCase()))
+    const incoming = certifiedReceiveActivities(response, block.timestamp, addresses)
+    if (!incoming.length) return
+    certifiedActivities.value = mergeWalletActivities(certifiedActivities.value, incoming)
+    const previous = snapshot.value
+    if (previous?.accountId !== wallet.accountId) return
+    const next = { ...previous, activities: mergeWalletActivities(previous.activities, incoming) }
+    snapshot.value = next
+    void repository.saveDashboard(next).catch(() => undefined)
+  }
 
   async function optional<T>(request: Promise<T>): Promise<T | undefined> {
     try {
@@ -156,20 +176,42 @@ export const useDashboardStore = defineStore('dashboard', () => {
     next.security.pendingAudits = credentials.filter(isActiveCredentialAuditPending).length
     next.security.isolatedCount = credentials.filter(isActiveCredentialFailure).length
     next.security.credentialStatus = next.security.isolatedCount > 0 ? 'warning' : 'normal'
-    next.activities = normalizeActivities(updateResponse)
+    const addresses = new Set(wallet.addresses.map((item) => item.address.toLowerCase()))
+    const previousActivities = snapshot.value?.activities ?? []
+    next.activities = mergeWalletActivities(
+      previousActivities,
+      spendReadyReceiveActivities(records, credentials, statusResponse, {
+        id: accountId,
+        organizationId: organization.id,
+        addresses,
+        activeAddresses: new Set(addressRecords.map((item) => item.address.toLowerCase())),
+      }),
+      normalizeActivities(updateResponse, addresses),
+      certifiedActivities.value,
+    )
 
     if (generation !== syncGeneration) return
+    const previousIDs = new Set(previousActivities.map((item) => item.id))
+    const arrivals = next.activities.filter(
+      (item) => item.status === 'spend-ready' && !previousIDs.has(item.id),
+    )
+    if (arrivals.length) receiveNotices.value = mergeWalletActivities(receiveNotices.value, arrivals)
     const shouldAnimate = shouldAnimateBalance(snapshot.value, next, false)
     snapshot.value = next
     await repository.saveDashboard(next)
     if (generation === syncGeneration && shouldAnimate) revision.value += 1
   }
 
-  async function sync(manual = false): Promise<void> {
-    if (loading.value || wallet.lifecycle !== 'unlocked') return
+  async function sync(manual = false, background = false): Promise<void> {
+    if (wallet.lifecycle !== 'unlocked') return
+    if (syncing) {
+      if (manual) loading.value = true
+      return
+    }
     const generation = ++syncGeneration
-    loading.value = true
-    error.value = ''
+    syncing = true
+    loading.value = !background
+    if (!background) error.value = ''
     try {
       const accountId = wallet.accountId
       const previous = snapshot.value
@@ -222,16 +264,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
         next.security.pendingAudits = previous.security.pendingAudits
         next.security.isolatedCount = previous.security.isolatedCount
         next.security.credentialStatus = previous.security.credentialStatus
-        next.activities = previous.activities
       }
+      next.activities = mergeWalletActivities(snapshot.value?.activities ?? [], certifiedActivities.value)
       const shouldAnimate = shouldAnimateBalance(previous, next, manual)
       snapshot.value = next
       await repository.saveDashboard(next)
       offline.value = false
+      error.value = ''
       if (shouldAnimate) revision.value += 1
 
-      if (organization)
-        void refreshDetails(
+      if (organization) {
+        const request = refreshDetails(
           generation,
           accountId,
           addressRecords,
@@ -239,18 +282,38 @@ export const useDashboardStore = defineStore('dashboard', () => {
           statusResponse,
           organization,
         ).catch(() => undefined)
+        detailsRequest = request
+        void request.finally(() => {
+          if (detailsRequest === request) detailsRequest = undefined
+        })
+      }
     } catch (cause) {
       offline.value = true
       error.value = cause instanceof Error ? cause.message : '账户同步失败'
       if (!snapshot.value) await loadCache()
     } finally {
-      if (generation === syncGeneration) loading.value = false
+      if (generation === syncGeneration) {
+        syncing = false
+        loading.value = false
+      }
     }
+  }
+
+  function pollReceipts(): void {
+    if (current.value.organization && !detailsRequest) void sync(false, true)
+  }
+
+  function dismissReceiveNotices(): void {
+    receiveNotices.value = []
   }
 
   function reset(): void {
     syncGeneration += 1
     snapshot.value = undefined
+    certifiedActivities.value = []
+    receiveNotices.value = []
+    detailsRequest = undefined
+    syncing = false
     loading.value = false
     offline.value = false
     error.value = ''
@@ -258,5 +321,19 @@ export const useDashboardStore = defineStore('dashboard', () => {
     certifierCache.clear()
   }
 
-  return { snapshot, current, loading, offline, error, revision, loadCache, sync, reset }
+  return {
+    snapshot,
+    current,
+    loading,
+    offline,
+    error,
+    revision,
+    receiveNotices,
+    loadCache,
+    sync,
+    reset,
+    observeCertifiedBlock,
+    pollReceipts,
+    dismissReceiveNotices,
+  }
 })

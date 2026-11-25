@@ -5,6 +5,7 @@ import {
   getInitialLocale,
   getInitialThemePreference,
   resolveTheme,
+  localeNames,
 } from '@/composables/usePreferences'
 
 describe('preferences', () => {
@@ -29,8 +30,10 @@ describe('preferences', () => {
   })
 
   it('accepts only supported locales', () => {
-    localStorage.setItem('pangupay.locale', 'en-US')
-    expect(getInitialLocale()).toBe('en-US')
+    for (const code of Object.keys(localeNames)) {
+      localStorage.setItem('pangupay.locale', code)
+      expect(getInitialLocale()).toBe(code)
+    }
     localStorage.setItem('pangupay.locale', 'unsupported')
     expect(getInitialLocale()).toBe('zh-CN')
   })

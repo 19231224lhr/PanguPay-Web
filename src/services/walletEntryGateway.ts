@@ -16,6 +16,7 @@ import { signCanonicalMaterial } from '@/transfer'
 import { deriveAddressFromRootSeed } from '@/wallet/identity'
 import {
   configureWalletEntryService,
+  WalletEntryConfirmationPending,
   type WalletEntryOrganizationNode,
   type WalletEntryOrganizationNodeRole,
   type WalletEntryOrganizationDetail,
@@ -24,6 +25,7 @@ import {
 import type { WalletRecord } from '@/wallet/types'
 import { useWalletStore } from '@/stores/wallet'
 import { pinia } from '@/stores/pinia'
+import { isWalletEntryConnectionError } from '@/wallet/entry'
 import { GatewayClient } from './gatewayClient'
 
 const ec = new EC('p256')
@@ -256,13 +258,13 @@ export function buildWalletReOnlineMessage(record: WalletRecord): unknown {
   return reOnlineMessage(record, prepareAddresses(record))
 }
 
-function addressGroupIDs(response: unknown, addresses: PreparedAddress[]): string[] {
+function addressGroupIDs(response: unknown, addresses: string[]): string[] {
   const payload = unwrap(response)
   const entries = object(
     payload.Addresstogroup ?? payload.AddressToGroup ?? payload.addresstogroup ?? payload.groups,
   )
   return addresses
-    .map(({ address }) => {
+    .map((address) => {
       const info = object(entries[address] ?? entries[address.toLowerCase()])
       return String(info.GroupID ?? info.group_id ?? info.groupId ?? '').trim()
     })
@@ -434,24 +436,32 @@ export function createGatewayWalletEntryService({
   const recover = async () => {
     const record = requireWallet(getWalletRecord)
     const addresses = prepareAddresses(record)
+    const addressIDs = addresses.map(({ address }) => address)
     const [online, groups] = await Promise.all([
       gateway.reOnline(reOnlineMessage(record, addresses)),
-      gateway.queryAddressGroups(addresses.map(({ address }) => address)),
+      gateway.queryAddressGroups(addressIDs),
     ])
     return {
       reOnline: reOnlineResult(online),
-      addressGroupIds: addressGroupIDs(groups, addresses),
+      addressGroupIds: addressGroupIDs(groups, addressIDs),
     }
   }
 
-  const confirm = async (predicate: (state: Awaited<ReturnType<typeof recover>>) => boolean) => {
-    let last: Awaited<ReturnType<typeof recover>> | undefined
-    for (let attempt = 0; attempt < Math.max(1, confirmationAttempts); attempt += 1) {
-      last = await recover()
-      if (predicate(last)) return
-      if (attempt + 1 < confirmationAttempts) await sleep(300)
+  async function confirmChoice(check: () => Promise<boolean>, attempts = confirmationAttempts): Promise<void> {
+    let connectionInterrupted = false
+    let cause: unknown
+    for (let attempt = 0; attempt < Math.max(1, attempts); attempt += 1) {
+      try {
+        if (await check()) return
+        connectionInterrupted = false
+      } catch (error) {
+        cause = error
+        if (connectionInterrupted || !isWalletEntryConnectionError(error)) break
+        connectionInterrupted = true
+      }
+      if (attempt + 1 < attempts) await sleep(300)
     }
-    throw new Error(`网络尚未确认新的组织状态：${JSON.stringify(last ?? {})}`)
+    throw new WalletEntryConfirmationPending(() => confirmChoice(check, attempts), cause)
   }
 
   return {
@@ -482,28 +492,55 @@ export function createGatewayWalletEntryService({
       const normalizedGroupID = groupId.trim()
       if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID))
         throw new Error('请选择有效的担保组织。')
-      const record = requireWallet(getWalletRecord)
-      const addresses = prepareAddresses(record)
-      const response = await gateway.joinGroup(
-        normalizedGroupID,
-        joinMessage(record, addresses, normalizedGroupID, timestamp()),
-      )
-      assertAccepted(response, '加入担保组织失败。')
-      await confirm(({ reOnline }) => reOnline.isInGroup && reOnline.groupId === normalizedGroupID)
+      const { record, addresses } = prepared()
+      try {
+        assertAccepted(
+          await gateway.joinGroup(
+            normalizedGroupID,
+            joinMessage(record, addresses, normalizedGroupID, timestamp()),
+          ),
+          '加入担保组织失败。',
+        )
+      } catch (cause) {
+        const alreadyOnAssign =
+          cause instanceof Error && cause.message === 'the user has already joined the guarantor organization'
+        if (!alreadyOnAssign && !isWalletEntryConnectionError(cause)) throw cause
+        // The original request may have reached Assign before the response was lost.
+      }
+      const message = reOnlineMessage(record, addresses)
+      await confirmChoice(async () => {
+        const membership = reOnlineResult(await gateway.reOnline(message))
+        return membership.isInGroup && membership.groupId === normalizedGroupID
+      }, Math.min(confirmationAttempts, 4))
     },
     async leave(groupId) {
       const normalizedGroupID = groupId.trim()
       if (!normalizedGroupID || ['0', '1'].includes(normalizedGroupID))
         throw new Error('当前钱包未加入可退出的担保组织。')
-      const { record } = prepared()
-      assertAccepted(
-        await gateway.joinGroup(
-          normalizedGroupID,
-          leaveMessage(record, normalizedGroupID, timestamp()),
-        ),
-        '退出担保组织失败。',
-      )
-      await confirm(({ reOnline }) => !reOnline.isInGroup)
+      const { record, addresses } = prepared()
+      const membershipMessage = reOnlineMessage(record, addresses)
+      const addressIDs = addresses.map(({ address }) => address)
+      try {
+        assertAccepted(
+          await gateway.joinGroup(
+            normalizedGroupID,
+            leaveMessage(record, normalizedGroupID, timestamp()),
+          ),
+          '退出担保组织失败。',
+        )
+      } catch (cause) {
+        const absentOnAssign =
+          cause instanceof Error &&
+          ['the user is not in the guarantor organization', 'no user in group'].includes(cause.message)
+        if (!absentOnAssign && !isWalletEntryConnectionError(cause)) throw cause
+        // If the response was lost or Assign no longer has the user, confirm with the network.
+      }
+      await confirmChoice(async () => {
+        const membership = unwrap(await gateway.reOnline(membershipMessage))
+        if ((membership.IsInGroup ?? membership.isInGroup) !== false) return false
+        const ids = addressGroupIDs(await gateway.queryAddressGroups(addressIDs), addressIDs)
+        return ids.every((id) => id === '0' || id === '1')
+      }, Math.min(confirmationAttempts, 4))
     },
     async registerAddress(addressValue, groupId) {
       const { record, address } = prepared(addressValue)
@@ -521,7 +558,9 @@ export function createGatewayWalletEntryService({
         await registerRetailAddresses(record, [address])
       }
       for (let attempt = 0; attempt < Math.max(1, confirmationAttempts); attempt += 1) {
-        const ids = addressGroupIDs(await gateway.queryAddressGroups([address.address]), [address])
+        const ids = addressGroupIDs(await gateway.queryAddressGroups([address.address]), [
+          address.address,
+        ])
         const expected = normalizedGroupID && normalizedGroupID !== '0' ? normalizedGroupID : '1'
         if (ids.length === 1 && ids[0] === expected) return
         if (attempt + 1 < confirmationAttempts) await sleep(300)
@@ -544,16 +583,11 @@ export function createGatewayWalletEntryService({
     async registerNoGroup() {
       const { record, addresses } = prepared()
       await registerRetailAddresses(record, addresses)
-      let last: string[] = []
-      for (let attempt = 0; attempt < Math.max(1, confirmationAttempts); attempt += 1) {
-        last = addressGroupIDs(
-          await gateway.queryAddressGroups(addresses.map(({ address }) => address)),
-          addresses,
-        )
-        if (last.length === addresses.length && last.every((id) => id === '1')) return
-        if (attempt + 1 < confirmationAttempts) await sleep(300)
-      }
-      throw new Error(`网络尚未接受独立地址登记：${JSON.stringify(last)}`)
+      const addressIDs = addresses.map(({ address }) => address)
+      await confirmChoice(async () => {
+        const ids = addressGroupIDs(await gateway.queryAddressGroups(addressIDs), addressIDs)
+        return ids.length === addressIDs.length && ids.every((id) => id === '1')
+      })
     },
   }
 }

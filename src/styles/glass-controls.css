@@ -11,8 +11,27 @@
   --glass-text: #f5f5f7;
   --glass-muted: #c5cbd4;
 }
+:root[data-theme='light'] {
+  --wallet-selection-fill: #e6efff;
+  --wallet-selection-ink: #164b98;
+  --glass-base: var(--surface);
+  --glass-selected: var(--wallet-selection-fill);
+  --glass-primary: var(--action-primary);
+  --glass-primary-text: white;
+  --glass-primary-hover: var(--action-primary-hover);
+  --glass-solid: var(--glass-base);
+  --glass-solid-primary: var(--glass-primary);
+  --glass-menu: var(--surface-raised);
+  --glass-text: var(--text);
+  --glass-muted: var(--text-muted);
+  --glass-edge: #c9cfd7;
+  --glass-hover-edge: #6389b9;
+  --glass-highlight: rgb(255 255 255 / 78%);
+  --glass-bottom: rgb(29 29 31 / 4%);
+  --glass-shadow: rgb(29 29 31 / 12%);
+}
 
-#app :is(.app-button--primary, .app-button--secondary, .app-select__trigger, .segmented-control) {
+#app :is(.app-button--primary, .app-button--secondary, .app-select__trigger, .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs))) {
   --control-fill: var(--glass-base);
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-md);
@@ -22,20 +41,21 @@
     inset 0 -1px 1px var(--glass-bottom),
     0 4px 12px -5px var(--glass-shadow);
   color: var(--glass-text);
-  backdrop-filter: blur(16px) saturate(115%);
   -webkit-backdrop-filter: blur(16px) saturate(115%);
+  backdrop-filter: blur(16px) saturate(115%);
 }
 #app .app-button--primary {
   --control-fill: var(--glass-primary);
+  color: var(--glass-primary-text, var(--glass-text));
   border-color: rgb(94 161 239 / 35%);
 }
 #app .app-button--primary svg {
   color: currentColor;
 }
-#app .segmented-control {
+#app .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs)) {
   padding: 4px;
 }
-#app .segmented-control__indicator {
+#app :where(.segmented-control:not(.segmented-control--metrics, .segmented-control--tabs)) .segmented-control__indicator {
   border: 1px solid var(--glass-edge);
   border-radius: calc(var(--radius-md) - 4px);
   background: var(--glass-selected);
@@ -43,12 +63,12 @@
     inset 0 1px 1px var(--glass-highlight),
     0 2px 6px var(--glass-shadow);
 }
-#app .segmented-control label > span {
+#app .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs)) label > span {
   border-radius: calc(var(--radius-md) - 4px);
   color: var(--glass-muted);
 }
-#app .segmented-control label[data-selected] > span {
-  color: var(--glass-text);
+#app .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs)) label[data-selected] > span {
+  color: var(--wallet-selection-ink, var(--glass-text));
 }
 #app :is(.app-select__value, .app-select__option-copy) small {
   color: var(--glass-muted);
@@ -64,8 +84,8 @@
   box-shadow:
     inset 0 1px 1px var(--glass-highlight),
     0 12px 28px var(--glass-shadow);
-  backdrop-filter: blur(18px) saturate(115%);
   -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
 }
 #app .app-select__menu li:is([data-active], [data-selected]) {
   background: var(--glass-selected);
@@ -80,6 +100,11 @@
 #app .app-select__trigger[aria-invalid='true'] {
   border-color: var(--danger);
 }
+:root[data-theme='light'] #app :is(.app-button--primary, .app-button--secondary, .app-select__trigger):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
 #app :is(.app-button--primary, .app-button--secondary, .app-select__trigger):disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -87,9 +112,12 @@
   box-shadow: inset 0 1px 0 var(--glass-bottom);
 }
 @media (hover: hover) and (pointer: fine) {
+  #app .app-button--primary:hover:not(:disabled) {
+    --control-fill: var(--glass-primary-hover, var(--glass-primary));
+  }
   #app
     :is(.app-button--primary, .app-button--secondary, .app-select__trigger):hover:not(:disabled) {
-    border-color: rgb(206 222 245 / 32%);
+    border-color: var(--glass-hover-edge, rgb(206 222 245 / 32%));
   }
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -98,15 +126,15 @@
       .app-button--primary,
       .app-button--secondary,
       .app-select__trigger,
-      .segmented-control,
+      .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs)),
       .app-select__menu
     ) {
-    background: #101217;
-    backdrop-filter: none;
+    background: var(--glass-solid, #101217);
     -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   #app .app-button--primary {
-    background: #102746;
+    background: var(--glass-solid-primary, #102746);
   }
 }
 @supports not (backdrop-filter: blur(1px)) {
@@ -115,13 +143,13 @@
       .app-button--primary,
       .app-button--secondary,
       .app-select__trigger,
-      .segmented-control,
+      .segmented-control:where(:not(.segmented-control--metrics, .segmented-control--tabs)),
       .app-select__menu
     ) {
-    background-color: #101217;
+    background-color: var(--glass-solid, #101217);
   }
   #app .app-button--primary {
-    background-color: #102746;
+    background-color: var(--glass-solid-primary, #102746);
   }
 }
 @media (prefers-reduced-motion: reduce) {

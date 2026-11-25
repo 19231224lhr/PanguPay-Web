@@ -5,6 +5,7 @@ import {
   PhArrowLeft as ArrowLeft,
   PhArrowRight as ArrowRight,
   PhCheckCircle as CheckCircle,
+  PhWarningCircle as WarningCircle,
   PhPaperPlaneTilt as PaperPlaneTilt,
   PhShieldCheck as ShieldCheck,
 } from '@phosphor-icons/vue'
@@ -13,13 +14,13 @@ import { computed, ref, watch } from 'vue'
 import AmountField from '@/components/AmountField.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppSelect from '@/components/AppSelect.vue'
+import CurveMark from '@/components/CurveMark.vue'
 import FormField from '@/components/FormField.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
 import ProgressTimeline from '@/components/ProgressTimeline.vue'
-import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
-import WalletMoneyFigure from '@/components/WalletMoneyFigure.vue'
+import WalletPaymentFigure from '@/components/WalletPaymentFigure.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
@@ -62,9 +63,9 @@ const sourceOptions = computed(() =>
   })),
 )
 const modeOptions = computed(() => [
-  { label: wt('w208'), value: 'quick', disabled: !isMember.value },
-  { label: wt('w209'), value: 'normal' },
-  { label: wt('w49'), value: 'cross', disabled: !isMember.value },
+  { label: transferModeLabel('quick'), value: 'quick', disabled: !isMember.value },
+  { label: transferModeLabel('normal'), value: 'normal' },
+  { label: transferModeLabel('cross'), value: 'cross', disabled: !isMember.value },
 ])
 const transferIssue = computed(() =>
   transfer.error ? describeTransferIssue(transfer.error) : undefined,
@@ -117,7 +118,7 @@ function startAnother(): void {
 
 <template>
   <div class="wallet-page send-page">
-    <WalletPageHeader
+    <WalletPageHeader :inline-target="$slots['header-action'] ? '#intro-send' : undefined"
       :title="wt('w210')"
       :description="
         transfer.stage === 'compose'
@@ -126,19 +127,24 @@ function startAnother(): void {
             ? wt('w212')
             : wt('w213')
       "
-    />
+    ><slot name="header-action" /></WalletPageHeader>
 
     <form v-if="transfer.stage === 'compose'" class="send-form" @submit.prevent="prepareReview">
-      <div class="send-mode">
-        <h2>{{ wt('refinement52') }}</h2>
-        <SegmentedControl v-model="mode" :label="wt('w214')" :options="modeOptions" />
-      </div>
       <div class="send-compose">
         <section class="send-panel send-addresses" aria-labelledby="send-address-heading">
           <header class="send-panel-heading">
             <div>
-              <h2 id="send-address-heading">{{ wt('refinement53') }}</h2>
-              <p>{{ wt('refinement54') }}</p>
+              <div class="send-heading-line">
+                <h2 id="send-address-heading">{{ wt('refinement53') }}</h2>
+                <AppSelect
+                  id="send-mode"
+                  v-model="mode"
+                  inline
+                  :label="wt('refinement52')"
+                  :options="modeOptions"
+                />
+              </div>
+              <p>{{ isMember ? wt('refinement54') : wt('w224') }}</p>
             </div>
             <WalletFigure kind="settle" />
           </header>
@@ -173,7 +179,7 @@ function startAnother(): void {
               <h2 id="send-payment-heading">{{ wt('refinement55') }}</h2>
               <p>{{ asset?.symbol ?? 'CAL' }}</p>
             </div>
-            <WalletMoneyFigure />
+            <WalletPaymentFigure />
           </header>
           <AmountField
             id="send-amount"
@@ -188,23 +194,17 @@ function startAnother(): void {
               >{{ available }} <small>{{ asset?.symbol ?? 'CAL' }}</small></strong
             >
           </div>
+          <AppButton
+            class="send-review-button"
+            type="submit"
+            :title="wt('refinement57')"
+            :loading="transfer.busy"
+            :status="transfer.error ? 'error' : 'idle'"
+          >
+            {{ wt('w225') }} <template #icon><ArrowRight :size="16" aria-hidden="true" /></template>
+          </AppButton>
         </section>
       </div>
-      <footer class="send-footer">
-        <div class="send-footer-copy">
-          <span>{{ transferModeLabel(mode) }}</span>
-          <p v-if="!isMember">{{ wt('w224') }}</p>
-          <p v-else>{{ wt('refinement57') }}</p>
-        </div>
-        <AppButton
-          type="submit"
-          size="large"
-          :loading="transfer.busy"
-          :status="transfer.error ? 'error' : 'idle'"
-        >
-          {{ wt('w225') }} <template #icon><ArrowRight :size="18" weight="bold" /></template>
-        </AppButton>
-      </footer>
       <InlineNotice
         v-if="transferIssue"
         class="transfer-error-notice"
@@ -243,11 +243,11 @@ function startAnother(): void {
         </div>
         <div>
           <dt>{{ wt('w231') }}</dt>
-          <dd>{{ transfer.review.selection.utxos.length }} {{ wt('w94') }}</dd>
+          <dd>{{ transfer.review.selection.utxos.length }}</dd>
         </div>
         <div>
           <dt>{{ wt('w232') }}</dt>
-          <dd>{{ transfer.review.selection.txCers.length }} {{ wt('w94') }}</dd>
+          <dd>{{ transfer.review.selection.txCers.length }}</dd>
         </div>
         <div>
           <dt>{{ wt('w233') }}</dt>
@@ -284,15 +284,22 @@ function startAnother(): void {
 
     <section v-else-if="transfer.stage === 'result' && transfer.review" class="result-plane">
       <header class="result-heading">
-        <CheckCircle :size="30" weight="fill" aria-hidden="true" />
-        <div>
+        <CheckCircle v-if="transfer.currentProgress?.phase === 'settled'" class="result-success" :size="30" weight="fill" aria-hidden="true" />
+        <WarningCircle v-else-if="transfer.currentProgress?.phase === 'failed'" class="result-error" :size="30" aria-hidden="true" />
+        <CurveMark v-else class="result-wait" variant="link" :size="30" />
+        <div role="status">
           <h2>{{ resultTitle }}</h2>
           <p class="mono">{{ transfer.review.built.txID }}</p>
         </div>
       </header>
-      <ProgressTimeline :items="timeline" />
+      <div class="result-body">
+        <ProgressTimeline :items="timeline" />
+        <div class="result-illustration" aria-hidden="true">
+          <WalletFigure kind="branches" :intensity="0.4" />
+        </div>
+      </div>
       <div class="result-actions">
-        <AppButton variant="secondary" to="/wallet/activity"> {{ wt('w237') }} </AppButton>
+        <AppButton variant="secondary" to="/wallet#activity"> {{ wt('w237') }} </AppButton>
         <AppButton @click="startAnother"> {{ wt('w238') }} </AppButton>
       </div>
     </section>
@@ -313,28 +320,15 @@ function startAnother(): void {
   background: var(--send-surface);
   --figure-plate: var(--send-surface);
 }
-.send-mode {
+.send-heading-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--hairline);
-}
-.send-mode > h2 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-}
-.send-mode :deep(.segmented-control) {
-  width: min(380px, 100%);
-  min-height: 44px;
+  gap: 4px 10px;
 }
 .send-compose {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .send-panel {
   display: flex;
@@ -393,31 +387,31 @@ function startAnother(): void {
   color: var(--text-muted);
   font-size: 0.75rem;
 }
-.send-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 12px 24px;
-  border-top: 1px solid var(--hairline);
+.send-addresses > .form-field,
+.send-review-button {
+  margin-block-start: auto;
 }
-.send-footer-copy {
-  min-width: 0;
-}
-.send-footer-copy > span {
-  font-size: 0.8rem;
+#app .send-review-button {
+  align-self: flex-end;
+  min-height: 44px;
+  padding: 0.6rem 1.125rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: white;
+  font-size: 0.875rem;
   font-weight: 600;
+  box-shadow: none;
+  backdrop-filter: none;
 }
-.send-footer-copy p {
-  margin: 6px 0 0;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  line-height: 1.6;
-  max-width: 48ch;
+#app .send-review-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
-.send-footer :deep(.app-button) {
-  min-width: 176px;
-  flex-shrink: 0;
+@media (hover: hover) and (pointer: fine) {
+  #app .send-review-button:hover:not(:disabled) {
+    background: var(--action-primary-hover);
+  }
 }
 .send-form > .transfer-error-notice {
   margin: 0 24px 20px;
@@ -430,10 +424,6 @@ function startAnother(): void {
     border-left: 0;
     border-top: 1px solid var(--hairline);
   }
-  .send-mode {
-    gap: 12px;
-    padding: 16px;
-  }
   .send-panel {
     padding: 12px 16px 20px;
     gap: 16px;
@@ -444,12 +434,7 @@ function startAnother(): void {
   .send-panel-heading .wallet-figure {
     width: 80px;
   }
-  .send-footer {
-    padding: 16px;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-  .send-footer :deep(.app-button) {
+  .send-review-button {
     width: 100%;
   }
 }
@@ -575,17 +560,37 @@ function startAnother(): void {
 .review-actions,
 .result-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.7rem;
+}
+.review-actions { justify-content: flex-end; }
+.result-actions { justify-content: flex-start; }
+.result-body {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.65fr);
+  gap: clamp(1.25rem, 5cqi, 3.75rem);
+}
+.result-illustration {
+  display: grid;
+  place-items: center;
+}
+.result-illustration .wallet-figure {
+  width: min(100%, clamp(9rem, 23cqi, 16rem));
+}
+@container (max-width: 560px) {
+  .result-body { grid-template-columns: minmax(0, 1fr); }
+  .result-illustration { display: none; }
 }
 .result-heading {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
 }
-.result-heading > svg {
-  color: var(--success);
-}
+.result-heading > svg { flex: none; color: var(--accent); }
+.result-heading > .result-wait { color: var(--text); }
+.result-heading > .result-success { color: var(--success); }
+.result-heading > .result-error { color: var(--danger); }
 .result-heading h2 {
   margin: 0;
   font-size: 1.35rem;

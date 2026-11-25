@@ -37,6 +37,7 @@ export interface TransferProgress {
   phase: TransferPhase
   error?: string
   acceptedAt?: number
+  aggregationConfirmedAt?: number
   registeredAt?: number
   spendReadyAt?: number
   backendAcceptedAt?: number

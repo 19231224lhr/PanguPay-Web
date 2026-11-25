@@ -53,9 +53,14 @@ describe('wallet backup import experience', () => {
     await wrapper.get('#create-password').setValue('test-password-123')
     await wrapper.get('#create-password-confirm').setValue('test-password-123')
     await wrapper.get('form').trigger('submit')
-    await flushPromises()
+    const pendingButton = wrapper.get('button[type="submit"][aria-busy="true"]')
+    expect(pendingButton.find('.curve-mark').exists()).toBe(true)
+    await wrapper.get('form').trigger('submit')
+    await vi.waitFor(() => expect(wrapper.find('.backup-files').exists()).toBe(true))
+    expect(wallet.create).toHaveBeenCalledOnce()
+    expect(click).toHaveBeenCalledTimes(2)
     expect(wrapper.find('#create-password').exists()).toBe(false)
-    expect(wrapper.find('input[value="import"]').exists()).toBe(false)
+    expect(wrapper.find('.setup-alternative button').exists()).toBe(false)
     expect(wrapper.get('.backup-files').text()).toContain('PanguPay-recovery.json')
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()
     await wrapper.get('input[type="checkbox"]').setValue(true)
@@ -64,8 +69,8 @@ describe('wallet backup import experience', () => {
     expect(wallet.confirmCreatedWallet).toHaveBeenCalledOnce()
     expect(navigateWithSpatialTransition).toHaveBeenCalledWith(
       router,
-      '/wallet',
-      'wallet',
+      '/wallet/entry',
+      'access',
       'replace',
     )
     click.mockRestore()
@@ -89,7 +94,7 @@ describe('wallet backup import experience', () => {
       },
     })
 
-    await wrapper.get('input[type="radio"][value="import"]').setValue()
+    await wrapper.get('.setup-alternative button').trigger('click')
     const file = new File(['{}'], 'wallet.json', { type: 'application/json' })
     Object.defineProperty(file, 'text', { value: async () => '{}' })
     const fileInput = wrapper.get('input[type="file"]')
@@ -127,7 +132,7 @@ describe('wallet backup import experience', () => {
       },
     })
 
-    await wrapper.get('input[type="radio"][value="import"]').setValue()
+    await wrapper.get('.setup-alternative button').trigger('click')
     const file = new File(['{}'], 'wallet.json', { type: 'application/json' })
     Object.defineProperty(file, 'text', { value: async () => '{}' })
     const fileInput = wrapper.get('input[type="file"]')

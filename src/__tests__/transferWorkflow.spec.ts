@@ -266,6 +266,27 @@ describe('transfer submission workflow', () => {
     ])
   })
 
+  it('updates aggregation and final receipt independently of TXCer readiness', () => {
+    const progress = {
+      draftID: 'live-quick',
+      txID: 'a'.repeat(64),
+      mode: 'quick' as const,
+      amount: '2',
+      recipient: 'b'.repeat(40),
+      phase: 'accepted' as const,
+      acceptedAt: 1000,
+      aggregationConfirmedAt: 95_000,
+      updatedAt: 95_000,
+    }
+    const aggregated = buildTransferTimeline(progress)
+    expect(aggregated.map(item => item.state)).toEqual([
+      'complete', 'complete', 'complete', 'unknown', 'active',
+    ])
+    const settled = buildTransferTimeline({ ...progress, phase: 'settled', settledAt: 97_000 })
+    expect(settled.find(item => item.id === 'settlement')?.state).toBe('complete')
+    expect(settled.find(item => item.id === 'recipient-ready')?.state).toBe('unknown')
+  })
+
   it('shows only the authoritative backend spend-ready time', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-timing',

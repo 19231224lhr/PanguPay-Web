@@ -7,6 +7,7 @@ import { makeWalletRecord } from '@/wallet/keystore'
 import { buildWalletRecoveryKit } from '@/wallet/recovery'
 import { MemoryWalletRepository } from '@/wallet/repository'
 import { resolveWalletEntry } from '@/wallet/navigation'
+import { takeWelcomeGuide } from '@/wallet/welcomeGuide'
 import { useWalletStore } from '@/stores/wallet'
 
 describe('wallet lifecycle', () => {
@@ -30,11 +31,25 @@ describe('wallet lifecycle', () => {
     await store.unlock('correct horse battery staple')
     expect(store.lifecycle).toBe('unlocked')
     expect(store.accountId).toBe('68740417')
+    expect(takeWelcomeGuide(store.accountId)).toBe(false)
+
+    const originalEnvelope = store.exportEnvelope()
+    const added = await store.addAddress(1)
+    expect(store.metadata?.addresses[added.address]?.registration).toBe('pending')
+    const saved = (await repository.loadEnvelope())!
+    expect(saved.crypto.kdf.salt).toBe(originalEnvelope.crypto.kdf.salt)
+    expect(saved.crypto.nonce).not.toBe(originalEnvelope.crypto.nonce)
+    expect(saved.ciphertext).not.toContain(added.root_seed)
 
     store.lock()
     expect(store.lifecycle).toBe('locked')
     expect(store.accountId).toBe('68740417')
     expect(store.unlockedRecord).toBeUndefined()
+    await expect(store.addAddress(0)).rejects.toThrow('wallet must be unlocked')
+    await store.unlock('correct horse battery staple')
+    expect(store.addresses).toContainEqual(added)
+    expect(store.metadata?.addresses[added.address]?.registration).toBe('pending')
+    store.lock()
   }, 60_000)
 
   it('does not persist a newly created wallet before backup confirmation', async () => {
@@ -50,6 +65,10 @@ describe('wallet lifecycle', () => {
     await store.confirmCreatedWallet()
     expect(store.lifecycle).toBe('unlocked')
     expect(await repository.loadEnvelope()).toBeDefined()
+    expect(takeWelcomeGuide(store.accountId)).toBe(true)
+    expect(takeWelcomeGuide(store.accountId)).toBe(false)
+    await expect(store.addAddress(0)).resolves.toMatchObject({ type: '0' })
+    store.lock()
   }, 60_000)
 
   it('clears the encrypted wallet only through the explicit destructive action', async () => {

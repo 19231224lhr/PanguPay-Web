@@ -6,20 +6,21 @@ import { clearTransferChainScope } from '@/transfer/chainScope'
 import { clearTransferJournal } from '@/transfer/journal'
 import { clearTransferReservations } from '@/transfer/reservations'
 import {
-  decryptWalletEnvelope,
-  encryptWalletRecord,
   makeWalletRecord,
   parseWalletEnvelope,
+  reencryptWalletRecord,
+  sealWalletRecord,
 } from '@/wallet/keystore'
 import {
   accountIdFromPrivateScalar,
-  createWalletIdentity,
   deriveAddressFromRootSeed,
   generateRootSeedHex,
 } from '@/wallet/identity'
 import { IndexedDBWalletRepository, type WalletRepository } from '@/wallet/repository'
+import { clearOverviewLayout } from '@/wallet/overviewLayout'
+import { clearWelcomeGuide, queueWelcomeGuide } from '@/wallet/welcomeGuide'
 import { buildWalletRecoveryKit, parseWalletRecoveryKit } from '@/wallet/recovery'
-import { decryptWalletEnvelopeOffThread } from '@/wallet/unlockWorker'
+import { createWalletOffThread, decryptWalletEnvelopeOffThread } from '@/wallet/unlockWorker'
 import type {
   WalletKeystoreEnvelope,
   WalletLifecycle,
@@ -43,6 +44,10 @@ export const useWalletStore = defineStore('wallet', () => {
   const repository = shallowRef<WalletRepository>(markRaw(new IndexedDBWalletRepository()))
   let autoLockTimer: ReturnType<typeof setTimeout> | undefined
   let activityBound = false
+  let sessionKey: CryptoKey | undefined
+  let pendingKey: CryptoKey | undefined
+  let sessionVersion = 0
+  let addressWrite: Promise<WalletRecord['addresses'][number]> | undefined
 
   const accountId = computed(
     () => unlockedRecord.value?.account_id ?? envelope.value?.public.account_id ?? '',
@@ -112,10 +117,42 @@ export const useWalletStore = defineStore('wallet', () => {
 
   function lock(): void {
     clearTimer()
+    sessionVersion += 1
+    sessionKey = undefined
+    pendingKey = undefined
     unlockedRecord.value = undefined
     pendingEnvelope.value = undefined
     pendingRecord.value = undefined
     lifecycle.value = envelope.value ? 'locked' : 'absent'
+  }
+
+  function runInSession(version: number): void {
+    if (version !== sessionVersion) throw new Error('wallet must be unlocked')
+  }
+
+  async function activateSession(record: WalletRecord, key: CryptoKey, version: number) {
+    await ensureMetadata(record)
+    runInSession(version)
+    unlockedRecord.value = record
+    sessionKey = key
+    lifecycle.value = 'unlocked'
+    touch()
+  }
+
+  async function saveUnlockedWallet(
+    nextEnvelope: WalletKeystoreEnvelope,
+    record: WalletRecord,
+    key: CryptoKey,
+    version: number,
+  ): Promise<void> {
+    runInSession(version)
+    await repository.value.saveEnvelope(nextEnvelope)
+    envelope.value = nextEnvelope
+    runInSession(version)
+    pendingEnvelope.value = undefined
+    pendingRecord.value = undefined
+    pendingKey = undefined
+    await activateSession(record, key, version)
   }
 
   function touch(): void {
@@ -148,13 +185,19 @@ export const useWalletStore = defineStore('wallet', () => {
 
   async function unlock(password: string): Promise<void> {
     if (!envelope.value) throw new Error('wallet is not configured')
+    const version = sessionVersion
     busy.value = true
     error.value = ''
     try {
-      unlockedRecord.value = await decryptWalletEnvelopeOffThread(envelope.value, password)
-      await ensureMetadata(unlockedRecord.value)
-      lifecycle.value = 'unlocked'
-      touch()
+      if (addressWrite) await addressWrite.catch(() => undefined)
+      runInSession(version)
+      const saved = await repository.value.loadEnvelope()
+      if (!saved) throw new Error('wallet is not configured')
+      const { record, key } = await decryptWalletEnvelopeOffThread(saved, password)
+      runInSession(version)
+      envelope.value = saved
+      await loadMetadata(saved.public.account_id)
+      await activateSession(record, key, version)
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : 'wallet unlock failed'
       throw cause
@@ -164,16 +207,15 @@ export const useWalletStore = defineStore('wallet', () => {
   }
 
   async function create(password: string): Promise<WalletKeystoreEnvelope> {
+    const version = sessionVersion
     busy.value = true
     error.value = ''
     try {
-      const identity = createWalletIdentity()
-      const record = makeWalletRecord(identity.accountId, identity.privateScalarHex, [
-        { address: identity.address, type: 0, rootSeedHex: identity.rootSeedHex },
-      ])
-      const nextEnvelope = await encryptWalletRecord(record, password)
+      const { record, envelope: nextEnvelope, key } = await createWalletOffThread(password)
+      runInSession(version)
       pendingEnvelope.value = nextEnvelope
       pendingRecord.value = record
+      pendingKey = key
       return structuredClone(nextEnvelope)
     } finally {
       busy.value = false
@@ -181,36 +223,25 @@ export const useWalletStore = defineStore('wallet', () => {
   }
 
   async function confirmCreatedWallet(): Promise<void> {
-    if (!pendingEnvelope.value || !pendingRecord.value)
+    if (!pendingEnvelope.value || !pendingRecord.value || !pendingKey)
       throw new Error('wallet creation is not awaiting backup confirmation')
     busy.value = true
     try {
-      await repository.value.saveEnvelope(pendingEnvelope.value)
-      envelope.value = pendingEnvelope.value
-      unlockedRecord.value = pendingRecord.value
-      pendingEnvelope.value = undefined
-      pendingRecord.value = undefined
-      lifecycle.value = 'unlocked'
-      await ensureMetadata(pendingRecord.value ?? unlockedRecord.value)
-      touch()
+      await saveUnlockedWallet(pendingEnvelope.value, pendingRecord.value, pendingKey, sessionVersion)
+      queueWelcomeGuide(accountId.value)
     } finally {
       busy.value = false
     }
   }
 
   async function importEnvelope(value: unknown, password: string): Promise<void> {
+    const version = sessionVersion
     busy.value = true
     try {
       const parsed = parseWalletEnvelope(value)
-      const record = await decryptWalletEnvelopeOffThread(parsed, password)
-      await repository.value.saveEnvelope(parsed)
-      pendingEnvelope.value = undefined
-      pendingRecord.value = undefined
-      envelope.value = parsed
-      unlockedRecord.value = record
-      lifecycle.value = 'unlocked'
-      await ensureMetadata(record)
-      touch()
+      const { record, key } = await decryptWalletEnvelopeOffThread(parsed, password)
+      await saveUnlockedWallet(parsed, record, key, version)
+      clearWelcomeGuide(record.account_id)
     } finally {
       busy.value = false
     }
@@ -221,6 +252,7 @@ export const useWalletStore = defineStore('wallet', () => {
     roots: Array<{ type: number; rootSeedHex: string }>,
     password: string,
   ): Promise<WalletKeystoreEnvelope> {
+    const version = sessionVersion
     if (roots.length === 0) throw new Error('缺少 Address RootSeed，无法恢复旧地址。')
     const scalar = bytesToHex(hexToBytes(privateScalarHex))
     if (scalar.length !== 64) throw new Error('账户私钥必须为 32 字节十六进制')
@@ -231,34 +263,23 @@ export const useWalletStore = defineStore('wallet', () => {
       address: deriveAddressFromRootSeed(root.rootSeedHex, root.type).address,
     }))
     const record = makeWalletRecord(account, scalar, derived)
-    const nextEnvelope = await encryptWalletRecord(record, password)
-    await repository.value.saveEnvelope(nextEnvelope)
-    pendingEnvelope.value = undefined
-    pendingRecord.value = undefined
-    envelope.value = nextEnvelope
-    unlockedRecord.value = record
-    lifecycle.value = 'unlocked'
-    await ensureMetadata(record)
-    touch()
+    const { envelope: nextEnvelope, key } = await sealWalletRecord(record, password)
+    await saveUnlockedWallet(nextEnvelope, record, key, version)
+    clearWelcomeGuide(record.account_id)
     return structuredClone(nextEnvelope)
   }
 
   async function recoverFromKit(value: unknown, password: string): Promise<void> {
+    const version = sessionVersion
     busy.value = true
     error.value = ''
     try {
       const kit = parseWalletRecoveryKit(value)
       if (envelope.value && kit.wallet.account_id !== envelope.value.public.account_id)
         throw new Error('恢复材料不属于当前钱包。若要使用其他账户，请先清除本地钱包。')
-      const nextEnvelope = await encryptWalletRecord(kit.wallet, password)
-      await repository.value.saveEnvelope(nextEnvelope)
-      pendingEnvelope.value = undefined
-      pendingRecord.value = undefined
-      envelope.value = nextEnvelope
-      unlockedRecord.value = kit.wallet
-      lifecycle.value = 'unlocked'
-      await ensureMetadata(kit.wallet)
-      touch()
+      const { envelope: nextEnvelope, key } = await sealWalletRecord(kit.wallet, password)
+      await saveUnlockedWallet(nextEnvelope, kit.wallet, key, version)
+      clearWelcomeGuide(kit.wallet.account_id)
     } finally {
       busy.value = false
     }
@@ -275,12 +296,15 @@ export const useWalletStore = defineStore('wallet', () => {
     error.value = ''
     try {
       const previousAccountID = accountId.value
-      clearTimer()
+      lock()
+      if (addressWrite) await addressWrite.catch(() => undefined)
       await repository.value.clear()
       if (previousAccountID) {
         clearTransferChainScope(previousAccountID)
         clearTransferJournal(previousAccountID)
         clearTransferReservations(previousAccountID)
+        clearOverviewLayout(previousAccountID)
+        clearWelcomeGuide(previousAccountID)
         localStorage.removeItem(`pangupay:wallet-entry:no-group:${previousAccountID}`)
       }
       envelope.value = undefined
@@ -324,13 +348,13 @@ export const useWalletStore = defineStore('wallet', () => {
     })
   }
 
-  async function addAddress(
+  async function saveNewAddress(
     type: number,
-    password: string,
+    record: WalletRecord,
+    currentEnvelope: WalletKeystoreEnvelope,
+    key: CryptoKey,
+    version: number,
   ): Promise<WalletRecord['addresses'][number]> {
-    if (!envelope.value || !unlockedRecord.value) throw new Error('wallet must be unlocked')
-    if (![0, 1, 2].includes(type)) throw new Error('unsupported address type')
-    await decryptWalletEnvelope(envelope.value, password)
     const rootSeedHex = generateRootSeedHex()
     const derived = deriveAddressFromRootSeed(rootSeedHex, type)
     const nextAddress = {
@@ -339,25 +363,43 @@ export const useWalletStore = defineStore('wallet', () => {
       root_seed: bytesToBase64(hexToBytes(rootSeedHex)),
     }
     const nextRecord: WalletRecord = {
-      ...unlockedRecord.value,
-      addresses: [...unlockedRecord.value.addresses, nextAddress],
+      ...record,
+      addresses: [...record.addresses, nextAddress],
     }
-    const nextEnvelope = await encryptWalletRecord(nextRecord, password)
-    await repository.value.saveEnvelope(nextEnvelope)
-    envelope.value = nextEnvelope
-    unlockedRecord.value = nextRecord
+    const nextEnvelope = await reencryptWalletRecord(nextRecord, key, currentEnvelope.crypto.kdf)
+    runInSession(version)
     const current = withAddressDefaults(metadata.value, nextRecord)
     current.addresses[nextAddress.address] = {
       label: `地址 ${nextRecord.addresses.length}`,
       archived: false,
       registration: 'pending',
     }
-    await persistMetadata(current)
+    await repository.value.saveAddressUpdate(nextEnvelope, current, currentEnvelope.ciphertext)
+    if (envelope.value === currentEnvelope) {
+      envelope.value = nextEnvelope
+      metadata.value = current
+    }
+    runInSession(version)
+    if (sessionKey !== key) throw new Error('wallet must be unlocked')
+    unlockedRecord.value = nextRecord
     return structuredClone(nextAddress)
   }
 
+  async function addAddress(type: number): Promise<WalletRecord['addresses'][number]> {
+    if (lifecycle.value !== 'unlocked' || !envelope.value || !unlockedRecord.value || !sessionKey)
+      throw new Error('wallet must be unlocked')
+    if (![0, 1, 2].includes(type)) throw new Error('unsupported address type')
+    if (addressWrite || busy.value) throw new Error('wallet is busy')
+    addressWrite = saveNewAddress(type, unlockedRecord.value, envelope.value, sessionKey, sessionVersion)
+    try {
+      return await addressWrite
+    } finally {
+      addressWrite = undefined
+    }
+  }
+
   function setRepositoryForTests(next: WalletRepository): void {
-    clearTimer()
+    lock()
     repository.value = markRaw(next)
     envelope.value = undefined
     unlockedRecord.value = undefined

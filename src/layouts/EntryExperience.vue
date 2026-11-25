@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import PreferenceControls from '@/components/PreferenceControls.vue'
+import BrandMark from '@/components/BrandMark.vue'
 import EntryParticleFigure from '@/components/EntryParticleFigure.vue'
-import { entryFigureKey } from '@/composables/useEntryFigure'
+import { entryFigureKey, waitForEntryBrandKey } from '@/composables/useEntryFigure'
 import type { EntryShape } from '@/graphics/entryParticles'
 import { desktopEntryFrame } from '@/graphics/entryFigureFrame'
 import { unlockPhase } from '@/composables/useEntryUnlock'
-withDefaults(defineProps<{ active?: boolean }>(), { active: true })
+withDefaults(defineProps<{ active?: boolean; showBrand?: boolean }>(), { active: true })
+const { t } = useI18n()
 const route = useRoute()
 const override = ref<EntryShape>()
 const root = ref<HTMLElement>()
@@ -17,6 +21,8 @@ const frame = ref({
   width: '0px',
   height: '0px',
 })
+const figure = ref<InstanceType<typeof EntryParticleFigure>>()
+provide(waitForEntryBrandKey, () => figure.value?.waitForBrand())
 provide(entryFigureKey, override)
 watch(
   () => route.path,
@@ -30,7 +36,7 @@ const shape = computed<EntryShape>(
     override.value ??
     (
       {
-        'wallet-setup': 'create',
+        'wallet-setup': route.query.mode === 'import' ? 'import' : 'create',
         'wallet-unlock': 'key',
         'wallet-recover': 'import',
         'wallet-entry': 'shield',
@@ -92,17 +98,60 @@ onBeforeUnmount(() => {
     :data-entry-experience="active ? '' : undefined"
   >
     <div v-if="active" class="entry-experience__backdrop" aria-hidden="true" />
+    <header v-if="showBrand" class="entry-experience__header" :inert="unlockPhase !== 'idle'">
+      <RouterLink to="/" class="entry-experience__brand" :aria-label="`PanguPay · ${t('foundation.back')}`">
+        <BrandMark :size="32" aria-hidden="true" />
+        <span>PanguPay</span>
+      </RouterLink>
+      <Transition name="entry-tools">
+        <PreferenceControls v-if="route.name === 'landing'" class="entry-preferences" />
+      </Transition>
+    </header>
     <div class="entry-experience__content" :inert="unlockPhase !== 'idle'"><slot /></div>
     <div v-if="active" class="entry-experience__figure" :style="frame">
-      <EntryParticleFigure :shape="shape" :phase="unlockPhase" />
+      <EntryParticleFigure ref="figure" :shape="shape" :phase="unlockPhase" />
     </div>
   </div>
 </template>
 <style scoped>
 .entry-experience {
+  --entry-top: max(1rem, env(safe-area-inset-top));
+  --entry-gutter: clamp(1.125rem, 3.5vw, 3.5rem);
+  --entry-header-height: 44px;
+  --entry-content-width: 1380px;
   position: relative;
   isolation: isolate;
   background: var(--background);
+}
+.entry-preferences { pointer-events: auto; }
+.entry-tools-enter-active, .entry-tools-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
+.entry-tools-leave-active { pointer-events: none; }
+.entry-tools-enter-from, .entry-tools-leave-to { opacity: 0; transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) {
+  .entry-tools-enter-active, .entry-tools-leave-active { transition: none; }
+}
+.entry-experience__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: absolute;
+  inset-block-start: var(--entry-top);
+  inset-inline: var(--entry-gutter);
+  z-index: 4;
+  max-width: var(--entry-content-width);
+  margin-inline: auto;
+  pointer-events: none;
+}
+.entry-experience__brand {
+  display: inline-flex;
+  min-height: var(--entry-header-height);
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 730;
+  letter-spacing: -0.035em;
+  pointer-events: auto;
 }
 .entry-experience__backdrop {
   position: fixed;

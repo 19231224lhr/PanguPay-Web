@@ -34,6 +34,15 @@ export interface WalletEntryOrganizationDetail extends WalletEntryOrganization {
   nodes: WalletEntryOrganizationNode[]
 }
 
+export class WalletEntryConfirmationPending extends Error {
+  constructor(
+    readonly confirm: () => Promise<void>,
+    readonly cause?: unknown,
+  ) {
+    super('暂未收到申请结果。请检查当前状态。')
+  }
+}
+
 export interface WalletEntryService {
   recover(): Promise<OrganizationEntryInput>
   listOrganizations(): Promise<WalletEntryOrganization[]>

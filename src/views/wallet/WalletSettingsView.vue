@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { wl, wt } from '@/i18n/walletText'
+import { wt } from '@/i18n/walletText'
 
 import {
+  PhArrowLeft as ArrowLeft,
   PhDownloadSimple as DownloadSimple,
   PhKey as Key,
   PhLockKey as LockKey,
+  PhSignOut as SignOut,
   PhUserCircle as UserCircle,
 } from '@phosphor-icons/vue'
 import { computed, ref, watch } from 'vue'
@@ -12,15 +14,12 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
-import WalletRemovalDialog from '@/components/WalletRemovalDialog.vue'
+import WalletLanguageSelect from '@/components/WalletLanguageSelect.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
-import {
-  type SupportedLocale,
-  type ThemePreference,
-  usePreferences,
-} from '@/composables/usePreferences'
+import WalletSignOutDialog from '@/components/WalletSignOutDialog.vue'
+import { type ThemePreference, usePreferences } from '@/composables/usePreferences'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
 
@@ -28,13 +27,11 @@ const wallet = useWalletStore()
 const dashboard = useDashboardStore()
 const router = useRouter()
 const preferences = usePreferences()
-const { locale: i18nLocale, t } = useI18n()
+const { t } = useI18n()
 const displayName = ref(wallet.profile.displayName)
 const avatar = ref(wallet.profile.avatarDataUrl ?? '')
 const profileBusy = ref(false)
 const showSignOut = ref(false)
-const signOutBusy = ref(false)
-const signOutError = ref('')
 const profileMessage = ref('')
 const profileError = ref('')
 
@@ -52,19 +49,24 @@ const themeOptions = computed(() => [
   { label: t('common.dark'), value: 'dark' },
 ])
 
-const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: 'English', value: 'en-US' },
-]
+function goBack(): void {
+  const previous = router.options.history.state.back
+  if (typeof previous === 'string' && previous.startsWith('/wallet')) {
+    const target = router.resolve(previous)
+    if (
+      target.matched.some((record) => record.path === '/wallet') &&
+      target.name !== 'wallet-settings' &&
+      target.hash !== '#settings'
+    ) {
+      router.back()
+      return
+    }
+  }
+  void router.replace({ name: 'wallet-overview' })
+}
 
 function setTheme(value: string): void {
   preferences.setTheme(value as ThemePreference)
-}
-
-function setLocale(value: string): void {
-  const locale = value as SupportedLocale
-  preferences.setLocale(locale)
-  i18nLocale.value = locale
 }
 
 function exportWallet(): void {
@@ -91,40 +93,26 @@ function exportRecoveryKit(): void {
   URL.revokeObjectURL(url)
 }
 
-async function signOut(): Promise<void> {
-  if (signOutBusy.value) return
-  signOutBusy.value = true
-  signOutError.value = ''
-  try {
-    dashboard.reset()
-    await wallet.clearLocalWallet()
-    showSignOut.value = false
-    // A fresh document also releases all in-memory signing and monitoring state.
-    window.location.replace(import.meta.env.BASE_URL)
-  } catch {
-    signOutError.value = wt('signOutError')
-  } finally {
-    signOutBusy.value = false
-  }
-}
-
 function lock(): void {
   wallet.lock()
   dashboard.reset()
   void router.replace('/wallet/unlock')
 }
 
+class AvatarValidationError extends Error {}
+
 async function cropAvatar(file: File): Promise<string> {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
-    throw new Error(t('wallet.settings.avatarTypeError'))
-  if (file.size > 5 * 1024 * 1024) throw new Error(t('wallet.settings.avatarSizeError'))
+    throw new AvatarValidationError('wallet.settings.avatarTypeError')
+  if (file.size > 5 * 1024 * 1024)
+    throw new AvatarValidationError('wallet.settings.avatarSizeError')
   const bitmap = await createImageBitmap(file)
   const side = Math.min(bitmap.width, bitmap.height)
   const canvas = document.createElement('canvas')
   canvas.width = 256
   canvas.height = 256
   const context = canvas.getContext('2d')
-  if (!context) throw new Error(t('wallet.settings.avatarUnsupportedError'))
+  if (!context) throw new AvatarValidationError('wallet.settings.avatarUnsupportedError')
   context.drawImage(
     bitmap,
     (bitmap.width - side) / 2,
@@ -149,7 +137,7 @@ async function chooseAvatar(event: Event): Promise<void> {
     avatar.value = await cropAvatar(file)
   } catch (cause) {
     profileError.value =
-      cause instanceof Error ? cause.message : t('wallet.settings.avatarReadError')
+      cause instanceof AvatarValidationError ? cause.message : 'wallet.settings.avatarReadError'
   } finally {
     input.value = ''
   }
@@ -161,10 +149,10 @@ async function saveProfile(): Promise<void> {
   profileMessage.value = ''
   try {
     await wallet.saveProfile(displayName.value, avatar.value || undefined)
-    profileMessage.value = t('wallet.settings.profileSaved')
+    profileMessage.value = 'wallet.settings.profileSaved'
     await dashboard.sync(true)
   } catch {
-    profileError.value = t('wallet.settings.profileSaveError')
+    profileError.value = 'wallet.settings.profileSaveError'
   } finally {
     profileBusy.value = false
   }
@@ -172,174 +160,241 @@ async function saveProfile(): Promise<void> {
 </script>
 
 <template>
-  <div class="wallet-page wallet-refined settings-page">
-    <WalletPageHeader
-      :title="wl(t('wallet.settings.title'))"
-      :description="t('wallet.settings.description')"
-    />
-    <section class="wallet-section profile-settings" aria-labelledby="profile-settings-heading">
-      <div class="detail-page-intro settings-heading">
-        <h2 id="profile-settings-heading">{{ t('wallet.settings.profile') }}</h2>
-        <WalletFigure kind="phone" :intensity="0.25" />
-      </div>
-      <div class="profile-editor">
-        <label class="profile-avatar">
-          <img v-if="avatar" :src="avatar" :alt="t('wallet.settings.currentAvatar')" />
-          <UserCircle v-else :size="42" weight="light" />
-          <span>{{ t('wallet.settings.changeAvatar') }}</span>
-          <input type="file" accept="image/png,image/jpeg,image/webp" @change="chooseAvatar" />
-        </label>
-        <div class="profile-name">
-          <label for="wallet-display-name">{{ t('wallet.settings.username') }}</label>
-          <input
-            id="wallet-display-name"
-            v-model="displayName"
-            maxlength="24"
-            autocomplete="nickname"
-          />
-          <small>{{ t('wallet.settings.profileDescription') }}</small>
-        </div>
-        <AppButton :loading="profileBusy" :disabled="!displayName.trim()" @click="saveProfile">
-          {{ t('wallet.settings.saveProfile') }}
-        </AppButton>
-      </div>
-      <p v-if="profileError" class="settings-feedback settings-feedback--error" role="alert">
-        {{ profileError }}
-      </p>
-      <p v-else-if="profileMessage" class="settings-feedback" role="status">
-        {{ profileMessage }}
-      </p>
-    </section>
-    <section class="wallet-section settings-preferences" aria-labelledby="preferences-heading">
-      <div class="detail-page-intro settings-heading">
-        <h2 id="preferences-heading">{{ t('wallet.settings.preferences') }}</h2>
+  <div class="wallet-page settings-page">
+    <div class="settings-hero">
+      <button type="button" class="settings-back" @click="goBack">
+        <ArrowLeft :size="17" aria-hidden="true" />{{ t('wallet.settings.back') }}
+      </button>
+      <WalletPageHeader :title="t('wallet.nav.settings')" variant="compact">
         <WalletFigure kind="format" :intensity="0.3" />
-      </div>
-      <div class="settings-row">
-        <span>
-          <b>{{ t('wallet.settings.appearance') }}</b>
-          <small>{{ t('wallet.settings.appearanceDescription') }}</small>
-        </span>
-        <SegmentedControl
-          :label="t('wallet.settings.appearance')"
-          :model-value="preferences.themePreference.value"
-          :options="themeOptions"
-          @update:model-value="setTheme"
-        />
-      </div>
+      </WalletPageHeader>
+    </div>
 
-      <div class="settings-row">
-        <span>
-          <b>{{ t('wallet.settings.language') }}</b>
-          <small>{{ t('wallet.settings.languageDescription') }}</small>
-        </span>
-        <SegmentedControl
-          :label="t('wallet.settings.language')"
-          :model-value="preferences.locale.value"
-          :options="languageOptions"
-          @update:model-value="setLocale"
-        />
+    <section class="settings-section" aria-labelledby="profile-settings-heading">
+      <h2 id="profile-settings-heading">{{ t('wallet.settings.profile') }}</h2>
+      <div class="settings-fields">
+        <div class="profile-editor">
+          <label class="profile-avatar">
+            <img v-if="avatar" :src="avatar" :alt="t('wallet.settings.currentAvatar')" />
+            <UserCircle v-else :size="42" weight="light" />
+            <span>{{ t('wallet.settings.changeAvatar') }}</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" @change="chooseAvatar" />
+          </label>
+          <div class="profile-name">
+            <label for="wallet-display-name">{{ t('wallet.settings.username') }}</label>
+            <input
+              id="wallet-display-name"
+              v-model="displayName"
+              maxlength="24"
+              autocomplete="nickname"
+            />
+            <small
+              >{{ wallet.accountId }} ·
+              {{ dashboard.current.organization ? wt('refinement35') : wt('refinement20') }}</small
+            >
+            <small>{{ t('wallet.settings.profileDescription') }}</small>
+          </div>
+          <AppButton :loading="profileBusy" :disabled="!displayName.trim()" @click="saveProfile">
+            {{ t('wallet.settings.saveProfile') }}
+          </AppButton>
+        </div>
+        <p v-if="profileError" class="settings-feedback settings-feedback--error" role="alert">
+          {{ t(profileError) }}
+        </p>
+        <p v-else-if="profileMessage" class="settings-feedback" role="status">
+          {{ t(profileMessage) }}
+        </p>
       </div>
     </section>
-    <section class="wallet-section settings-actions" aria-labelledby="wallet-controls-heading">
-      <div class="detail-page-intro settings-heading">
-        <h2 id="wallet-controls-heading">{{ t('wallet.settings.access') }}</h2>
-        <WalletFigure kind="stack" :intensity="0.3" />
-      </div>
-      <div>
-        <span
-          ><b>{{ t('wallet.settings.exportEncrypted') }}</b
-          ><small>{{ t('wallet.settings.exportEncryptedDescription') }}</small></span
-        ><AppButton variant="secondary" @click="exportWallet"
-          ><DownloadSimple :size="18" />{{ t('wallet.settings.export') }}</AppButton
-        >
-      </div>
-      <div>
-        <span
-          ><b>{{ t('wallet.settings.exportRecovery') }}</b
-          ><small>{{ t('wallet.settings.exportRecoveryDescription') }}</small></span
-        ><AppButton variant="secondary" @click="exportRecoveryKit"
-          ><Key :size="18" />{{ t('wallet.settings.export') }}</AppButton
-        >
-      </div>
-      <div>
-        <span
-          ><b>{{ wt('signOut') }}</b
-          ><small>{{ wt('signOutDescription') }}</small></span
-        >
-        <AppButton variant="secondary" data-testid="sign-out" @click="showSignOut = true">{{
-          wt('signOut')
-        }}</AppButton>
-      </div>
-      <div>
-        <span
-          ><b>{{ t('wallet.settings.lockNow') }}</b
-          ><small>{{ t('wallet.settings.lockDescription') }}</small></span
-        ><AppButton variant="secondary" @click="lock"
-          ><LockKey :size="18" />{{ t('wallet.settings.lock') }}</AppButton
-        >
-      </div>
-      <div>
-        <span
-          ><b>{{ t('wallet.settings.autoLock') }}</b
-          ><small>{{ t('wallet.settings.autoLockDescription') }}</small></span
-        ><strong>{{ t('wallet.settings.fifteenMinutes') }}</strong>
+    <section class="settings-section" aria-labelledby="preferences-heading">
+      <h2 id="preferences-heading">{{ t('wallet.settings.preferences') }}</h2>
+      <div class="settings-fields">
+        <div class="settings-row">
+          <span>
+            <b>{{ t('wallet.settings.appearance') }}</b>
+            <small>{{ t('wallet.settings.appearanceDescription') }}</small>
+          </span>
+          <SegmentedControl
+            :label="t('wallet.settings.appearance')"
+            :model-value="preferences.themePreference.value"
+            compact
+            appearance="tabs"
+            :options="themeOptions"
+            @update:model-value="setTheme"
+          />
+        </div>
+
+        <div class="settings-row">
+          <span>
+            <b>{{ t('wallet.settings.language') }}</b>
+            <small>{{ t('wallet.settings.languageDescription') }}</small>
+          </span>
+          <WalletLanguageSelect />
+        </div>
       </div>
     </section>
-    <WalletRemovalDialog
-      :open="showSignOut"
-      :busy="signOutBusy"
-      :error="signOutError"
-      @close="showSignOut = false"
-      @confirm="signOut"
-    />
+    <section class="settings-section" aria-labelledby="wallet-controls-heading">
+      <h2 id="wallet-controls-heading">{{ t('wallet.settings.access') }}</h2>
+      <div class="settings-fields">
+        <div class="settings-row">
+          <span
+            ><b>{{ t('wallet.settings.exportEncrypted') }}</b
+            ><small>{{ t('wallet.settings.exportEncryptedDescription') }}</small></span
+          >
+          <AppButton variant="secondary" @click="exportWallet"
+            ><DownloadSimple :size="17" />{{ t('wallet.settings.export') }}</AppButton
+          >
+        </div>
+        <div class="settings-row">
+          <span
+            ><b>{{ t('wallet.settings.exportRecovery') }}</b
+            ><small>{{ t('wallet.settings.exportRecoveryDescription') }}</small></span
+          >
+          <AppButton variant="secondary" @click="exportRecoveryKit"
+            ><Key :size="17" />{{ t('wallet.settings.export') }}</AppButton
+          >
+        </div>
+        <div class="settings-row">
+          <span
+            ><b>{{ t('wallet.settings.autoLock') }}</b
+            ><small>{{ t('wallet.settings.autoLockDescription') }}</small></span
+          >
+          <strong>{{ t('wallet.settings.fifteenMinutes') }}</strong>
+        </div>
+        <div class="settings-row">
+          <span
+            ><b>{{ t('wallet.settings.lockNow') }}</b
+            ><small>{{ t('wallet.settings.lockDescription') }}</small></span
+          >
+          <AppButton variant="secondary" @click="lock"
+            ><LockKey :size="17" />{{ t('wallet.settings.lock') }}</AppButton
+          >
+        </div>
+        <div class="settings-row">
+          <span
+            ><b>{{ wt('signOut') }}</b
+            ><small>{{ wt('signOutDescription') }}</small></span
+          >
+          <AppButton
+            variant="ghost"
+            class="settings-sign-out"
+            data-testid="sign-out"
+            @click="showSignOut = true"
+            ><SignOut :size="17" />{{ wt('signOut') }}</AppButton
+          >
+        </div>
+      </div>
+    </section>
+    <WalletSignOutDialog v-model:open="showSignOut" />
   </div>
 </template>
 
 <style scoped>
-.settings-preferences,
-.settings-actions {
-  display: grid;
+.settings-page {
+  container-type: inline-size;
+  max-width: 1060px;
+  margin-inline: auto;
+  width: 100%;
+  gap: 0;
+  padding: clamp(16px, 3vw, 40px);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
 }
-
-.settings-row,
-.settings-actions > div:not(.settings-heading) {
+.settings-hero {
+  padding-bottom: 12px;
+}
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  min-height: 40px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.settings-back:hover {
+  color: var(--accent);
+}
+.settings-hero :deep(.wallet-page-header) {
+  flex-direction: row;
+  align-items: center;
+  min-height: 80px;
+}
+.settings-hero :deep(.wallet-figure) {
+  width: 88px;
+  --figure-plate: var(--surface);
+}
+.settings-section {
+  display: grid;
+  grid-template-columns: minmax(126px, 0.36fr) minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 40px);
+  padding-block: clamp(18px, 2.4vw, 32px);
+  border-top: 1px solid var(--hairline);
+}
+.settings-section:last-of-type {
+  padding-bottom: 0;
+}
+.settings-section h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.settings-fields {
+  min-width: 0;
+}
+.settings-row {
   display: flex;
-  min-height: 76px;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid var(--hairline);
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-block: 16px;
 }
-
-.settings-preferences > div:last-child,
-.settings-actions > div:last-child {
-  border-bottom: 0;
+.settings-row:first-child {
+  padding-top: 0;
 }
-
-.settings-row > span,
-.settings-actions > div > span {
+.settings-row:last-child {
+  padding-bottom: 0;
+}
+.settings-row + .settings-row {
+  border-top: 1px solid var(--hairline);
+}
+.settings-row > span {
+  flex: 1 1 200px;
   display: grid;
-  gap: 0.25rem;
+  gap: 4px;
 }
-
-.settings-preferences small,
-.settings-actions small {
+.settings-row b,
+.settings-row strong {
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+.settings-row small {
   color: var(--text-muted);
+  line-height: 1.55;
 }
-
-.settings-actions :deep(.app-button) {
-  min-width: 112px;
+.settings-row :deep(.segmented-control) {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
 }
-
+.settings-row .settings-sign-out {
+  color: var(--danger);
+}
 .profile-editor {
   display: grid;
-  grid-template-columns: auto minmax(220px, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  padding-block: 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
 }
-
+.profile-editor :deep(.app-button) {
+  margin-top: 21px;
+}
 .profile-avatar {
   display: grid;
   position: relative;
@@ -401,53 +456,6 @@ async function saveProfile(): Promise<void> {
   color: var(--danger);
 }
 
-.settings-page .settings-heading {
-  min-height: 64px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.settings-page .settings-heading :deep(.wallet-figure) {
-  width: 80px;
-}
-
-.settings-row {
-  padding-block: 16px;
-}
-
-.settings-row > span,
-.settings-actions > div > span {
-  min-width: 0;
-  line-height: 1.55;
-}
-
-.settings-row b,
-.settings-actions b {
-  font-size: 0.86rem;
-  font-weight: 550;
-}
-
-.settings-row small,
-.settings-actions small {
-  font-size: 0.74rem;
-}
-
-.settings-preferences :deep(.segmented-control) {
-  width: 300px;
-  flex-shrink: 0;
-}
-
-.settings-actions > div:not(.settings-heading) {
-  padding-block: 16px;
-}
-
-.settings-actions > div > strong {
-  min-width: 112px;
-  text-align: center;
-  font-size: 0.82rem;
-  font-weight: 550;
-}
-
 .profile-name input:focus-visible {
   outline: none;
   border-color: var(--accent);
@@ -459,25 +467,27 @@ async function saveProfile(): Promise<void> {
   outline-offset: 3px;
 }
 
-@container (max-width: 580px) {
-  .settings-row,
-  .settings-actions > div:not(.settings-heading) {
-    align-items: stretch;
-    flex-direction: column;
-    padding-block: 1rem;
+@container (max-width: 680px) {
+  .settings-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
   }
-
-  .settings-preferences :deep(.segmented-control),
-  .settings-actions :deep(.app-button) {
-    width: 100%;
-  }
-
+}
+@container (max-width: 460px) {
   .profile-editor {
     grid-template-columns: auto minmax(0, 1fr);
   }
   .profile-editor :deep(.app-button) {
-    grid-column: 1 / -1;
-    width: 100%;
+    grid-column: 2;
+    justify-self: start;
+    margin: 0;
+  }
+  .profile-avatar {
+    width: 50px;
+    height: 50px;
+  }
+  .settings-row {
+    align-items: flex-start;
   }
 }
 </style>

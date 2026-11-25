@@ -78,7 +78,7 @@ const feedback = computed(() =>
         class="app-button__feedback"
         role="status"
       >
-        <CurveMark v-if="busy" variant="weave" :size="22" style="color: inherit" />
+        <CurveMark v-if="busy" variant="link" :size="22" style="color: inherit" />
         <CurveMark
           v-else-if="activeState === 'success'"
           motion="once"

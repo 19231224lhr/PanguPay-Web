@@ -45,13 +45,13 @@ export async function importFixtureWallet(
   }
   if (/\/wallet(?:\/entry)?$/.test(page.url())) return
 
-  await page.getByRole('radio', { name: '导入' }).click()
+  await page.getByRole('button', { name: '导入已有钱包' }).click()
   await page.getByRole('radio', { name: '私钥与 RootSeed' }).click()
   await page.getByLabel('账户私钥（64 位十六进制）').fill(user.accountPrivateKey)
   await page.getByLabel('PGC 地址 RootSeed（64 位十六进制）').fill(user.addressRootSeedHex)
   await page.getByLabel('设置新钱包密码').fill(env.password)
   await page.getByLabel('确认新密码').fill(env.password)
-  await page.getByRole('button', { name: '恢复并进入钱包' }).click()
+  await page.getByRole('button', { name: '恢复钱包' }).click()
   await page.waitForURL(/\/wallet(?:\/entry)?$/, { timeout: 120_000 })
 }
 
@@ -82,7 +82,7 @@ export async function createWallet(
   if (!files.wallet || !files.recovery)
     throw new Error('wallet creation did not download both backups')
   await page.getByText('我已分别安全保存').click()
-  await page.getByRole('button', { name: '进入钱包' }).click()
+  await page.getByRole('button', { name: '下一步：选择组织' }).click()
   await page.waitForURL(/\/wallet(?:\/entry)?$/, { timeout: 120_000 })
   return files as WalletBackupFiles
 }
@@ -95,7 +95,7 @@ export async function unlockWallet(page: Page, password: string): Promise<void> 
 
 export async function chooseRetail(page: Page): Promise<void> {
   if (!page.url().endsWith('/wallet/entry')) return
-  await expect(page.getByRole('heading', { name: '选择你的使用方式' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: '选择担保组织' })).toBeVisible({
     timeout: 60_000,
   })
   await page.getByRole('button', { name: '暂不加入' }).click()
@@ -106,16 +106,16 @@ export async function joinFirstOrganization(page: Page): Promise<void> {
   if (!page.url().endsWith('/wallet/entry')) {
     await navigateWallet(page, '/wallet/organization')
     const member = page.getByText('当前归属', { exact: true })
-    const option = page.locator('.organization-options input[type="radio"]').first()
+    const option = page.locator('.organization-choice input[type="radio"]').first()
     await expect(member.or(option).first()).toBeVisible({ timeout: 60_000 })
     if (await member.isVisible()) return
-    await page.locator('.organization-options label').first().click()
+    await page.locator('.organization-choice label').first().click()
     await expect(option).toBeChecked()
     await page.getByRole('button', { name: '确认加入' }).click()
     await expect(page.getByText('当前归属')).toBeVisible({ timeout: 120_000 })
     return
   }
-  await expect(page.getByRole('heading', { name: '选择你的使用方式' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: '选择担保组织' })).toBeVisible({
     timeout: 60_000,
   })
   const option = page.locator('.organization-choice input[type="radio"]').first()

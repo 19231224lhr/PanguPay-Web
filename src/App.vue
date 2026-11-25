@@ -18,7 +18,18 @@ const isEntry = computed(() =>
     String(route.name),
   ),
 )
+const animateAccess = computed(() => isEntry.value && unlockPhase.value === 'idle')
 </script>
 <template>
-  <EntryExperience :active="isEntry || unlockPhase !== 'idle'"><RouterView /></EntryExperience>
+  <EntryExperience :active="isEntry || unlockPhase !== 'idle'" :show-brand="isEntry">
+    <RouterView v-slot="{ Component }">
+      <Transition
+        name="entry-route"
+        :mode="animateAccess ? 'out-in' : 'default'"
+        :css="animateAccess"
+      >
+        <component :is="Component" />
+      </Transition>
+    </RouterView>
+  </EntryExperience>
 </template>

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WalletNetworkOverview from '@/components/WalletNetworkOverview.vue'
+import { createWalletNetwork, walletNetworkKey } from '@/composables/useWalletNetwork'
 
 const mocks = vi.hoisted(() => ({
   status: vi.fn<() => Promise<unknown>>(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/services/gatewayClient', () => ({
   GatewayClient: class {
     gqncStatus = mocks.status
+    async gqncCertifiedBlock() { return {} }
   },
 }))
 vi.mock('@/wallet/entryService', () => ({
@@ -24,10 +26,15 @@ const normal = {
   currentView: 2,
 }
 const wrappers: ReturnType<typeof mount>[] = []
-function render() {
+function render(network = createWalletNetwork()) {
+  void network.refreshChain(30_000)
+  void network.directory.refresh(60_000)
   const wrapper = mount(WalletNetworkOverview, {
     props: { offline: false },
-    global: { stubs: { RouterLink: { template: '<a><slot /></a>' }, WalletFigure: true } },
+    global: {
+      provide: { [walletNetworkKey as symbol]: network },
+      stubs: { RouterLink: { template: '<a><slot /></a>' }, WalletFigure: true },
+    },
   })
   wrappers.push(wrapper)
   return wrapper
@@ -38,7 +45,6 @@ beforeEach(() => {
 })
 afterEach(() => {
   wrappers.splice(0).forEach((w) => w.unmount())
-  vi.useRealTimers()
 })
 
 describe('Overview network evidence', () => {
@@ -51,8 +57,8 @@ describe('Overview network evidence', () => {
     expect(chain.text()).toContain('正常')
     expect(w.get('section[aria-labelledby="overview-organization"]').text()).toContain('1 个')
     expect(w.find('details').exists()).toBe(false)
-    expect(w.find('a[to="/wallet/organization"]').exists()).toBe(true)
-    expect(w.find('a[to="/wallet/blockchain"]').exists()).toBe(true)
+    expect(w.find('a[to="/wallet#organization"]').exists()).toBe(true)
+    expect(w.find('a[to="/wallet#blockchain"]').exists()).toBe(true)
     expect(w.text()).toContain('独立账户')
   })
   it('does not retain healthy or height values when refresh fails, and recovers on retry', async () => {
@@ -78,13 +84,16 @@ describe('Overview network evidence', () => {
     expect(w.text()).toContain('组织目录暂不可用')
     expect(w.text()).not.toContain('0 个')
   })
-  it('stops background refresh when the overview unmounts', async () => {
-    vi.useFakeTimers()
-    const w = render()
+  it('displays the same cached summary when returning to the overview', async () => {
+    const network = createWalletNetwork()
+    const w = render(network)
     await flushPromises()
     w.unmount()
     wrappers.splice(wrappers.indexOf(w), 1)
-    await vi.advanceTimersByTimeAsync(60_000)
+    const reopened = render(network)
+    expect(reopened.text()).toContain('正常')
+    expect(reopened.text()).toContain('1 个')
     expect(mocks.status).toHaveBeenCalledTimes(1)
+    expect(mocks.organizations).toHaveBeenCalledTimes(1)
   })
 })

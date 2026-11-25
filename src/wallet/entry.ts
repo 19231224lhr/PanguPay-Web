@@ -18,7 +18,12 @@ const noGroupChoiceKey = (accountId: string) => `pangupay:wallet-entry:no-group:
 
 export function isWalletEntryConnectionError(cause: unknown): boolean {
   return (
-    cause instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(cause))
+    cause instanceof TypeError ||
+    (cause !== null &&
+      typeof cause === 'object' &&
+      (('name' in cause && cause.name === 'TimeoutError') ||
+        ('status' in cause && [408, 502, 503, 504].includes(Number(cause.status))))) ||
+    /failed to fetch|networkerror|load failed/i.test(String(cause))
   )
 }
 

@@ -51,6 +51,36 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .entry-route-enter-active {
+    transition: opacity 240ms var(--ease-standard);
+  }
+
+  .entry-route-leave-active {
+    pointer-events: none;
+    transition: opacity 100ms ease-out;
+  }
+
+  .entry-route-enter-from,
+  .entry-route-leave-to {
+    opacity: 0;
+  }
+
+  .entry-route-enter-active :is(.landing__copy, .wallet-access__form) {
+    animation: none;
+    transition: translate 240ms var(--ease-standard);
+  }
+
+  .wallet-entry.entry-route-enter-active {
+    transition: opacity 200ms var(--ease-standard), translate 200ms var(--ease-standard);
+  }
+
+  .wallet-entry.entry-route-enter-from,
+  .entry-route-enter-from :is(.landing__copy, .wallet-access__form) {
+    translate: 0 8px;
+  }
+}
+
 :root.wallet-entry-transition::view-transition-old(root) {
   animation: wallet-exit 320ms var(--ease-standard) both;
 }
@@ -76,12 +106,6 @@
 :root.wallet-access-transition::view-transition-group(pangu-value-fold) {
   z-index: 4;
   animation-duration: 620ms;
-  animation-timing-function: var(--ease-standard);
-}
-
-:root.wallet-access-transition::view-transition-group(pangu-mobile-brand) {
-  z-index: 6;
-  animation-duration: 420ms;
   animation-timing-function: var(--ease-standard);
 }
 
@@ -134,8 +158,7 @@
   :root.wallet-entry-transition::view-transition-new(root),
   :root.wallet-access-transition::view-transition-old(root),
   :root.wallet-access-transition::view-transition-new(root),
-  :root.wallet-access-transition::view-transition-group(pangu-value-fold),
-  :root.wallet-access-transition::view-transition-group(pangu-mobile-brand) {
+  :root.wallet-access-transition::view-transition-group(pangu-value-fold) {
     animation-duration: 120ms;
     animation-name: simple-crossfade;
     animation-delay: 0ms;
@@ -150,4 +173,31 @@
       opacity: 1;
     }
   }
+}
+
+/* Feather the boundary between the captured page and the live theme. */
+@property --theme-front {
+  syntax: '<length>';
+  initial-value: 0px;
+  inherits: false;
+}
+:root.theme-reveal::view-transition-old(root),
+:root.theme-reveal::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root.theme-reveal::view-transition-new(root) {
+  mask-image: radial-gradient(circle at var(--theme-origin), black var(--theme-front),
+    transparent calc(var(--theme-front) + 96px));
+  animation: theme-sweep 560ms cubic-bezier(.32, .08, .24, 1) both;
+}
+@keyframes theme-sweep {
+  from { --theme-front: -96px; }
+  to { --theme-front: var(--theme-radius); }
+}
+:root.theme-crossfade, .theme-crossfade :is(body, main, aside, header, section, button, input) {
+  transition: background-color 300ms ease, border-color 300ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root.theme-reveal::view-transition-new(root) { animation: none; mask-image: none; }
 }

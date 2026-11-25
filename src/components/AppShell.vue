@@ -2,8 +2,12 @@
 import { wt } from '@/i18n/walletText'
 
 import type { Component } from 'vue'
-import { PhCaretUpDown as CaretUpDown } from '@phosphor-icons/vue'
-import { ref } from 'vue'
+import {
+  PhCaretDoubleLeft as CollapseSidebar,
+  PhCaretDoubleRight as ExpandSidebar,
+  PhCaretUpDown as CaretUpDown,
+} from '@phosphor-icons/vue'
+import { computed, ref } from 'vue'
 
 import BrandMark from './BrandMark.vue'
 import WalletAccountMenu from './WalletAccountMenu.vue'
@@ -13,30 +17,28 @@ export interface AppShellItem {
   label: string
   icon: Component
   to: string
+  current?: boolean
 }
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     items: AppShellItem[]
     mobileItems?: AppShellItem[]
-    accountItems?: AppShellItem[]
-    utilityItems?: AppShellItem[]
+    settingsItem?: AppShellItem
+    editCardsLabel?: string
     accountMenuLabel?: string
     accountMenuNavigationLabel?: string
-    accountMenuItemsLabel?: string
-    mobileUtilityLabel?: string
-    utilityNavigationLabel?: string
     lockLabel?: string
+    signOutLabel?: string
     moreLabel?: string
     navigationLabel: string
     accountName?: string
     accountId?: string
     accountAvatar?: string
+    initiallyCollapsed?: boolean
   }>(),
   {
-    accountItems: () => [],
     mobileItems: undefined,
-    utilityItems: () => [],
     accountMenuLabel: wt('w307'),
     accountName: 'Wallet',
     accountId: '',
@@ -46,36 +48,36 @@ withDefaults(
   },
 )
 
-defineEmits<{ lock: [] }>()
+defineEmits<{ editCards: []; lock: []; signOut: [] }>()
 
 const accountMenuOpen = ref(false)
+const sidebarExpanded = ref(!props.initiallyCollapsed)
+const sidebarToggleLabel = computed(() =>
+  wt(sidebarExpanded.value ? 'walletSidebarCollapse' : 'walletSidebarExpand'),
+)
 </script>
 
 <template>
-  <div class="app-shell">
-    <aside class="app-shell__sidebar">
-      <RouterLink class="app-shell__brand" to="/" aria-label="PanguPay home">
-        <BrandMark :size="30" />
-        <span>PanguPay</span>
-      </RouterLink>
-
+  <div class="app-shell" :data-sidebar-collapsed="!sidebarExpanded || undefined">
+    <aside id="wallet-sidebar" class="app-shell__sidebar">
       <button
-        class="app-shell__account"
+        class="app-shell__brand"
         type="button"
-        data-account-trigger
-        :aria-label="accountMenuLabel"
-        :aria-expanded="accountMenuOpen"
-        @click="accountMenuOpen = !accountMenuOpen"
+        :aria-label="sidebarToggleLabel"
+        :title="sidebarToggleLabel"
+        :aria-expanded="sidebarExpanded"
+        aria-controls="wallet-sidebar"
+        @click="sidebarExpanded = !sidebarExpanded"
       >
-        <span class="app-shell__avatar">
-          <img v-if="accountAvatar" :src="accountAvatar" alt="" />
-          <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
+        <span class="app-shell__brand-icon" aria-hidden="true">
+          <BrandMark :size="30" class="app-shell__brand-mark" />
+          <component
+            :is="sidebarExpanded ? CollapseSidebar : ExpandSidebar"
+            :size="18"
+            class="app-shell__brand-caret"
+          />
         </span>
-        <span
-          ><strong>{{ accountName }}</strong
-          ><small>{{ accountId }}</small></span
-        >
-        <CaretUpDown :size="16" weight="regular" aria-hidden="true" />
+        <span v-show="sidebarExpanded" class="app-shell__sidebar-label">PanguPay</span>
       </button>
 
       <nav :aria-label="navigationLabel">
@@ -83,29 +85,38 @@ const accountMenuOpen = ref(false)
           v-for="item in items"
           :key="item.label"
           :to="item.to"
+          :aria-current-value="item.current === false ? 'false' : 'page'"
+          :aria-label="item.label"
+          :title="sidebarExpanded ? undefined : item.label"
           class="app-shell__nav-item"
         >
-          <component :is="item.icon" :size="20" weight="regular" />
-          <span>{{ item.label }}</span>
+          <component :is="item.icon" :size="20" weight="regular" aria-hidden="true" />
+          <span v-show="sidebarExpanded" class="app-shell__sidebar-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
 
-      <nav
-        v-if="utilityItems.length"
-        class="app-shell__utilities"
-        data-sidebar-utilities
-        :aria-label="utilityNavigationLabel || utilityItems[0]?.label || navigationLabel"
-      >
-        <RouterLink
-          v-for="item in utilityItems"
-          :key="item.to"
-          :to="item.to"
-          class="app-shell__nav-item"
+      <div class="app-shell__footer">
+        <button
+          class="app-shell__account"
+          type="button"
+          data-account-trigger
+          aria-haspopup="menu"
+          :aria-label="accountMenuLabel"
+          :aria-expanded="accountMenuOpen"
+          :title="sidebarExpanded ? undefined : accountMenuLabel"
+          @click="accountMenuOpen = !accountMenuOpen"
         >
-          <component :is="item.icon" :size="20" weight="regular" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </nav>
+          <span class="app-shell__avatar">
+            <img v-if="accountAvatar" :src="accountAvatar" alt="" />
+            <template v-else>{{ accountName.slice(0, 1).toUpperCase() }}</template>
+          </span>
+          <span v-show="sidebarExpanded" class="app-shell__account-copy">
+            <strong>{{ accountName }}</strong>
+            <small>{{ accountId }}</small>
+          </span>
+          <CaretUpDown v-show="sidebarExpanded" :size="16" weight="regular" aria-hidden="true" />
+        </button>
+      </div>
     </aside>
 
     <div class="app-shell__body">
@@ -118,6 +129,7 @@ const accountMenuOpen = ref(false)
           class="app-shell__mobile-account"
           type="button"
           data-account-trigger
+          aria-haspopup="menu"
           :aria-label="accountMenuLabel"
           :aria-expanded="accountMenuOpen"
           @click="accountMenuOpen = !accountMenuOpen"
@@ -142,24 +154,35 @@ const accountMenuOpen = ref(false)
       :account-name="accountName"
       :account-avatar="accountAvatar"
       :account-id="accountId"
-      :items="accountItems"
-      :utility-items="utilityItems"
+      :settings-item="settingsItem"
+      :edit-cards-label="editCardsLabel"
       :lock-label="lockLabel"
+      :sign-out-label="signOutLabel"
       :menu-label="accountMenuNavigationLabel || navigationLabel"
-      :items-label="accountMenuItemsLabel || navigationLabel"
-      :mobile-utility-label="mobileUtilityLabel || utilityItems[0]?.label || moreLabel"
       @close="accountMenuOpen = false"
+      @edit-cards="$emit('editCards')"
       @lock="$emit('lock')"
+      @sign-out="$emit('signOut')"
     />
   </div>
 </template>
 
 <style scoped>
 .app-shell {
+  --wallet-sidebar-inset: 6px;
+  --wallet-sidebar-block-inset: 1.35rem;
+  --wallet-sidebar-icon-column: 45px;
+  --wallet-sidebar-rail-width: calc(var(--wallet-sidebar-icon-column) + 2 * var(--wallet-sidebar-inset) + 1px);
+  --sidebar-width: var(--wallet-sidebar-width);
   display: grid;
   min-height: 100dvh;
-  grid-template-columns: var(--wallet-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   background: var(--background);
+  transition: grid-template-columns var(--duration-state) var(--ease-standard);
+}
+
+.app-shell[data-sidebar-collapsed] {
+  --sidebar-width: var(--wallet-sidebar-rail-width);
 }
 
 .app-shell__sidebar {
@@ -167,31 +190,96 @@ const accountMenuOpen = ref(false)
   top: 0;
   display: flex;
   height: 100dvh;
+  min-width: 0;
   flex-direction: column;
-  padding: 1.35rem 0.8rem;
+  padding: var(--wallet-sidebar-block-inset) var(--wallet-sidebar-inset);
   border-right: 1px solid var(--hairline);
   background: var(--navigation-surface);
 }
 
 .app-shell__brand,
 .app-shell__mobile-brand {
-  display: flex;
   min-height: 44px;
   align-items: center;
-  gap: 0.62rem;
   font-size: 1rem;
   font-weight: 720;
   letter-spacing: -0.03em;
 }
 
-.app-shell__account {
+.app-shell__mobile-brand {
   display: flex;
-  width: 100%;
-  min-height: 58px;
+  gap: 0.62rem;
+}
+
+.app-shell__sidebar :is(.app-shell__brand, .app-shell__account, .app-shell__nav-item) {
+  display: grid;
+  grid-template-columns: var(--wallet-sidebar-icon-column) minmax(0, 1fr);
   align-items: center;
-  gap: 0.72rem;
-  margin: 1.4rem 0 1.55rem;
-  padding: 0.62rem;
+}
+
+.app-shell__sidebar :is(.app-shell__brand-icon, .app-shell__avatar, .app-shell__nav-item > svg) {
+  justify-self: center;
+}
+
+.app-shell__brand {
+  width: 100%;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: start;
+}
+
+.app-shell__brand-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+}
+
+.app-shell__brand-icon > * {
+  grid-area: 1 / 1;
+  transition: opacity 140ms var(--ease-standard);
+}
+
+.app-shell__brand-caret {
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.app-shell__brand-icon:hover .app-shell__brand-mark,
+.app-shell__brand:focus-visible .app-shell__brand-mark {
+  opacity: 0;
+}
+
+.app-shell__brand-icon:hover .app-shell__brand-caret,
+.app-shell__brand:focus-visible .app-shell__brand-caret {
+  opacity: 1;
+}
+
+.app-shell__sidebar-label,
+.app-shell__account-copy,
+.app-shell__account-copy :is(strong, small) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell__sidebar-label,
+.app-shell__account-copy {
+  padding-inline-start: 6px;
+}
+
+.app-shell__sidebar .app-shell__account {
+  grid-template-columns: var(--wallet-sidebar-icon-column) minmax(0, 1fr) auto;
+  overflow: hidden;
+  width: 100%;
+  min-height: 48px;
+  padding: 0;
   border-radius: 12px;
   background: transparent;
   color: var(--text);
@@ -209,7 +297,6 @@ const accountMenuOpen = ref(false)
   display: grid;
   width: 38px;
   height: 38px;
-  flex: none;
   border-radius: 50%;
   background: var(--text);
   color: var(--background);
@@ -227,13 +314,13 @@ const accountMenuOpen = ref(false)
   display: block;
 }
 
-.app-shell__account > span:nth-child(2) {
+.app-shell__account-copy {
   display: grid;
   gap: 0.1rem;
 }
 
 .app-shell__account > svg {
-  margin-left: auto;
+  margin-inline: 4px 10px;
   color: var(--text-faint);
 }
 
@@ -249,21 +336,23 @@ const accountMenuOpen = ref(false)
 
 .app-shell__sidebar nav {
   display: grid;
+  min-height: 0;
+  margin-top: 0.85rem;
   gap: 0.18rem;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
-.app-shell__utilities {
+.app-shell__footer {
+  flex-shrink: 0;
   margin-top: auto;
-  padding-top: 0.8rem;
+  padding-top: 0.55rem;
   border-top: 1px solid var(--hairline);
 }
 
 .app-shell__nav-item {
-  display: flex;
   min-height: 44px;
-  align-items: center;
-  gap: 0.72rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.65rem 0;
   border-radius: 10px;
   color: var(--text-muted);
   font-size: 0.84rem;
@@ -274,13 +363,14 @@ const accountMenuOpen = ref(false)
 }
 
 .app-shell__nav-item:hover,
-.app-shell__nav-item.router-link-exact-active {
+.app-shell__nav-item[aria-current="page"] {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.app-shell__nav-item.router-link-exact-active {
-  box-shadow: none;
+.app-shell__nav-item[aria-current="page"] {
+  background: var(--wallet-selection-fill, var(--surface-hover));
+  color: var(--wallet-selection-ink, var(--text));
 }
 
 .app-shell__body {
@@ -310,6 +400,13 @@ const accountMenuOpen = ref(false)
   font-size: 0.78rem;
   font-weight: 730;
   place-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell,
+  .app-shell__brand-icon > * {
+    transition: none;
+  }
 }
 
 @media (max-width: 767px) {

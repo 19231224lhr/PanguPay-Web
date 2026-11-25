@@ -1,50 +1,70 @@
 <script setup lang="ts">
-import { wt, wl } from '@/i18n/walletText'
+import { groupedPledgeAmount } from '@/i18n/pledgeAmount'
+import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
+import { wCount, organizationLabel, wt, wl } from '@/i18n/walletText'
 
-import { PhCaretRight as CaretRight } from '@phosphor-icons/vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import {
+  PhArrowClockwise as ArrowClockwise,
+  PhArrowsSplit,
+  PhBracketsCurly,
+  PhCaretDown as CaretDown,
+  PhShieldCheck,
+  PhStack,
+  PhUsersThree,
+} from '@phosphor-icons/vue'
+import { computed, ref, type Component } from 'vue'
 
 import AppButton from '@/components/AppButton.vue'
 import InlineNotice from '@/components/InlineNotice.vue'
-import OrganizationDetailDialog from '@/components/OrganizationDetailDialog.vue'
+import OrganizationChooser from '@/components/OrganizationChooser.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
+import { useWalletNetwork } from '@/composables/useWalletNetwork'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useWalletStore } from '@/stores/wallet'
 import { loadTransferJournal } from '@/transfer/journal'
 import { loadTransferReservations } from '@/transfer/reservations'
 import {
   getWalletEntryService,
-  type WalletEntryOrganization,
-  type WalletEntryOrganizationDetail,
+  WalletEntryConfirmationPending,
   type WalletEntryOrganizationNodeRole,
 } from '@/wallet/entryService'
 import { evaluateOrganizationExit } from '@/wallet/organizationExit'
 
 const dashboard = useDashboardStore()
 const wallet = useWalletStore()
-const organizations = ref<WalletEntryOrganization[]>([])
+const { directory, organization } = useWalletNetwork()
+const organizations = computed(() => directory.data.value ?? [])
+const directoryLoading = directory.loading
 const selected = ref('')
-const loading = ref(false)
+const hasSelection = computed(() => organizations.value.some((item) => item.id === selected.value))
+const joining = ref(false)
+const pendingJoin = ref<(() => Promise<void>) | 'sync'>()
 const error = ref('')
-const detailOpen = ref(false)
-const detailOrganization = ref<WalletEntryOrganization>()
-const organizationDetail = ref<WalletEntryOrganizationDetail>()
-const detailBusy = ref(false)
-const detailError = ref('')
+const directoryError = computed(() => error.value || directory.error.value)
+const detailQuery = computed(() => {
+  const current = dashboard.current.organization
+  return current && organization(current)
+})
+const organizationDetail = computed(() => detailQuery.value?.data.value)
+const detailBusy = computed(() => detailQuery.value?.loading.value ?? false)
+const detailError = computed(() => detailQuery.value?.error.value ?? '')
 const exitStage = ref<'idle' | 'confirm'>('idle')
 const exitBusy = ref(false)
 const exitError = ref('')
+const pendingExit = ref<(() => Promise<void>) | 'sync'>()
 const exitDecision = ref<{ allowed: boolean; reasons: string[] }>({ allowed: false, reasons: [] })
 
 const nodeGroupDefinitions: Array<{
   role: WalletEntryOrganizationNodeRole
+  icon: Component
   title: string
   description: string
 }> = [
   {
     role: 'assign',
+    icon: PhArrowsSplit,
     get title() {
       return wt('w67')
     },
@@ -54,6 +74,7 @@ const nodeGroupDefinitions: Array<{
   },
   {
     role: 'aggregation',
+    icon: PhStack,
     get title() {
       return wt('w69')
     },
@@ -63,6 +84,7 @@ const nodeGroupDefinitions: Array<{
   },
   {
     role: 'txcer',
+    icon: PhShieldCheck,
     get title() {
       return wt('w71')
     },
@@ -72,7 +94,10 @@ const nodeGroupDefinitions: Array<{
   },
   {
     role: 'guarantor',
-    title: 'GuarNode',
+    icon: PhUsersThree,
+    get title() {
+      return wt('w93')
+    },
     get description() {
       return wt('w73')
     },
@@ -86,15 +111,6 @@ const nodeGroups = computed(() =>
   })),
 )
 
-function groupedAmount(value?: string): string {
-  if (!value) return wt('w74')
-  const [integer, fraction] = value.split('.', 2)
-  const sign = integer?.startsWith('-') ? '-' : ''
-  const digits = (integer ?? '').replace(/^-/, '')
-  return `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${
-    fraction === undefined ? '' : `.${fraction}`
-  } CAL`
-}
 
 function nodeStatus(status?: string): string {
   if (!status) return wt('w75')
@@ -105,66 +121,34 @@ function nodeStatus(status?: string): string {
   return status
 }
 
-async function loadOrganizations(): Promise<void> {
-  if (dashboard.current.organization || loading.value) return
-  const service = getWalletEntryService()
-  if (!service) {
-    error.value = wt('w79')
-    return
-  }
-  loading.value = true
+function loadOrganizations(): void {
   error.value = ''
-  try {
-    organizations.value = await service.listOrganizations()
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : wt('w80')
-  } finally {
-    loading.value = false
-  }
+  void directory.refresh()
 }
 
 async function join(): Promise<void> {
   const service = getWalletEntryService()
-  if (!service || !selected.value) return
-  loading.value = true
+  if (!service || joining.value || (!pendingJoin.value && !hasSelection.value)) return
+  const groupId = selected.value
+  joining.value = true
   error.value = ''
   try {
-    await service.join(selected.value)
+    const pending = pendingJoin.value
+    if (typeof pending === 'function') await pending()
+    else if (!pending) await service.join(groupId)
+    pendingJoin.value = 'sync'
     await dashboard.sync(true)
+    if (dashboard.current.organization?.id === groupId) pendingJoin.value = undefined
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : wt('w81')
+    if (cause instanceof WalletEntryConfirmationPending) pendingJoin.value = cause.confirm
+    else error.value = cause instanceof Error ? cause.message : wt('w81')
   } finally {
-    loading.value = false
+    joining.value = false
   }
 }
 
-async function loadOrganizationDetail(): Promise<void> {
-  const service = getWalletEntryService()
-  const organization = detailOrganization.value
-  if (!service || !organization) return
-  detailBusy.value = true
-  detailError.value = ''
-  organizationDetail.value = undefined
-  try {
-    organizationDetail.value = await service.organization(organization.id, organization.name)
-  } catch (cause) {
-    detailError.value = cause instanceof Error ? cause.message : wt('w82')
-  } finally {
-    detailBusy.value = false
-  }
-}
-
-async function loadCurrentOrganization(): Promise<void> {
-  const current = dashboard.current.organization
-  if (!current) return
-  detailOrganization.value = { id: current.id, name: current.name }
-  await loadOrganizationDetail()
-}
-
-function showOrganizationDetail(organization: WalletEntryOrganization): void {
-  detailOrganization.value = organization
-  detailOpen.value = true
-  void loadOrganizationDetail()
+function loadOrganizationDetail(): void {
+  void detailQuery.value?.refresh()
 }
 
 function inspectExit(): void {
@@ -188,110 +172,118 @@ function inspectExit(): void {
 async function leaveOrganization(): Promise<void> {
   const service = getWalletEntryService()
   const current = dashboard.current.organization
-  if (!service || !current || !exitDecision.value.allowed || exitBusy.value) return
+  if (!service || !current || exitBusy.value || (!pendingExit.value && !exitDecision.value.allowed)) return
   exitBusy.value = true
   exitError.value = ''
   try {
-    await service.leave(current.id)
+    const pending = pendingExit.value
+    if (typeof pending === 'function') await pending()
+    else if (!pending) await service.leave(current.id)
+    pendingExit.value = 'sync'
     await dashboard.sync(true)
-    if (dashboard.current.organization) throw new Error(wt('w84'))
+    if (dashboard.current.organization) return
+    pendingExit.value = undefined
     exitStage.value = 'idle'
-    organizationDetail.value = undefined
-    await loadOrganizations()
+    selected.value = ''
+    await directory.refresh()
   } catch (cause) {
-    exitError.value = cause instanceof Error ? cause.message : wt('w85')
+    if (cause instanceof WalletEntryConfirmationPending) pendingExit.value = cause.confirm
+    else exitError.value = cause instanceof Error ? cause.message : wt('w85')
   } finally {
     exitBusy.value = false
   }
 }
 
-watch(
-  () => dashboard.current.organization?.id,
-  (next, previous) => {
-    if (next) void loadCurrentOrganization()
-    else if (previous) void loadOrganizations()
-  },
-  { immediate: true },
-)
-
-onMounted(() => void loadOrganizations())
 </script>
 
 <template>
   <div class="wallet-page wallet-refined organization-page">
-    <WalletPageHeader :title="wt('w86')" :description="wt('w87')" />
+    <Teleport v-if="$slots['header-action']" defer to="#intro-organization">
+      <slot name="header-action" />
+    </Teleport>
+    <WalletPageHeader v-else :title="wt('w86')" :description="wt('w87')" />
 
     <section v-if="dashboard.current.organization" class="member-organization">
-      <header class="member-organization__hero">
+      <header v-if="!$slots['header-action']" class="member-organization__hero">
         <div>
           <span> {{ wt('w88') }} </span>
-          <h2>{{ dashboard.current.organization.name }}</h2>
+          <h2>{{ organizationLabel(dashboard.current.organization) }}</h2>
           <p class="mono">{{ wt('w47') }} {{ dashboard.current.organization.id }}</p>
           <StatusLabel tone="success">{{ wt('w89') }}</StatusLabel>
         </div>
         <WalletFigure kind="settle" />
       </header>
 
-      <div v-if="detailBusy" class="organization-loading" role="status">{{ wt('w90') }}</div>
-      <InlineNotice v-else-if="detailError" :title="wt('w91')" tone="danger">
-        {{ detailError }}
+      <div v-if="detailBusy && !organizationDetail" class="organization-loading" role="status">{{ wt('w90') }}</div>
+      <InlineNotice v-if="detailError" :title="wt('w91')" :tone="organizationDetail ? 'warning' : 'danger'">
+        {{ organizationDetail ? wt('networkCachedData') : wl(detailError) }}
       </InlineNotice>
-      <template v-else-if="organizationDetail">
+      <AppButton v-if="detailError && !organizationDetail" variant="ghost" :loading="detailBusy"
+        @click="loadOrganizationDetail">{{ wt('refinement26') }}</AppButton>
+      <template v-if="organizationDetail">
         <dl class="organization-metrics">
           <div>
             <dt>{{ wt('w92') }}</dt>
-            <dd>{{ groupedAmount(organizationDetail.pledgeAmount) }}</dd>
+            <dd class="tabular">{{ groupedPledgeAmount(organizationDetail.pledgeAmount) }}</dd>
           </div>
           <div>
             <dt>{{ wt('w93') }}</dt>
-            <dd>{{ organizationDetail.guarantorCount }} {{ wt('w94') }}</dd>
+            <dd class="tabular">{{ organizationDetail.guarantorCount }} {{ wCount('w94', organizationDetail.guarantorCount) }}</dd>
           </div>
           <div>
             <dt>{{ wt('w95') }}</dt>
-            <dd>{{ organizationDetail.certifierCount }} {{ wt('w94') }}</dd>
+            <dd class="tabular">{{ organizationDetail.certifierCount }} {{ wCount('w94', organizationDetail.certifierCount) }}</dd>
           </div>
-          <div>
+          <div v-if="!$slots['header-action']">
             <dt>{{ wt('w96') }}</dt>
-            <dd>{{ dashboard.current.organization.role }}</dd>
+            <dd>{{ dashboard.current.organization.role === 'member' ? wt('refinement35') : dashboard.current.organization.role }}</dd>
           </div>
         </dl>
 
         <section class="organization-roster" aria-labelledby="organization-roster-title">
           <div class="wallet-section__heading">
-            <div>
-              <span> {{ wt('w97') }} </span>
-              <h2 id="organization-roster-title">{{ wt('w98') }}</h2>
-            </div>
-            <AppButton variant="ghost" :loading="detailBusy" @click="loadCurrentOrganization">
+            <h2 id="organization-roster-title">{{ wt('w98') }}</h2>
+            <AppButton variant="ghost" :disabled="detailBusy" :aria-busy="detailBusy" @click="loadOrganizationDetail">
               {{ wt('w99') }}
+              <template #icon><ArrowClockwise :size="15" aria-hidden="true" /></template>
             </AppButton>
           </div>
-          <div class="organization-roster__grid">
-            <article v-for="group in nodeGroups" :key="group.role">
-              <header>
-                <div>
-                  <h3>{{ group.title }}</h3>
-                  <p>{{ group.description }}</p>
-                </div>
-                <b>{{ group.nodes.length }}</b>
-              </header>
-              <ul v-if="group.nodes.length">
-                <li v-for="node in group.nodes" :key="`${group.role}-${node.id || node.peerId}`">
-                  <div>
-                    <strong>{{ node.id || group.title }}</strong>
-                    <small v-if="node.peerId" class="mono">Peer · {{ node.peerId }}</small>
-                    <small v-if="node.endpoint" class="mono">API · {{ node.endpoint }}</small>
-                  </div>
-                  <span>{{ nodeStatus(node.status) }}</span>
-                </li>
-              </ul>
-              <p v-else class="organization-roster__empty">{{ wt('w100') }}</p>
-            </article>
+          <div class="organization-roster__groups">
+            <details v-for="group in nodeGroups" :key="group.role" v-smooth-details>
+              <summary class="organization-disclosure">
+                <span class="wallet-record-icon" aria-hidden="true">
+                  <component :is="group.icon" :size="18" weight="duotone" />
+                </span>
+                <strong>{{ group.title }}</strong>
+                <span class="organization-disclosure__count tabular">{{ group.nodes.length }}</span>
+                <CaretDown class="organization-disclosure__caret" :size="14" aria-hidden="true" />
+              </summary>
+              <div class="organization-roster__detail">
+                <p>{{ group.description }}</p>
+                <ul v-if="group.nodes.length">
+                  <li v-for="node in group.nodes" :key="`${group.role}-${node.id || node.peerId}`">
+                    <div>
+                      <strong>{{ node.id || group.title }}</strong>
+                      <small v-if="node.peerId" class="mono">Peer · {{ node.peerId }}</small>
+                      <small v-if="node.endpoint" class="mono">API · {{ node.endpoint }}</small>
+                    </div>
+                    <span>{{ nodeStatus(node.status) }}</span>
+                  </li>
+                </ul>
+                <p v-else>{{ wt('w100') }}</p>
+              </div>
+            </details>
           </div>
         </section>
 
-        <details class="organization-technical">
-          <summary>{{ wt('w101') }}</summary>
+        <details v-smooth-details class="organization-technical">
+          <summary class="organization-disclosure">
+            <span class="wallet-record-icon" aria-hidden="true">
+              <PhBracketsCurly :size="17" weight="duotone" />
+            </span>
+            <strong>{{ wt('w101') }}</strong>
+            <CaretDown class="organization-disclosure__caret" :size="14" aria-hidden="true" />
+          </summary>
           <dl>
             <div v-if="organizationDetail.peerGroupId">
               <dt>{{ wt('w102') }}</dt>
@@ -322,7 +314,8 @@ onMounted(() => void loadOrganizations())
           {{ wt('w106') }}
         </AppButton>
         <div v-else class="organization-exit__confirmation">
-          <ul v-if="exitDecision.reasons.length">
+          <p v-if="pendingExit" role="status">{{ wt('organizationExitPending') }}</p>
+          <ul v-else-if="exitDecision.reasons.length">
             <li v-for="reason in exitDecision.reasons" :key="reason">{{ reason }}</li>
           </ul>
           <p v-else>{{ wt('w107') }}</p>
@@ -331,78 +324,48 @@ onMounted(() => void loadOrganizations())
               {{ wt('w108') }}
             </AppButton>
             <AppButton
-              variant="danger"
-              :disabled="!exitDecision.allowed"
+              :variant="pendingExit ? 'secondary' : 'danger'"
+              :disabled="!pendingExit && !exitDecision.allowed"
               :loading="exitBusy"
               @click="leaveOrganization"
             >
-              {{ wt('w109') }}
+              {{ wt(pendingExit ? 'organizationExitCheck' : 'w109') }}
             </AppButton>
           </div>
         </div>
         <InlineNotice v-if="exitError" :title="wt('w110')" tone="danger">{{
-          exitError
+          wl(exitError)
         }}</InlineNotice>
       </section>
     </section>
 
     <section v-else class="organization-chooser" aria-labelledby="available-organizations-heading">
-      <div class="detail-page-intro">
-        <div class="detail-page-intro__copy">
+      <div class="wallet-section__heading">
+        <div class="organization-catalog-title">
           <h2 id="available-organizations-heading">{{ wt('w111') }}</h2>
           <span class="detail-page-caption">{{ wt('w112') }}</span>
         </div>
-        <WalletFigure kind="settle" />
+        <WalletFigure v-if="!$slots['header-action']" kind="settle" />
       </div>
       <p class="organization-copy">{{ wt('w113') }}</p>
-      <div v-if="organizations.length" class="organization-options" :aria-label="wt('w46')">
-        <article
-          v-for="item in organizations"
-          :key="item.id"
-          :data-selected="selected === item.id || undefined"
-        >
-          <label>
-            <input v-model="selected" type="radio" name="wallet-organization" :value="item.id" />
-            <span class="organization-option__indicator" aria-hidden="true" />
-            <span class="organization-option__copy">
-              <strong>{{ item.name }}</strong>
-              <small> {{ wt('w47') }} {{ item.id }}</small>
-              <span
-                ><b> {{ wt('w48') }} </b><b> {{ wt('w49') }} </b></span
-              >
-            </span>
-          </label>
-          <button
-            type="button"
-            class="organization-option__detail"
-            :aria-label="wt('w50', [item.name])"
-            @click="showOrganizationDetail(item)"
-          >
-            {{ wt('w51') }} <CaretRight :size="15" />
-          </button>
-        </article>
-      </div>
-      <div v-else-if="!loading" class="wallet-empty">{{ wt('w114') }}</div>
-      <InlineNotice v-if="error" :title="wt('w115')" tone="danger">{{ wl(error) }}</InlineNotice>
+      <OrganizationChooser v-if="organizations.length" v-model="selected" :organizations="organizations" :disabled="joining || !!pendingJoin" />
+      <div v-else-if="directory.data.value && !directoryLoading" class="wallet-empty">{{ wt('w114') }}</div>
+      <InlineNotice v-if="directoryError" :title="wt('w115')" :tone="organizations.length && !error ? 'warning' : 'danger'">
+        {{ organizations.length && !error ? wt('networkCachedData') : wl(directoryError) }}
+      </InlineNotice>
+      <InlineNotice v-else-if="pendingJoin" :title="wt('organizationJoinAwaiting')">
+        {{ wt('entryConfirmationPending') }}
+      </InlineNotice>
       <div class="organization-actions">
-        <AppButton variant="secondary" :loading="loading" @click="loadOrganizations">
+        <AppButton variant="secondary" :disabled="directoryLoading || joining" :loading="directoryLoading && !organizations.length" @click="loadOrganizations">
           {{ wt('w116') }}
         </AppButton>
-        <AppButton :disabled="!selected" :loading="loading" @click="join">
-          {{ wt('w117') }}
+        <AppButton :disabled="!pendingJoin && !hasSelection" :loading="joining" @click="join">
+          {{ wt(pendingJoin ? 'organizationJoinCheck' : 'w117') }}
         </AppButton>
       </div>
     </section>
 
-    <OrganizationDetailDialog
-      :open="detailOpen"
-      :organization="detailOrganization"
-      :detail="organizationDetail"
-      :busy="detailBusy"
-      :error="detailError"
-      @close="detailOpen = false"
-      @retry="loadOrganizationDetail"
-    />
   </div>
 </template>
 
@@ -410,12 +373,13 @@ onMounted(() => void loadOrganizations())
 .organization-page {
   width: min(1120px, 100%);
 }
-.organization-details {
-  margin-bottom: 1rem;
-}
 .organization-chooser {
   display: grid;
   gap: 1rem;
+}
+.organization-catalog-title {
+  display: grid;
+  gap: 4px;
 }
 .wallet-section__heading > span,
 .organization-copy {
@@ -425,100 +389,6 @@ onMounted(() => void loadOrganizations())
 .organization-copy {
   margin: 0;
   line-height: 1.55;
-}
-.organization-options {
-  display: grid;
-  border-block: 1px solid var(--hairline);
-}
-.organization-options article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.25rem 0.35rem;
-  border-bottom: 1px solid var(--hairline);
-  border-radius: var(--radius-md);
-  transition: background var(--duration-state) var(--ease-standard);
-}
-.organization-options article:last-child {
-  border-bottom: 0;
-}
-.organization-options article[data-selected] {
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-}
-.organization-options label {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.8rem;
-  min-height: 80px;
-  cursor: pointer;
-}
-.organization-options input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.organization-option__indicator {
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 5px transparent;
-  transition:
-    border-color var(--duration-state) var(--ease-standard),
-    background var(--duration-state) var(--ease-standard),
-    box-shadow var(--duration-state) var(--ease-standard);
-}
-.organization-options input:checked + .organization-option__indicator {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: inset 0 0 0 5px var(--surface);
-}
-.organization-options input:focus-visible + .organization-option__indicator {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-.organization-option__copy {
-  display: grid;
-  min-width: 0;
-  gap: 0.16rem;
-}
-.organization-option__copy small {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-}
-.organization-option__copy > span {
-  display: flex;
-  gap: 0.35rem;
-  padding-top: 0.3rem;
-}
-.organization-option__copy > span b {
-  padding: 0.18rem 0.42rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--accent-strong);
-  font-size: 0.66rem;
-  font-weight: 650;
-}
-.organization-option__detail {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0 0.55rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 620;
-  transition: color var(--duration-state) var(--ease-standard);
-}
-@media (hover: hover) and (pointer: fine) {
-  .organization-option__detail:hover {
-    color: var(--accent);
-  }
 }
 .organization-actions {
   display: flex;
@@ -589,7 +459,7 @@ onMounted(() => void loadOrganizations())
 }
 .wallet-section__heading {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
@@ -607,91 +477,81 @@ onMounted(() => void loadOrganizations())
   color: var(--text-muted);
   font-size: 0.7rem;
 }
-.organization-roster__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-block: 1px solid var(--hairline);
-}
-.organization-roster__grid > article {
-  min-width: 0;
-  padding: 1rem;
-}
-.organization-roster__grid > article:nth-child(even) {
-  border-left: 1px solid var(--hairline);
-}
-.organization-roster__grid > article:nth-child(n + 3) {
+.organization-roster__groups {
   border-top: 1px solid var(--hairline);
 }
-.organization-roster article > header,
-.organization-roster li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
+.organization-roster__groups > details + details,
+.organization-technical {
+  border-top: 1px solid var(--hairline);
 }
-.organization-roster article > header h3,
-.organization-roster article > header p {
-  margin: 0;
-}
-.organization-roster article > header h3 {
-  font-size: 0.95rem;
-}
-.organization-roster article > header p,
-.organization-roster li small,
-.organization-roster__empty {
-  color: var(--text-muted);
-  font-size: 0.68rem;
-}
-.organization-roster article > header > b {
+.organization-disclosure {
   display: grid;
-  width: 30px;
-  height: 30px;
-  flex: none;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-  color: var(--accent);
-  place-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 4px 2px;
+  border-radius: 8px;
+  list-style: none;
+  cursor: pointer;
+}
+.organization-disclosure::-webkit-details-marker {
+  display: none;
+}
+.organization-disclosure strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.organization-disclosure__count,
+.organization-disclosure__caret {
+  color: var(--text-muted);
+}
+.organization-disclosure__count {
+  font-size: 0.75rem;
+}
+.organization-disclosure__caret {
+  grid-column: 4;
+  transition: transform 180ms var(--ease-standard);
+}
+details[open] > .organization-disclosure .organization-disclosure__caret {
+  transform: rotate(180deg);
+}
+.organization-roster__detail {
+  padding: 4px 0 12px 43px;
+}
+.organization-roster__detail > p,
+.organization-roster li small,
+.organization-roster li > span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.organization-roster__detail > p {
+  margin: 0;
+  line-height: 1.5;
+}
+.organization-roster__detail > p + p {
+  margin-top: 6px;
 }
 .organization-roster ul {
-  display: grid;
-  gap: 0;
-  margin: 0.8rem 0 0;
+  margin: 0.45rem 0 0;
   padding: 0;
   list-style: none;
 }
 .organization-roster li {
-  padding-block: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding-block: 0.5rem;
   border-top: 1px solid var(--hairline);
 }
 .organization-roster li > div {
   display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-.organization-roster li strong,
-.organization-roster li small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.organization-roster li > span {
-  flex: none;
-  color: var(--success);
-  font-size: 0.7rem;
-  font-weight: 650;
-}
-.organization-roster__empty {
-  margin: 0.8rem 0 0;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
 }
 .organization-technical {
-  border-block: 1px solid var(--hairline);
-}
-.organization-technical summary {
-  min-height: 48px;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  line-height: 48px;
+  border-bottom: 1px solid var(--hairline);
 }
 .organization-technical dl {
   display: grid;
@@ -753,14 +613,6 @@ onMounted(() => void loadOrganizations())
   }
 }
 @media (max-width: 599px) {
-  .organization-options article {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .organization-option__detail {
-    justify-self: end;
-    margin-top: -0.5rem;
-  }
   .organization-actions {
     display: grid;
     grid-template-columns: 1fr;
@@ -772,18 +624,19 @@ onMounted(() => void loadOrganizations())
   .member-organization__hero {
     align-items: start;
   }
-  .organization-roster__grid,
   .organization-technical dl {
     grid-template-columns: 1fr;
   }
-  .organization-roster__grid > article:nth-child(even) {
-    border-left: 0;
-  }
-  .organization-roster__grid > article + article {
-    border-top: 1px solid var(--hairline);
+  .organization-roster__detail {
+    padding-inline-start: 0;
   }
   .organization-exit__confirmation > div {
     display: grid;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .organization-disclosure__caret {
+    transition: none;
   }
 }
 </style>

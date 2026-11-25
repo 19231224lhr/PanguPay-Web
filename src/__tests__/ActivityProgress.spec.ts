@@ -33,7 +33,8 @@ describe('ActivityProgress', () => {
     const wrapper = mount(ActivityProgress, { props: { progress: progress() } })
     expect(wrapper.text()).not.toContain('等待入口确认')
     expect(wrapper.text()).toContain('登记确认耗时 60 ms')
-    expect(wrapper.text()).toContain('TXCer 登记时间')
+    expect(wrapper.get('[data-activity-step="organization"]').text()).toContain('TXCer 登记时间')
+    expect(wrapper.get('[data-activity-step="received"]').text()).toContain('入口接收时间')
     expect(wrapper.text()).toContain('收款方可用时间未回传')
     expect(wrapper.findAll('[data-activity-step]')[0]?.attributes('data-state')).toBe('complete')
   })
@@ -47,7 +48,7 @@ describe('ActivityProgress', () => {
       },
     })
     expect(wrapper.text()).toContain('收款方可用时间未回传')
-    expect(wrapper.text()).toContain('本机观察到结算的时间')
+    expect(wrapper.get('[data-activity-step="settlement"]').text()).toContain('本机观察到结算的时间')
     expect(wrapper.findAll('[data-activity-step]')[3]?.attributes('data-state')).not.toBe(
       'complete',
     )
@@ -82,6 +83,7 @@ describe('ActivityProgress', () => {
       },
     })
     expect(wrapper.text()).toContain('目标链到账')
+    expect(wrapper.get('[data-activity-step="target-confirmed"]').text()).toContain('目标链到账时间')
     expect(wrapper.text()).not.toContain('TXCer')
   })
 })

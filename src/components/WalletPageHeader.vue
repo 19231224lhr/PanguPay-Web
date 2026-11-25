@@ -1,24 +1,29 @@
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false })
 withDefaults(
   defineProps<{
+    inlineTarget?: string
     description?: string
+    headingId?: string
     eyebrow?: string
     title: string
     variant?: 'default' | 'compact'
   }>(),
-  { description: undefined, eyebrow: undefined, variant: 'default' },
+  { inlineTarget: undefined, description: undefined, eyebrow: undefined, variant: 'default' },
 )
 </script>
 
 <template>
-  <header class="wallet-page-header" :class="`wallet-page-header--${variant}`">
-    <div>
-      <p v-if="eyebrow" class="page-eyebrow">{{ eyebrow }}</p>
-      <h1>{{ title }}</h1>
-      <p v-if="description">{{ description }}</p>
-    </div>
-    <slot />
-  </header>
+  <Teleport :to="inlineTarget || 'body'" :disabled="!inlineTarget" :defer="!!inlineTarget">
+    <header v-bind="$attrs" class="wallet-page-header" :class="`wallet-page-header--${variant}`">
+      <div>
+        <p v-if="eyebrow" class="page-eyebrow">{{ eyebrow }}</p>
+        <component :is="inlineTarget || headingId ? 'h2' : 'h1'" :id="headingId">{{ title }}</component>
+        <p v-if="description">{{ description }}</p>
+      </div>
+      <slot />
+    </header>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -30,7 +35,8 @@ withDefaults(
   gap: 1.5rem;
 }
 
-h1 {
+h1,
+h2 {
   margin: 0;
   font-size: clamp(1.9rem, 3vw, 2.25rem);
   font-weight: 610;

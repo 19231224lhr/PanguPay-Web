@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { wt, wl } from '@/i18n/walletText'
+import { addressLabel, wt, wl } from '@/i18n/walletText'
 import {
   PhArchive as Archive,
-  PhCheck as Check,
-  PhCopy as Copy,
+  PhCaretDown as CaretDown,
   PhPlus as Plus,
   PhX as Close,
+  PhWallet as Wallet,
 } from '@phosphor-icons/vue'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
+import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
 import { addAmounts } from '@/protocol-v2/amount'
 import { GatewayClient } from '@/services/gatewayClient'
 import { buildWalletReOnlineMessage } from '@/services/walletEntryGateway'
@@ -21,40 +22,46 @@ import { evaluateAddressArchive, resolveAddressArchiveActivity } from '@/wallet/
 import { getWalletEntryService } from '@/wallet/entryService'
 import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
 import AppButton from './AppButton.vue'
-import WalletFigure from './WalletFigure.vue'
-import AppSelect from './AppSelect.vue'
-import FormField from './FormField.vue'
+import WalletCopyButton from './WalletCopyButton.vue'
+
+defineProps<{ initialAddress?: string }>()
 
 const wallet = useWalletStore()
 const dashboard = useDashboardStore()
 const creating = ref(false)
 const createBusy = ref(false)
+const ledger = ref<HTMLElement>()
+const createdAddress = ref('')
 const archiveBusy = ref(false)
 const archiveChecking = ref(false)
 const archiveInputOwners = ref<Record<string, string>>({})
 const type = ref('0')
-const password = ref('')
 const error = ref('')
-const copied = ref('')
 const archiveAddress = ref('')
 
-const typeOptions = [
-  { value: '0', label: 'CAL', description: 'CAL · Transfer Area' },
-  { value: '1', label: 'BTC', description: 'Bitcoin · Transfer Area' },
-  { value: '2', label: 'ETH', description: 'Ethereum · Transfer Area' },
-]
+const typeOptions = ['0', '1', '2'].map((value) => ({
+  value,
+  ...assetIdentityForType(value),
+}))
 
 const rows = computed(() =>
-  wallet.addresses.map((record) => {
+  wallet.addresses.map((record, index) => {
     const balance = dashboard.current.addresses.find((item) => item.address === record.address)
     const metadata = wallet.metadata?.addresses[record.address]
     const asset = assetIdentityForType(record.type)
     return {
-      ...record,
+      address: record.address,
       ...asset,
-      label: metadata?.label || wt('w357', [asset.symbol]),
+      label: addressLabel(metadata?.label, index + 1) || wt('w357', [asset.symbol]),
       archived: metadata?.archived ?? false,
       registration: metadata?.registration ?? 'active',
+      status: metadata?.archived
+        ? wt('w371')
+        : {
+            active: wt('w75'),
+            failed: wt('addressRegistrationFailed'),
+            pending: wt('w373'),
+          }[metadata?.registration ?? 'active'],
       registrationError: metadata?.error,
       utxo: balance?.balance ?? '0',
       txCer: balance?.txCerBalance ?? '0',
@@ -123,12 +130,6 @@ async function openArchive(address: string): Promise<void> {
   }
 }
 
-async function copyAddress(address: string): Promise<void> {
-  await navigator.clipboard.writeText(address)
-  copied.value = address
-  window.setTimeout(() => copied.value === address && (copied.value = ''), 1_500)
-}
-
 async function register(address: string): Promise<void> {
   const service = getWalletEntryService()
   if (!service) throw new Error(wt('w358'))
@@ -137,22 +138,24 @@ async function register(address: string): Promise<void> {
 }
 
 async function createAddress(): Promise<void> {
-  if (!password.value || createBusy.value) return
-  const walletPassword = password.value
-  password.value = ''
+  if (wallet.lifecycle !== 'unlocked' || createBusy.value) return
   createBusy.value = true
   error.value = ''
   try {
-    const address = await wallet.addAddress(Number(type.value), walletPassword)
+    const address = await wallet.addAddress(Number(type.value))
     try {
       await register(address.address)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : wt('w359')
       await wallet.setAddressMetadata(address.address, { registration: 'failed', error: message })
-      throw cause
+    } finally {
+      createdAddress.value = address.address
+      creating.value = false
+      await nextTick()
+      ledger.value?.querySelector<HTMLElement>(`#receive-address-${address.address}`)?.focus()
     }
-    creating.value = false
-    await dashboard.sync(true)
+    if (wallet.metadata?.addresses[address.address]?.registration === 'active')
+      await dashboard.sync(true)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : wt('w360')
   } finally {
@@ -197,48 +200,102 @@ async function confirmArchive(): Promise<void> {
 </script>
 
 <template>
-  <section class="address-ledger" :aria-label="wt('refinement0')">
+  <section ref="ledger" class="address-ledger" :aria-label="wt('refinement0')">
+    <Teleport v-if="$slots['header-action']" defer to="#intro-addresses">
+      <slot name="header-action" />
+    </Teleport>
     <header class="ledger-heading">
-      <h2 tabindex="-1">{{ wt('refinement1') }}</h2>
-      <span>{{ rows.length }} {{ wt('refinement2') }}</span>
+      <h2>{{ wt('refinement1') }}</h2>
+      <button
+        type="button"
+        class="create-toggle"
+        :aria-expanded="creating"
+        :aria-controls="creating ? 'address-create' : undefined"
+        :disabled="createBusy || wallet.lifecycle !== 'unlocked'"
+        @click="creating = !creating"
+      >
+        <component :is="creating ? Close : Plus" :size="16" aria-hidden="true" />
+        {{ creating ? wt('w108') : wt('w366') }}
+      </button>
     </header>
+    <Transition name="ledger-reveal">
+      <form v-if="creating" id="address-create" class="address-create" @submit.prevent="createAddress">
+        <fieldset :disabled="createBusy" class="asset-picker">
+          <legend>{{ wt('w367') }} · {{ wt('transferArea') }}</legend>
+          <div class="asset-options">
+            <label v-for="option in typeOptions" :key="option.value">
+              <input v-model="type" type="radio" name="new-address-type" :value="option.value" />
+              <span>{{ option.symbol }}</span>
+            </label>
+          </div>
+        </fieldset>
+        <AppButton type="submit" :loading="createBusy" :disabled="wallet.lifecycle !== 'unlocked'">
+          {{ wt('w369') }}
+        </AppButton>
+      </form>
+    </Transition>
     <p v-if="!rows.length" class="ledger-empty">{{ wt('refinement3') }}</p>
     <div v-else class="address-table">
-      <article
+      <details
         v-for="row in rows"
         :key="row.address"
-        :data-address="row.address"
-        tabindex="-1"
-        :data-archived="row.archived || undefined"
+        v-smooth-details
+        class="ledger-record"
+        :open="row.address === initialAddress || row.address === createdAddress"
       >
-        <div class="ledger-record-body">
-          <div class="ledger-record-copy">
-            <div class="address-asset">
-              <div class="address-identity">
-                <strong>{{ row.label }}</strong>
-                <span v-if="row.archived" class="address-badge">{{ wt('w371') }}</span>
-                <span
-                  v-else-if="row.registration === 'active'"
-                  class="address-badge"
-                  data-tone="success"
-                  >{{ wt('w75') }}</span
-                >
+        <summary
+          class="ledger-record-summary"
+          :id="`receive-address-${row.address}`"
+          :data-initial-address-row="row.address === initialAddress ? '' : undefined"
+        >
+          <span class="wallet-record-icon" aria-hidden="true">
+            <Wallet :size="18" weight="duotone" />
+          </span>
+          <span class="ledger-record-identity">
+            <span class="ledger-record-title">
+              <strong>{{ row.label }}</strong>
+              <span>{{ row.symbol }}</span>
+            </span>
+            <code class="record-address">{{ row.address }}</code>
+            <code class="record-address-short">{{ row.address.length > 20
+              ? row.address.slice(0, 9) + '…' + row.address.slice(-7) : row.address }}</code>
+          </span>
+          <span
+            class="address-status"
+            :data-tone="row.archived ? 'muted' : row.registration"
+          >
+            {{ row.status }}
+          </span>
+          <CaretDown class="ledger-record-caret" :size="14" aria-hidden="true" />
+        </summary>
+        <div class="ledger-record-details">
+          <div class="ledger-record-body">
+            <div class="address-identity">
+              <div class="address-identifier">
+                <span class="field-label">{{ wl(row.name) }} · {{ wt('transferArea') }}</span>
+                <code>{{ row.address }}</code>
+              </div>
+              <div class="address-actions">
+                <WalletCopyButton :value="row.address" :label="row.label" />
                 <button
-                  v-else-if="row.registration === 'failed'"
+                  v-if="!row.archived && row.registration === 'failed'"
                   type="button"
                   class="registration-retry"
-                  data-tone="danger"
                   @click="retryRegistration(row.address)"
                 >
                   {{ wt('w372') }}
                 </button>
-                <span v-else class="address-badge">{{ wt('w373') }}</span>
+                <button
+                  v-if="!row.archived"
+                  type="button"
+                  class="archive-trigger"
+                  :disabled="archiveBusy || archiveChecking"
+                  :aria-label="wt('w374', [row.label])"
+                  @click="openArchive(row.address)"
+                >
+                  <Archive :size="15" aria-hidden="true" />{{ wt('w375') }}
+                </button>
               </div>
-              <small>{{ row.name }} · {{ row.network }}</small>
-            </div>
-            <div class="address-identifier">
-              <span class="field-label">{{ wt('w144') }}</span
-              ><code>{{ row.address }}</code>
             </div>
             <dl class="address-balances">
               <div>
@@ -256,99 +313,42 @@ async function confirmArchive(): Promise<void> {
                 <dd class="tabular">{{ row.txCer }}</dd>
               </div>
             </dl>
-            <p v-if="row.registrationError" class="registration-error">
-              {{ wl(row.registrationError) }}
-            </p>
           </div>
-          <WalletFigure kind="format" :intensity="0.3" />
+          <p v-if="row.registrationError" class="registration-error">
+            {{ wl(row.registrationError) }}
+          </p>
+          <Transition name="ledger-reveal">
+            <div
+              v-if="archiveAddress === row.address"
+              class="archive-confirm"
+              role="group"
+              :aria-label="wt('w375')"
+            >
+              <div>
+                <strong>{{ wt('w375') }} {{ row.label }}？</strong>
+                <p>{{ wt('w376') }}</p>
+                <ul v-if="archiveDecision?.reasons.length">
+                  <li v-for="reason in archiveDecision.reasons" :key="reason">{{ reason }}</li>
+                </ul>
+              </div>
+              <div>
+                <AppButton variant="ghost" :disabled="archiveBusy" @click="archiveAddress = ''">{{
+                  wt('w108')
+                }}</AppButton>
+                <AppButton
+                  variant="danger"
+                  :disabled="archiveChecking || !archiveDecision?.allowed"
+                  :loading="archiveBusy || archiveChecking"
+                  @click="confirmArchive"
+                >
+                  {{ wt('w377') }}
+                </AppButton>
+              </div>
+            </div>
+          </Transition>
         </div>
-        <div class="address-actions">
-          <button
-            type="button"
-            :aria-label="wt('w370', [row.label])"
-            @click="copyAddress(row.address)"
-          >
-            <Check v-if="copied === row.address" :size="15" aria-hidden="true" /><Copy
-              v-else
-              :size="15"
-              aria-hidden="true"
-            />
-            <span>{{ copied === row.address ? wt('w154') : wt('refinement5') }}</span>
-          </button>
-          <button
-            v-if="!row.archived"
-            type="button"
-            class="archive-trigger"
-            :aria-label="wt('w374', [row.label])"
-            @click="openArchive(row.address)"
-          >
-            <Archive :size="15" aria-hidden="true" />{{ wt('w375') }}
-          </button>
-        </div>
-      </article>
+      </details>
     </div>
-
-    <footer class="ledger-toolbar">
-      <p class="ledger-counts">
-        <span
-          ><b>{{ activeCount }}</b> {{ wt('refinement6') }}</span
-        ><span v-if="rows.length > activeCount"
-          >{{ rows.length - activeCount }} {{ wt('refinement7') }}</span
-        >
-      </p>
-      <AppButton
-        class="create-toggle"
-        variant="secondary"
-        :aria-expanded="creating"
-        @click="creating = !creating"
-      >
-        {{ creating ? wt('w365') : wt('w366') }}
-        <template #icon><Close v-if="creating" :size="16" /><Plus v-else :size="16" /></template>
-      </AppButton>
-    </footer>
-    <Transition name="ledger-reveal">
-      <form v-if="creating" class="address-create" @submit.prevent="createAddress">
-        <AppSelect
-          id="new-address-type"
-          v-model="type"
-          :label="wt('w367')"
-          :options="typeOptions"
-        />
-        <FormField
-          id="new-address-password"
-          v-model="password"
-          :label="wt('w263')"
-          type="password"
-          autocomplete="current-password"
-        />
-        <AppButton type="submit" :loading="createBusy" :disabled="password.length < 12">
-          {{ wt('w369') }}
-        </AppButton>
-      </form>
-    </Transition>
-
-    <Transition name="ledger-reveal">
-      <div v-if="selectedArchive" class="archive-confirm" role="dialog" aria-modal="true">
-        <div>
-          <strong>{{ wt('w375') }} {{ selectedArchive.label }}？</strong>
-          <p>{{ wt('w376') }}</p>
-          <ul v-if="archiveDecision?.reasons.length">
-            <li v-for="reason in archiveDecision.reasons" :key="reason">{{ reason }}</li>
-          </ul>
-        </div>
-        <div>
-          <AppButton variant="ghost" @click="archiveAddress = ''">{{ wt('w108') }}</AppButton>
-          <AppButton
-            variant="danger"
-            :disabled="archiveChecking || !archiveDecision?.allowed"
-            :loading="archiveBusy || archiveChecking"
-            @click="confirmArchive"
-          >
-            {{ wt('w377') }}
-          </AppButton>
-        </div>
-      </div>
-    </Transition>
 
     <p v-if="error" class="address-error" role="alert">{{ wl(error) }}</p>
   </section>
@@ -359,90 +359,174 @@ async function confirmArchive(): Promise<void> {
   display: grid;
   min-width: 0;
 }
-.ledger-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 1.25rem;
-  border-top: 1px solid var(--hairline);
-}
-.ledger-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-}
-.ledger-counts b {
-  color: var(--text);
-  font-weight: 500;
-}
-.create-toggle {
-  min-height: 36px;
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
-}
-.address-create {
-  display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.2fr) auto;
-  align-items: end;
-  gap: 1rem;
-  margin: 0 1.25rem;
-  padding: 1rem 0;
-  border-top: 1px solid var(--hairline);
-}
-.address-table {
-  display: grid;
-}
-.address-table article {
-  scroll-margin-block: 5rem;
-  min-width: 0;
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--hairline);
-  outline: none;
-  --figure-plate: var(--overview-panel-surface, var(--surface));
-}
 .ledger-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.25rem;
-  min-height: 60px;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding-block: 1rem 0.65rem;
 }
 .ledger-heading h2 {
   margin: 0;
   font-size: 0.95rem;
+  font-weight: 650;
+}
+.create-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.create-toggle:hover { background: var(--surface-hover); }
+.create-toggle:focus-visible { outline: 2px solid var(--focus); }
+.create-toggle:disabled { opacity: 0.6; cursor: default; }
+.address-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.8rem 1.5rem;
+  padding: 0.3rem 0 1rem;
+}
+.asset-picker {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+  border: 0;
+}
+.asset-picker legend {
+  padding: 0;
+  margin-bottom: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.asset-options { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.asset-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding-inline: 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asset-options label:has(:checked) {
+  background: var(--wallet-selection-fill, var(--surface-hover));
+  border-color: var(--accent);
+  color: var(--text);
+}
+.asset-options input { margin: 0; accent-color: var(--accent); }
+.asset-options label:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.address-create > .app-button { min-height: 40px; }
+.record-address-short { display: none; }
+.address-table {
+  border-top: 1px solid var(--hairline);
+  display: grid;
+}
+.ledger-record + .ledger-record {
+  border-top: 1px solid var(--hairline);
+}
+.ledger-record-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  list-style: none;
+  cursor: pointer;
+}
+.ledger-record-summary::-webkit-details-marker {
+  display: none;
+}
+.ledger-record-summary:hover {
+  background: var(--surface-hover);
+}
+.ledger-record-summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.ledger-record-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ledger-record-identity strong {
+  font-size: 0.85rem;
   font-weight: 600;
 }
-.ledger-heading > span {
-  font-size: 0.7rem;
+.ledger-record-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
+}
+.ledger-record-title > span {
   color: var(--text-muted);
+  font-size: 0.67rem;
+}
+.ledger-record-identity code {
+  color: var(--text-muted);
+  font: 0.7rem/1.5 var(--font-mono);
+}
+.address-status {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-align: end;
+}
+.address-status[data-tone='failed'] {
+  color: var(--danger);
+}
+.address-status[data-tone='pending'] { color: var(--accent); }
+.ledger-record-caret {
+  color: var(--text-muted);
+  transition: transform 180ms var(--ease-standard);
+}
+.ledger-record[open] .ledger-record-caret {
+  transform: rotate(180deg);
+}
+.ledger-record-details {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.35rem 10px 0.85rem 54px;
 }
 .ledger-record-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--overview-figure-width, 112px);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.25fr) minmax(210px, 1fr);
+  gap: 0.75rem 1.5rem;
   align-items: center;
-}
-.ledger-record-body > .wallet-figure {
-  width: var(--overview-figure-width, 112px);
-  justify-self: end;
-}
-.ledger-record-copy {
-  display: grid;
-  min-width: 0;
-  gap: 0.75rem;
 }
 .address-balances {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
   margin: 0;
-  max-width: 440px;
+  padding: 0.7rem 0;
+  border-radius: 10px;
+  background: var(--surface-hover);
+}
+.address-balances > div {
+  min-width: 0;
+  padding-inline: clamp(0.45rem, 1.25vw, 0.9rem);
+}
+.address-balances > div + div {
+  border-inline-start: 1px solid var(--hairline);
 }
 .address-balances dt,
 .field-label {
@@ -451,7 +535,7 @@ async function confirmArchive(): Promise<void> {
 }
 .address-balances dd {
   margin: 0.3rem 0 0;
-  font-size: 1.25rem;
+  font-size: 1.08rem;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -460,63 +544,20 @@ async function confirmArchive(): Promise<void> {
   font-size: 0.75rem;
   margin: 0;
 }
-.address-table article:last-child {
-  border-radius: 0 0 16px 16px;
-}
-.address-table article:focus {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-.address-table article[data-archived] .address-asset,
-.address-table article[data-archived] .address-balances {
-  color: var(--text-muted);
-}
-.address-asset {
-  display: grid;
-  gap: 0.3rem;
-  min-width: 0;
-}
-.address-identity {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 24px;
-}
-.address-identity strong {
-  font-size: 0.85rem;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
 small {
   color: var(--text-muted);
   font-size: 0.7rem;
   line-height: 1.5;
 }
-.address-badge {
-  padding: 0.15rem 0.4rem;
-  font-size: 0.65rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  background: var(--surface-hover);
-  border-radius: 6px;
-}
-.address-badge[data-tone='success'] {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 8%, transparent);
-}
-.registration-retry {
-  min-height: 36px;
-  padding: 0 0.4rem;
-  color: var(--danger);
-  background: transparent;
-  cursor: pointer;
-  font-size: 0.7rem;
-}
 .address-identifier {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
+}
+.address-identity {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
 }
 .address-identifier code {
   min-width: 0;
@@ -525,11 +566,11 @@ small {
   font: 0.75rem/1.6 var(--font-mono);
 }
 .address-actions {
-  margin-top: 0.5rem;
   display: flex;
-  flex-shrink: 0;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  margin-inline-start: -0.45rem;
 }
 .address-actions button {
   display: inline-flex;
@@ -549,7 +590,8 @@ small {
   color: var(--text);
   background: var(--surface-hover);
 }
-.address-actions .archive-trigger:hover {
+.address-actions .archive-trigger:hover,
+.address-actions .registration-retry {
   color: var(--danger);
 }
 .archive-confirm {
@@ -557,7 +599,6 @@ small {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin: 0 1.25rem 1rem;
   padding: 1rem;
   border-radius: 12px;
   background: color-mix(in srgb, var(--danger) 7%, var(--surface));
@@ -586,6 +627,7 @@ small {
 }
 .address-error {
   color: var(--danger);
+  padding-inline: 0;
 }
 .ledger-reveal-enter-active,
 .ledger-reveal-leave-active {
@@ -599,9 +641,6 @@ small {
   transform: translateY(-4px);
 }
 @container (max-width: 680px) {
-  .address-create {
-    grid-template-columns: 1fr;
-  }
   .archive-confirm {
     align-items: stretch;
     flex-direction: column;
@@ -611,18 +650,12 @@ small {
     grid-template-columns: 1fr 1fr;
   }
 }
-@container (max-width: 440px) {
-  .ledger-heading,
-  .ledger-toolbar,
-  .address-table article {
-    padding-inline: 1rem;
-  }
-  .address-table article {
-    gap: 0.75rem;
-  }
+@container (max-width: 540px) {
   .ledger-record-body {
-    --overview-figure-width: 96px;
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ledger-record-details {
+    padding-inline-start: 10px;
   }
   .address-balances {
     gap: 0.5rem;
@@ -630,20 +663,26 @@ small {
   .address-balances dd {
     font-size: 1rem;
   }
-  .address-create {
-    margin-inline: 1rem;
-  }
+}
+@container (max-width: 440px) {
+  .address-create > .app-button { width: 100%; }
+  .record-address { display: none; }
+  .record-address-short { display: inline; }
+  .address-status { max-width: 5.5rem; }
 }
 @media (pointer: coarse) {
   .address-actions button,
   .create-toggle,
+  .asset-options label,
+  .address-create > .app-button,
   .registration-retry {
     min-height: 44px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .ledger-reveal-enter-active,
-  .ledger-reveal-leave-active {
+  .ledger-reveal-leave-active,
+  .ledger-record-caret {
     transition: none;
   }
   .ledger-reveal-enter-from,

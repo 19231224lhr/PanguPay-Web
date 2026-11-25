@@ -15,6 +15,7 @@ import {
   type WalletEntryGatewayPort,
 } from '@/services/walletEntryGateway'
 import { stringifyGatewayJSON } from '@/services/gatewayClient'
+import { WalletEntryConfirmationPending } from '@/wallet/entryService'
 
 const ec = new EC('p256')
 const accountPrivateScalar = '1'.padStart(64, '0')
@@ -207,23 +208,25 @@ describe('Gateway wallet entry adapter', () => {
           return { success: true }
         },
       ),
-      queryAddressGroups: vi.fn<WalletEntryGatewayPort['queryAddressGroups']>(
-        async (addresses) => ({
+      queryAddressGroups: vi
+        .fn<WalletEntryGatewayPort['queryAddressGroups']>(async (addresses) => ({
           Addresstogroup: Object.fromEntries(
             addresses.map((address) => [address, { GroupID: '1' }]),
           ),
-        }),
-      ),
+        }))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch')),
     })
     const service = createGatewayWalletEntryService({
       gateway: port,
       getWalletRecord: () => record,
       timestamp: () => 123_456,
-      confirmationAttempts: 1,
+      confirmationAttempts: 2,
+      sleep: async () => undefined,
     })
 
     await service.registerNoGroup()
 
+    expect(port.queryAddressGroups).toHaveBeenCalledTimes(2)
     expect(requests).toHaveLength(1)
     const request = requests[0]!
     expect(request).not.toHaveProperty('Sig')
@@ -304,12 +307,14 @@ describe('Gateway wallet entry adapter', () => {
         joined = message as Record<string, unknown>
         return { result: true }
       }),
-      reOnline: vi.fn<WalletEntryGatewayPort['reOnline']>(async () => {
-        membershipChecks += 1
-        return membershipChecks < 2
-          ? { IsInGroup: false, GuarantorGroupID: '' }
-          : { IsInGroup: true, GuarantorGroupID: 'group-a' }
-      }),
+      reOnline: vi
+        .fn<WalletEntryGatewayPort['reOnline']>(async () => {
+          membershipChecks += 1
+          return membershipChecks < 2
+            ? { IsInGroup: false, GuarantorGroupID: '' }
+            : { IsInGroup: true, GuarantorGroupID: 'group-a' }
+        })
+        .mockRejectedValueOnce(new DOMException('Request timed out', 'TimeoutError')),
       queryAddressGroups: vi.fn<WalletEntryGatewayPort['queryAddressGroups']>(
         async (addresses) => ({
           Addresstogroup: Object.fromEntries(
@@ -325,7 +330,7 @@ describe('Gateway wallet entry adapter', () => {
       gateway: port,
       getWalletRecord: () => record,
       timestamp: () => 123_456,
-      confirmationAttempts: 2,
+      confirmationAttempts: 3,
       sleep: async () => undefined,
     })
 
@@ -352,6 +357,27 @@ describe('Gateway wallet entry adapter', () => {
       true,
     )
     expect(membershipChecks).toBe(2)
+    expect(port.joinGroup).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    new DOMException('signal timed out', 'TimeoutError'),
+    new Error('the user has already joined the guarantor organization'),
+  ])('checks the authoritative membership when the join has an uncertain result (%s)', async (failure) => {
+    const port = gateway({
+      joinGroup: vi.fn<WalletEntryGatewayPort['joinGroup']>().mockRejectedValueOnce(failure),
+      reOnline: vi.fn<WalletEntryGatewayPort['reOnline']>()
+        .mockResolvedValueOnce({ IsInGroup: false })
+        .mockResolvedValueOnce({ IsInGroup: true, GuarantorGroupID: 'group-a' }),
+    })
+    const service = createGatewayWalletEntryService({
+      gateway: port, getWalletRecord: () => record, confirmationAttempts: 1,
+    })
+    const pending = await service.join('group-a').catch((cause: unknown) => cause)
+    expect(pending).toBeInstanceOf(WalletEntryConfirmationPending)
+    if (!(pending instanceof WalletEntryConfirmationPending)) throw new Error('Expected pending membership')
+    await expect(pending.confirm()).resolves.toBeUndefined()
+    expect(port.joinGroup).toHaveBeenCalledOnce()
   })
 
   it('registers a new member address with the exact UserNewAddressInfo material', async () => {
@@ -392,6 +418,23 @@ describe('Gateway wallet entry adapter', () => {
     ])
     const { Sig, ...material } = message
     expect(verifyLegacySignature({ ...material, Sig: { R: null, S: null } }, Sig)).toBe(true)
+  })
+
+  it('checks membership and address routes after a timed-out exit without resending it', async () => {
+    const timeout = new DOMException('signal timed out', 'TimeoutError')
+    const port = gateway({
+      joinGroup: vi.fn<WalletEntryGatewayPort['joinGroup']>().mockRejectedValueOnce(timeout),
+      reOnline: vi.fn<WalletEntryGatewayPort['reOnline']>().mockResolvedValue({ IsInGroup: false }),
+      queryAddressGroups: vi.fn<WalletEntryGatewayPort['queryAddressGroups']>()
+        .mockResolvedValueOnce({ Addresstogroup: { [derivedAddress.address]: { GroupID: 'group-a' } } })
+        .mockResolvedValueOnce({ Addresstogroup: { [derivedAddress.address]: { GroupID: '1' } } }),
+    })
+    const service = createGatewayWalletEntryService({ gateway: port, getWalletRecord: () => record, confirmationAttempts: 1 })
+    const pending = await service.leave('group-a').catch((cause: unknown) => cause)
+    expect(pending).toBeInstanceOf(WalletEntryConfirmationPending)
+    if (!(pending instanceof WalletEntryConfirmationPending)) throw new Error('Expected pending exit')
+    await expect(pending.confirm()).resolves.toBeUndefined()
+    expect(port.joinGroup).toHaveBeenCalledOnce()
   })
 
   it('signs address unbind and organization exit without changing the wallet record', async () => {

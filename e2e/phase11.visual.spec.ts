@@ -33,7 +33,7 @@ async function createWallet(page: Page, password: string): Promise<void> {
   await expect.poll(() => downloads.length).toBe(2)
   page.off('download', collect)
   await page.getByText('我已分别安全保存').click()
-  await page.getByRole('button', { name: '进入钱包' }).click()
+  await page.getByRole('button', { name: '下一步：选择组织' }).click()
   await expect(page).toHaveURL(/\/wallet$/)
   await expect(page.locator('.wallet-entry-arrival')).toHaveCount(0)
 }

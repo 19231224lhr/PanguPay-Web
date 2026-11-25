@@ -39,12 +39,16 @@ describe('wallet unlock transition', () => {
     resetUnlockAnimation()
   })
 
-  it('keeps the loading layer visible until it can transition directly to the wallet', async () => {
+  it.each([
+    ['/wallet', 'revealing'],
+    ['/wallet/entry', 'idle'],
+  ] as const)('unlocks into %s with the appropriate transition', async (path, phase) => {
+    resolveWalletArrival.mockResolvedValue(path)
     const wrapper = mount(WalletUnlockView, {
       attachTo: document.body,
       global: {
         stubs: {
-          WalletAccessFrame: { template: '<main><slot /></main>' },
+          WalletAccessFrame: { template: '<main data-entry-experience><slot /></main>' },
           RouterLink: { template: '<a><slot /></a>' },
           Teleport: true,
           ValueFoldField: { template: '<div data-loading-field />' },
@@ -57,8 +61,8 @@ describe('wallet unlock transition', () => {
     await flushPromises()
 
     expect(resolveWalletArrival).toHaveBeenCalledExactlyOnceWith('alice')
-    expect(router.replace).toHaveBeenCalledExactlyOnceWith('/wallet')
-    expect(unlockPhase.value).toBe('revealing')
+    expect(router.replace).toHaveBeenCalledExactlyOnceWith(path)
+    expect(unlockPhase.value).toBe(phase)
     await vi.advanceTimersByTimeAsync(1100)
     expect(unlockPhase.value).toBe('idle')
     wrapper.unmount()

@@ -307,6 +307,11 @@ export const useTransferStore = defineStore('transfer', () => {
       return
     monitoring.add(value.draftID)
     const startedInEpoch = monitorEpoch
+    const accountID = wallet.accountId
+    const isCurrentSession = () =>
+      startedInEpoch === monitorEpoch && wallet.accountId === accountID && !!wallet.unlockedRecord
+    const isOpenResult = () =>
+      stage.value === 'result' && currentProgress.value?.draftID === value.draftID
     let progress = value
     let lastCertifiedHeight = 0
     const monitorStartedAt = Date.now()
@@ -314,13 +319,15 @@ export const useTransferStore = defineStore('transfer', () => {
     let firstPass = true
     try {
       const monitorLimit = ACCEPTED_TRANSFER_MONITOR_LIMIT_MS
-      while (startedInEpoch === monitorEpoch && Date.now() - monitorStartedAt < monitorLimit) {
+      while (isCurrentSession() && (Date.now() - monitorStartedAt < monitorLimit || isOpenResult())) {
         if (!firstPass) {
           const elapsed = Date.now() - monitorStartedAt
           const waitingForSpendReady =
             progress.submissionKind === 'assign' && !progress.spendReadyAt
-          const delay = !waitingForSpendReady
-            ? 2_000
+          const delay = elapsed >= monitorLimit
+            ? 10_000
+            : !waitingForSpendReady
+              ? 2_000
             : elapsed < 1_000
               ? 80
               : elapsed < 5_000
@@ -328,18 +335,20 @@ export const useTransferStore = defineStore('transfer', () => {
                 : 2_000
           await new Promise((resolve) => setTimeout(resolve, delay))
         }
+        if (!isCurrentSession()) return
         firstPass = false
         try {
           if (progress.submissionKind === 'assign' && !progress.spendReadyAt) {
             const status = await gateway.value.assignTransactionStatus(
               progress.groupID ?? '',
               progress.txID,
-            )
+            ).catch(() => undefined)
+            if (!isCurrentSession()) return
             const state = classifyAssignTransactionStatus(status)
             const backendTiming = parseAssignBackendTiming(status)
             const observedAt = Date.now()
             if (typeof state === 'object') {
-              const failed = recordTransferProgress(wallet.accountId, {
+              const failed = recordTransferProgress(accountID, {
                 draftID: progress.draftID,
                 phase: 'failed',
                 error: state.failed,
@@ -347,12 +356,12 @@ export const useTransferStore = defineStore('transfer', () => {
               })
               if (currentProgress.value?.draftID === progress.draftID)
                 currentProgress.value = failed
-              clearTransferReservation(wallet.accountId, progress.draftID)
+              clearTransferReservation(accountID, progress.draftID)
               refreshHistory()
               return
             }
             if (state === 'accepted' && !progress.acceptedAt) {
-              progress = recordTransferProgress(wallet.accountId, {
+              progress = recordTransferProgress(accountID, {
                 draftID: progress.draftID,
                 phase: 'accepted',
                 backendAcceptedAt: backendTiming.acceptedAt,
@@ -362,12 +371,16 @@ export const useTransferStore = defineStore('transfer', () => {
                 currentProgress.value = progress
               refreshHistory()
             }
-            if (state === 'spend-ready' && progress.mode !== 'quick') {
-              progress = recordTransferProgress(wallet.accountId, {
+            if (state === 'spend-ready' && !progress.aggregationConfirmedAt) {
+              const awaitingOrganization = ['submitting', 'accepted'].includes(progress.phase)
+              progress = recordTransferProgress(accountID, {
                 draftID: progress.draftID,
-                phase: 'spend-ready',
+                phase: awaitingOrganization
+                  ? progress.mode === 'quick' ? 'accepted' : 'spend-ready'
+                  : progress.phase,
+                aggregationConfirmedAt: observedAt,
                 backendAcceptedAt: backendTiming.acceptedAt,
-                backendSpendReadyAt: backendTiming.spendReadyAt,
+                backendSpendReadyAt: progress.mode === 'quick' ? undefined : backendTiming.spendReadyAt,
                 updatedAt: observedAt,
               })
               if (currentProgress.value?.draftID === progress.draftID)
@@ -379,10 +392,11 @@ export const useTransferStore = defineStore('transfer', () => {
                 const readiness = parseTXCerSpendReadyStatus(
                   await gateway.value.txCerSpendReadyStatus(progress.groupID ?? '', progress.txID),
                 )
+                if (!isCurrentSession()) return
                 if (readiness.txID !== progress.txID.toLowerCase())
                   throw new Error('TXCer spend-ready TXID mismatch')
                 if (readiness.state === 'failed') {
-                  const failed = recordTransferProgress(wallet.accountId, {
+                  const failed = recordTransferProgress(accountID, {
                     draftID: progress.draftID,
                     phase: 'failed',
                     error: readiness.lastError || 'TXCer registration failed',
@@ -390,12 +404,12 @@ export const useTransferStore = defineStore('transfer', () => {
                   })
                   if (currentProgress.value?.draftID === progress.draftID)
                     currentProgress.value = failed
-                  clearTransferReservation(wallet.accountId, progress.draftID)
+                  clearTransferReservation(accountID, progress.draftID)
                   refreshHistory()
                   return
                 }
                 if (readiness.state === 'registered' && !progress.registeredAt) {
-                  progress = recordTransferProgress(wallet.accountId, {
+                  progress = recordTransferProgress(accountID, {
                     draftID: progress.draftID,
                     phase: 'registered',
                     registeredAt: readiness.registeredAt,
@@ -407,7 +421,7 @@ export const useTransferStore = defineStore('transfer', () => {
                   refreshHistory()
                 }
                 if (readiness.state === 'spend-ready') {
-                  progress = recordTransferProgress(wallet.accountId, {
+                  progress = recordTransferProgress(accountID, {
                     draftID: progress.draftID,
                     phase: 'spend-ready',
                     backendAcceptedAt: backendTiming.acceptedAt,
@@ -433,11 +447,12 @@ export const useTransferStore = defineStore('transfer', () => {
                 progress.groupID ?? '',
                 progress.txID,
                 afterSeq,
-              ),
+              ).catch(() => undefined),
             )
+            if (!isCurrentSession()) return
             if (incoming.length) {
               const dagReceipts = mergeSchedulerDAGReceipts(progress.dagReceipts, incoming)
-              progress = recordTransferProgress(wallet.accountId, {
+              progress = recordTransferProgress(accountID, {
                 draftID: progress.draftID,
                 phase: progress.phase,
                 dagReceipts,
@@ -448,7 +463,7 @@ export const useTransferStore = defineStore('transfer', () => {
               refreshHistory()
               const dagFailure = schedulerDAGFailure(dagReceipts)
               if (dagFailure) {
-                const failed = recordTransferProgress(wallet.accountId, {
+                const failed = recordTransferProgress(accountID, {
                   draftID: progress.draftID,
                   phase: 'failed',
                   error: dagFailure,
@@ -456,7 +471,7 @@ export const useTransferStore = defineStore('transfer', () => {
                 })
                 if (currentProgress.value?.draftID === progress.draftID)
                   currentProgress.value = failed
-                clearTransferReservation(wallet.accountId, progress.draftID)
+                clearTransferReservation(accountID, progress.draftID)
                 refreshHistory()
                 return
               }
@@ -470,18 +485,19 @@ export const useTransferStore = defineStore('transfer', () => {
             const status = parseCrossChainTransferStatus(
               await gateway.value.crossChainTransferStatus(progress.txID),
             )
+            if (!isCurrentSession()) return
             if (status.txID !== progress.txID.toLowerCase())
               throw new Error('cross-chain status TXID mismatch')
             const update = crossChainProgressUpdate(status, Date.now())
             if (status.state === 'NEEDS_RECOVERY' && progress.phase === 'target-accepted')
               update.phase = 'target-accepted'
-            progress = recordTransferProgress(wallet.accountId, {
+            progress = recordTransferProgress(accountID, {
               draftID: progress.draftID,
               ...update,
             })
             if (currentProgress.value?.draftID === progress.draftID)
               currentProgress.value = progress
-            clearTransferReservation(wallet.accountId, progress.draftID)
+            clearTransferReservation(accountID, progress.draftID)
             refreshHistory()
             if (status.state === 'TARGET_CONFIRMED') {
               await dashboard.sync()
@@ -499,29 +515,27 @@ export const useTransferStore = defineStore('transfer', () => {
             : Math.max(1, certifiedHeight - 49)
           let certifiedBlockHeight = 0
           for (let height = fromHeight; height <= certifiedHeight; height += 1) {
-            if (
-              hasObservedGQNCCertification(
-                progress.txID,
-                await gateway.value.gqncCertifiedBlock(height),
-              )
-            ) {
+            const block = await gateway.value.gqncCertifiedBlock(height)
+            if (!isCurrentSession()) return
+            if (hasObservedGQNCCertification(progress.txID, block)) {
               certifiedBlockHeight = height
               break
             }
+            lastCertifiedHeight = height
           }
-          lastCertifiedHeight = Math.max(lastCertifiedHeight, certifiedHeight)
           if (certifiedBlockHeight) {
             let backendConsensusMillis: number | undefined
             try {
               backendConsensusMillis = gqncConsensusMillisAtHeight(
-                await gateway.value.gqncPerformance(),
+                await gateway.value.gqncPerformance(1_500),
                 certifiedBlockHeight,
               )
             } catch {
               // Performance data is diagnostic; settlement remains authoritative without it.
             }
+            if (!isCurrentSession()) return
             if (progress.mode === 'cross') {
-              progress = recordTransferProgress(wallet.accountId, {
+              progress = recordTransferProgress(accountID, {
                 draftID: progress.draftID,
                 phase: 'local-certified',
                 certifiedHeight: certifiedBlockHeight,
@@ -530,19 +544,20 @@ export const useTransferStore = defineStore('transfer', () => {
               })
               if (currentProgress.value?.draftID === progress.draftID)
                 currentProgress.value = progress
-              clearTransferReservation(wallet.accountId, progress.draftID)
+              clearTransferReservation(accountID, progress.draftID)
               refreshHistory()
               nextSettlementCheckAt = 0
               continue
             }
-            const settled = recordTransferProgress(wallet.accountId, {
+            const settled = recordTransferProgress(accountID, {
               draftID: progress.draftID,
               phase: 'settled',
+              certifiedHeight: certifiedBlockHeight,
               backendConsensusMillis,
               updatedAt: Date.now(),
             })
             if (currentProgress.value?.draftID === progress.draftID) currentProgress.value = settled
-            clearTransferReservation(wallet.accountId, progress.draftID)
+            clearTransferReservation(accountID, progress.draftID)
             refreshHistory()
             await dashboard.sync()
             return

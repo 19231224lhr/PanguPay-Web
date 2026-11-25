@@ -1,8 +1,19 @@
-import { computed, readonly, ref } from 'vue'
+import { computed, nextTick, readonly, ref } from 'vue'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
-export type SupportedLocale = 'zh-CN' | 'en-US'
+export const localeNames = {
+  'zh-CN': '简体中文',
+  'en-US': 'English',
+  'ja-JP': '日本語',
+  'es-ES': 'Español',
+  'fr-FR': 'Français',
+} as const
+export type SupportedLocale = keyof typeof localeNames
+
+export function isSupportedLocale(value: string | null): value is SupportedLocale {
+  return value !== null && Object.prototype.hasOwnProperty.call(localeNames, value)
+}
 
 const THEME_KEY = 'pangupay.theme'
 const LOCALE_KEY = 'pangupay.locale'
@@ -21,7 +32,8 @@ export function getInitialThemePreference(): ThemePreference {
 }
 
 export function getInitialLocale(): SupportedLocale {
-  return storageValue(LOCALE_KEY) === 'en-US' ? 'en-US' : 'zh-CN'
+  const stored = storageValue(LOCALE_KEY)
+  return isSupportedLocale(stored) ? stored : 'zh-CN'
 }
 
 export function resolveTheme(preference: ThemePreference, prefersDark: boolean): ResolvedTheme {
@@ -57,13 +69,53 @@ export function initializePreferences(): void {
   syncTheme()
 }
 
+let reveal: ViewTransition | undefined
+let fadeTimer: number | undefined
+
+function transitionTheme(origin?: Element | null): void {
+  const root = document.documentElement
+  const next = resolveTheme(themePreference.value, systemPrefersDark.value)
+  reveal?.skipTransition()
+  if (root.dataset.theme === next || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    syncTheme()
+    return
+  }
+  if (!document.startViewTransition || !CSS.supports('mask-image', 'radial-gradient(black, transparent)')) {
+    window.clearTimeout(fadeTimer)
+    root.classList.add('theme-crossfade')
+    syncTheme()
+    fadeTimer = window.setTimeout(() => root.classList.remove('theme-crossfade'), 330)
+    return
+  }
+  const bounds = origin?.getBoundingClientRect()
+  const x = bounds ? bounds.left + bounds.width / 2 : innerWidth / 2
+  const y = bounds ? bounds.top + bounds.height / 2 : innerHeight / 2
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
+  root.style.setProperty('--theme-origin', x + 'px ' + y + 'px')
+  root.style.setProperty('--theme-radius', Math.ceil(radius) + 'px')
+  root.classList.add('theme-reveal')
+  const transition = document.startViewTransition(async () => {
+    syncTheme()
+    await nextTick()
+  })
+  reveal = transition
+  void transition.ready.catch(() => {}) // A subsequent click can supersede this snapshot.
+  void transition.finished.finally(() => {
+    if (reveal !== transition) return
+    reveal = undefined
+    root.classList.remove('theme-reveal')
+    root.style.removeProperty('--theme-origin')
+    root.style.removeProperty('--theme-radius')
+  })
+}
+
 export function usePreferences() {
   const resolvedTheme = computed(() => resolveTheme(themePreference.value, systemPrefersDark.value))
 
-  function setTheme(preference: ThemePreference): void {
+  function setTheme(preference: ThemePreference, origin: Element | null = document.activeElement): void {
     themePreference.value = preference
     localStorage.setItem(THEME_KEY, preference)
-    syncTheme()
+    transitionTheme(origin?.closest('label') ?? origin)
   }
 
   function setLocale(nextLocale: SupportedLocale): void {

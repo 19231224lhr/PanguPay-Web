@@ -309,11 +309,13 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
   const guaranteeComplete =
     events.has('verify_passed') ||
     events.has('aggr_confirmed') ||
+    Boolean(progress?.aggregationConfirmedAt) ||
     Boolean(progress?.registeredAt) ||
     Boolean(progress?.spendReadyAt) ||
     Boolean(progress?.settledAt)
   const organizationComplete =
     events.has('aggr_confirmed') ||
+    Boolean(progress?.aggregationConfirmedAt) ||
     Boolean(progress?.registeredAt) ||
     Boolean(progress?.spendReadyAt) ||
     Boolean(progress?.settledAt)
@@ -419,7 +421,7 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
           ? 'error'
           : settled
             ? 'complete'
-            : spendReady || progress?.registeredAt
+            : spendReady || organizationComplete
               ? 'active'
               : 'pending',
     },
@@ -468,9 +470,7 @@ export function gqncConsensusMillisAtHeight(value: unknown, height: number): num
   return selected?.millis
 }
 
-export function hasObservedGQNCCertification(txID: string, value: unknown): boolean {
-  const expected = txID.trim().toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(expected)) return false
+export function certifiedGQNCTransactions(value: unknown): UnknownRecord[] {
   const root = record(value)
   const envelope = record(root.envelope ?? root.Envelope)
   const qc = record(envelope.QC ?? envelope.qc)
@@ -482,23 +482,24 @@ export function hasObservedGQNCCertification(txID: string, value: unknown): bool
     threshold !== 3 ||
     new Set(signers.map(String)).size < threshold ||
     !/^[0-9a-f]{64}$/.test(qcID)
-  )
-    return false
+  ) return []
+
   const block = record(envelope.Block ?? envelope.block)
   const body = record(block.Body ?? block.body)
   const transactions = body.Transactions ?? body.transactions
-  if (!Array.isArray(transactions)) return false
-  return transactions.some((item) => {
+  if (!Array.isArray(transactions)) return []
+  return transactions.flatMap((item) => {
     const aggregate = record(record(item).AggregateTX ?? record(item).aggregateTX)
     const all = aggregate.AllTransactions ?? aggregate.allTransactions
-    return (
-      Array.isArray(all) &&
-      all.some(
-        (transaction) =>
-          text(record(transaction).TXID ?? record(transaction).txID).toLowerCase() === expected,
-      )
-    )
+    return Array.isArray(all) ? all.map(record) : []
   })
+}
+
+export function hasObservedGQNCCertification(txID: string, value: unknown): boolean {
+  const expected = txID.trim().toLowerCase()
+  return /^[0-9a-f]{64}$/.test(expected) && certifiedGQNCTransactions(value).some(
+    (transaction) => text(transaction.TXID ?? transaction.txID).toLowerCase() === expected,
+  )
 }
 
 export async function submitBuiltTransfer(
