@@ -354,24 +354,24 @@ function startAnother(): void {
           <dd class="mono">{{ transfer.review.built.txID }}</dd>
         </div>
       </dl>
-      <InlineNotice
-        v-if="transferIssue"
-        class="transfer-error-notice"
-        :title="transferIssue.code === 'unknown' ? wt('w418') : transferIssue.title"
-        :tone="transferIssue.tone"
-      >
-        {{ transferIssue.message }}
-      </InlineNotice>
-      <div class="review-actions">
-        <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
-          <ArrowLeft :size="18" /> {{ wt('w235') }}
-        </AppButton>
-        <AppButton
-          :loading="transfer.busy"
-          @click="submit"
-        >
-          <PaperPlaneTilt :size="18" /> {{ wt('w236') }}
-        </AppButton>
+      <div class="review-footer">
+        <div class="review-feedback" :data-tone="transferIssue?.tone" role="alert">
+          <template v-if="transferIssue">
+            <WarningCircle :size="16" aria-hidden="true" />
+            <div class="review-feedback-copy">
+              <strong>{{ transferIssue.code === 'unknown' ? wt('w418') : transferIssue.title }}</strong>
+              <span>{{ transferIssue.message }}</span>
+            </div>
+          </template>
+        </div>
+        <div class="review-actions">
+          <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
+            <ArrowLeft :size="18" /> {{ wt('w235') }}
+          </AppButton>
+          <AppButton :loading="transfer.busy" @click="submit">
+            <PaperPlaneTilt :size="18" /> {{ wt('w236') }}
+          </AppButton>
+        </div>
       </div>
     </section>
 
@@ -731,10 +731,55 @@ function startAnother(): void {
   flex-wrap: wrap;
   gap: 0.7rem;
 }
-.review-actions { justify-content: flex-end; }
-.review-plane > .transfer-error-notice {
-  width: min(100%, 38rem);
-  justify-self: end;
+.review-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+.review-feedback {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.45rem;
+  align-content: center;
+  min-block-size: 4rem;
+  color: var(--warning);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.review-feedback[data-tone='danger'] {
+  color: var(--danger);
+}
+.review-feedback[data-tone='info'] {
+  color: var(--accent);
+}
+.review-feedback > svg {
+  margin-block-start: 0.08rem;
+}
+.review-feedback-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.review-feedback-copy strong {
+  font-weight: 600;
+}
+.review-feedback-copy span {
+  color: var(--text-muted);
+}
+.review-actions {
+  justify-content: flex-end;
+}
+@container (max-width: 680px) {
+  .review-footer {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+  .review-feedback {
+    min-block-size: 4.25rem;
+  }
 }
 .result-actions { justify-content: flex-start; }
 .result-body {
