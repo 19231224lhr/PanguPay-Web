@@ -588,6 +588,7 @@ export const walletText = {
   w395: 'Introduce una dirección válida de 40 caracteres o una dirección cápsula.',
   w396: 'Introduce un importe menor. Si acabas de enviar una transacción, puedes seguirla en Actividad hasta que se liberen los fondos reservados.',
   w397: 'Saldo disponible insuficiente',
+  transferBalanceShortfall: 'Saldo insuficiente · Faltan {0} {1}',
   w398: 'La transacción anterior tiene fondos reservados. Se liberarán al liquidarse. Puedes seguir el progreso en Actividad.',
   w399: 'La transacción anterior sigue en curso',
   w400: 'Únete a una organización garante para usar transferencias rápidas y entre cadenas.',

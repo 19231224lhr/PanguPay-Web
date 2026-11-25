@@ -64,6 +64,13 @@ export interface InputSelection {
   change: string
 }
 
+export class InsufficientSpendableBalanceError extends Error {
+  constructor(readonly available: string, readonly shortfall: string) {
+    super('insufficient spendable balance')
+    this.name = 'InsufficientSpendableBalanceError'
+  }
+}
+
 export interface TransferDraft {
   mode: TransferMode
   membership: TransferMembership
@@ -202,7 +209,8 @@ export function selectSpendableInputs(
   let total = 0n
   if (request.preferTXCer) total = select(txCers, target, selectedTXCers)
   if (total < target) total += selectUTXOGroups(utxoGroups, target - total, selectedUTXOs)
-  if (total < target) throw new Error('insufficient spendable balance')
+  if (total < target)
+    throw new InsufficientSpendableBalanceError(formatAmount(total), formatAmount(target - total))
   return {
     utxos: selectedUTXOs,
     txCers: selectedTXCers,

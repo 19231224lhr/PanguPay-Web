@@ -9,7 +9,7 @@ import {
   PhPaperPlaneTilt as PaperPlaneTilt,
   PhShieldCheck as ShieldCheck,
 } from '@phosphor-icons/vue'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 
 import AmountField from '@/components/AmountField.vue'
 import AppButton from '@/components/AppButton.vue'
@@ -27,6 +27,7 @@ import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
 import {
   buildTransferTimeline,
+  InsufficientSpendableBalanceError,
   transferModeLabel,
   transferResultTitle,
   type TransferMode,
@@ -42,16 +43,14 @@ const recipient = ref('')
 const amount = ref('')
 const composeForm = ref<HTMLFormElement>()
 const validateFields = ref(false)
+const balanceCheck = shallowRef<InsufficientSpendableBalanceError>()
 
 const sourceRecord = computed(() => wallet.addresses.find((item) => item.address === source.value))
 const coinType = computed(() => Number(sourceRecord.value?.type ?? 0))
-const asset = computed(() =>
-  dashboard.current.assets.find((item) => {
-    const symbol = ['CAL', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`
-    return item.symbol === symbol
-  }),
+const currency = computed(() => ['CAL', 'BTC', 'ETH'][coinType.value] ?? `Asset ${coinType.value}`)
+const available = computed(() =>
+  dashboard.current.assets.find((asset) => asset.symbol === currency.value)?.total ?? '0',
 )
-const available = computed(() => asset.value?.total ?? '0')
 const organization = computed(() => dashboard.current.organization)
 const isMember = computed(() => !!organization.value && !['0', '1'].includes(organization.value.id))
 const sourceOptions = computed(() =>
@@ -97,8 +96,9 @@ const amountError = computed(() => {
   }
   return transferIssue.value?.code === 'amount-invalid' ? transferIssue.value.message : ''
 })
+const balanceIssue = computed(() => transferIssue.value?.code === 'insufficient-balance')
 const composeIssue = computed(() =>
-  recipientError.value || amountError.value ? undefined : transferIssue.value,
+  recipientError.value || amountError.value || balanceIssue.value ? undefined : transferIssue.value,
 )
 
 const timeline = computed(() => buildTransferTimeline(transfer.currentProgress))
@@ -123,7 +123,10 @@ watch(
   { immediate: true },
 )
 
-watch([mode, source, recipient, amount], () => transfer.dismissError())
+watch([mode, source, recipient, amount], () => {
+  balanceCheck.value = undefined
+  transfer.dismissError()
+})
 
 async function focusInvalidField(): Promise<void> {
   await nextTick()
@@ -133,21 +136,31 @@ async function focusInvalidField(): Promise<void> {
 async function prepareReview(): Promise<void> {
   if (transfer.busy) return
   transfer.dismissError()
+  balanceCheck.value = undefined
   validateFields.value = true
   if (recipientError.value || amountError.value) {
     await focusInvalidField()
     return
   }
   validateFields.value = false
+  const form = {
+    mode: mode.value,
+    source: source.value,
+    recipient: recipient.value,
+    amount: amount.value,
+    coinType: coinType.value,
+  }
   try {
-    await transfer.prepare({
-      mode: mode.value,
-      source: source.value,
-      recipient: recipient.value,
-      amount: amount.value,
-      coinType: coinType.value,
-    })
-  } catch {
+    await transfer.prepare(form)
+  } catch (cause) {
+    if (
+      form.mode !== mode.value || form.source !== source.value ||
+      form.recipient !== recipient.value || form.amount !== amount.value
+    ) {
+      transfer.dismissError()
+      return
+    }
+    if (cause instanceof InsufficientSpendableBalanceError) balanceCheck.value = cause
     if (recipientError.value || amountError.value) await focusInvalidField()
   }
 }
@@ -235,23 +248,37 @@ function startAnother(): void {
           <header class="send-panel-heading">
             <div>
               <h2 id="send-payment-heading">{{ wt('refinement55') }}</h2>
-              <p>{{ asset?.symbol ?? 'CAL' }}</p>
+              <p>{{ currency }}</p>
             </div>
             <WalletPaymentFigure />
           </header>
-          <AmountField
-            id="send-amount"
-            v-model="amount"
-            :label="wt('w221')"
-            :currency="asset?.symbol ?? 'CAL'"
-            placeholder="0.00"
-            :error="amountError"
-          />
-          <div class="send-available">
-            <span>{{ wt('refinement56') }}</span
-            ><strong class="tabular"
-              >{{ available }} <small>{{ asset?.symbol ?? 'CAL' }}</small></strong
-            >
+          <div class="send-amount-group" :data-shortfall="balanceIssue || undefined">
+            <AmountField
+              id="send-amount"
+              v-model="amount"
+              :label="wt('w221')"
+              :currency="currency"
+              placeholder="0.00"
+              :error="amountError"
+              :described-by="balanceIssue ? 'send-amount-balance' : undefined"
+            />
+            <div class="send-available">
+              <span v-if="balanceIssue" id="send-amount-balance" class="send-balance-shortfall" role="status">
+                <WarningCircle :size="15" aria-hidden="true" />
+                <span>
+                  {{ balanceCheck
+                    ? wt('transferBalanceShortfall', [balanceCheck.shortfall, currency])
+                    : wt('w397') }}
+                </span>
+              </span>
+              <span v-else>{{ wt('refinement56') }}</span>
+              <span class="send-available-total">
+                <span v-if="balanceIssue">{{ wt('refinement56') }}</span>
+                <strong class="tabular">
+                  {{ balanceCheck?.available ?? available }} <small>{{ currency }}</small>
+                </strong>
+              </span>
+            </div>
           </div>
           <InlineNotice
             v-if="composeIssue"
@@ -282,7 +309,7 @@ function startAnother(): void {
       <div class="review-amount">
         <span> {{ wt('w228') }} </span>
         <strong class="tabular">{{ transfer.review.amount }}</strong>
-        <b>{{ asset?.symbol ?? 'CAL' }}</b>
+        <b>{{ currency }}</b>
       </div>
       <dl class="review-details">
         <div>
@@ -310,7 +337,7 @@ function startAnother(): void {
         <div>
           <dt>{{ wt('w233') }}</dt>
           <dd class="tabular">
-            {{ transfer.review.selection.change }} {{ asset?.symbol ?? 'CAL' }}
+            {{ transfer.review.selection.change }} {{ currency }}
           </dd>
         </div>
         <div>
@@ -429,19 +456,47 @@ function startAnother(): void {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
 }
+.send-amount-group {
+  display: grid;
+  gap: 8px;
+}
+.send-amount-group[data-shortfall] :deep(.form-field__control:not(:focus-within)) {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border-strong));
+}
 .send-available {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  min-height: 24px;
+  gap: 4px 10px;
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+.send-balance-shortfall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warning);
+  font-weight: 570;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.send-balance-shortfall > svg {
+  flex: none;
+}
+.send-available-total {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin-inline-start: auto;
 }
 .send-available strong {
   color: var(--text);
   font-weight: 500;
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 .send-available small {
   color: var(--text-muted);

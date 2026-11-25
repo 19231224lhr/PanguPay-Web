@@ -599,6 +599,7 @@ export const walletText = {
   w395: 'Saisissez une adresse valide de 40 caractères ou une adresse capsule.',
   w396: 'Réduisez le montant ou consultez l’activité en attendant la libération des fonds réservés par une transaction récente.',
   w397: 'Solde disponible insuffisant',
+  transferBalanceShortfall: 'Solde insuffisant · Il manque {0} {1}',
   w398: 'Une partie des fonds est réservée par la transaction précédente. Ces fonds seront libérés après le règlement. Consultez l’activité pour suivre sa progression.',
   w399: 'Transaction précédente en cours',
   w400: 'Adhérez à un organisme de garantie pour utiliser les transferts rapides et interchaînes.',

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, markRaw } from 'vue'
@@ -16,6 +16,7 @@ import WalletBalanceField from '@/components/WalletBalanceField.vue'
 import WalletReceiveView from '@/views/wallet/WalletReceiveView.vue'
 import WalletSendView from '@/views/wallet/WalletSendView.vue'
 import { useTransferStore } from '@/stores/transfer'
+import { InsufficientSpendableBalanceError } from '@/transfer/core'
 
 describe('foundation components', () => {
   it('renders the original PanguPay silhouette as a current-color mask', () => {
@@ -220,6 +221,20 @@ describe('foundation components', () => {
       await wrapper.get('#send-recipient').setValue('a'.repeat(40))
       await wrapper.get('#send-amount').setValue('1')
       expect(wrapper.find('.form-field__error').exists()).toBe(false)
+
+      await wrapper.get('#send-amount').setValue('200')
+      prepare.mockImplementationOnce(async () => {
+        transfer.error = '当前可用余额不足。'
+        throw new InsufficientSpendableBalanceError('102', '98')
+      })
+      await wrapper.get('form.send-form').trigger('submit')
+      await flushPromises()
+      expect(wrapper.get('#send-amount-balance').text()).toBe('余额不足，还差 98 CAL')
+      expect(wrapper.get('#send-amount').attributes('aria-describedby')).toBe('send-amount-balance')
+      expect(wrapper.get('.send-available-total').text()).toContain('102 CAL')
+      expect(wrapper.find('.transfer-error-notice').exists()).toBe(false)
+      await wrapper.get('#send-amount').setValue('1')
+      expect(wrapper.find('#send-amount-balance').exists()).toBe(false)
 
       transfer.error = 'Failed to fetch'
       await wrapper.vm.$nextTick()

@@ -84,6 +84,21 @@ describe('transfer core', () => {
     ).toThrow('insufficient')
   })
 
+  it('reports the exact shortfall after excluding reserved and isolated inputs', () => {
+    expect.assertions(1)
+    try {
+      selectSpendableInputs(snapshot, {
+        address: 'alice',
+        coinType: 0,
+        amount: '10.00000001',
+        preferTXCer: true,
+        reservedIDs: new Set(['u-2']),
+      })
+    } catch (error) {
+      expect(error).toMatchObject({ available: '9', shortfall: '1.00000001' })
+    }
+  })
+
   it('sweeps every UTXO that shares an address seed step, even when anchors differ', () => {
     const seededUTXO = (id: string, amount: string, step: number, anchorByte: number) => ({
       id,
