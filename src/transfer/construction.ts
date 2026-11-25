@@ -5,10 +5,12 @@ interface ConstructionInput {
   address?: string
   reference?: string
   outputIndex?: number
+  sourceHeight?: number
   amount?: string
 }
 
 interface ConstructionOutput {
+  index?: number
   address: string
   amount: string
   coinType?: number
@@ -17,6 +19,23 @@ interface ConstructionOutput {
 export interface TransactionConstruction {
   inputs: ConstructionInput[]
   outputs: ConstructionOutput[]
+}
+
+export interface TransactionReference {
+  txId: string
+  outputIndex?: number
+}
+
+export function parseTransactionReference(value: string): TransactionReference | undefined {
+  const match = /^([0-9a-f]{64})(?:\s*[+#:_]\s*(\d+))?$/i.exec(value.trim())
+  if (!match) return
+  const outputIndex = index(match[2])
+  if (match[2] && outputIndex == null) return
+  return { txId: match[1]!.toLowerCase(), outputIndex }
+}
+
+export function formatTransactionReference({ txId, outputIndex }: TransactionReference): string {
+  return outputIndex == null ? txId : `${txId} + ${outputIndex}`
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -57,13 +76,20 @@ export function readTransactionConstruction(
   const normal = entries(tx.TXInputsNormal ?? tx.txInputsNormal)
   const certificates = entries(tx.TXInputsCertificate ?? tx.txInputsCertificate)
   const inputs: ConstructionInput[] = [
-    ...normal.map((input, i): ConstructionInput => ({
-      kind: 'utxo',
-      address: text(input.FromAddress),
-      reference: text(input.FromTXID),
-      outputIndex: index(record(input.FromTxPosition).IndexZ),
-      amount: amount(selectedUTXOAmounts[i]),
-    })),
+    ...normal.map((input, i): ConstructionInput => {
+      const position = record(input.FromTxPosition)
+      const reference = text(input.FromTXID)
+      const outpoint = parseTransactionReference(reference ?? '')
+      const outputIndex = index(position.IndexZ)
+      return {
+        kind: 'utxo',
+        address: text(input.FromAddress),
+        reference: outpoint?.txId ?? reference,
+        outputIndex: outputIndex || (outpoint?.outputIndex ?? outputIndex),
+        sourceHeight: index(position.Blocknum),
+        amount: amount(selectedUTXOAmounts[i]),
+      }
+    }),
     ...certificates.map((input): ConstructionInput => ({
       kind: 'txcer',
       address: text(input.ToAddress),
@@ -71,11 +97,11 @@ export function readTransactionConstruction(
       amount: amount(input.Value),
     })),
   ]
-  const outputs = entries(tx.TXOutputs ?? tx.txOutputs).flatMap((output) => {
+  const outputs = entries(tx.TXOutputs ?? tx.txOutputs).flatMap((output, outputIndex) => {
     const address = text(output.ToAddress)
     const value = amount(output.ToValue)
     return address && value != null
-      ? [{ address, amount: value, coinType: index(output.Type) }]
+      ? [{ index: outputIndex, address, amount: value, coinType: index(output.Type) }]
       : []
   })
   return inputs.length || outputs.length ? { inputs, outputs } : undefined

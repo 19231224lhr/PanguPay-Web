@@ -1,3 +1,7 @@
+import type { GatewayClient } from '@/services/gatewayClient'
+import { readTransactionConstruction, type TransactionConstruction } from '@/transfer/construction'
+import { certifiedGQNCTransactions } from '@/transfer/workflow'
+
 export interface GQNCStatusView {
   protocolVersion: string
   enabled: boolean
@@ -103,4 +107,43 @@ export function normalizeGQNCBlock(value: unknown): GQNCBlockView {
 export function recentCertifiedHeights(tip: number, limit = 12): number[] {
   if (!Number.isSafeInteger(tip) || tip < 1 || limit <= 0) return []
   return Array.from({ length: Math.min(limit, tip) }, (_, index) => tip - index)
+}
+
+export interface CertifiedTransactionView {
+  block: GQNCBlockView
+  construction?: TransactionConstruction
+}
+
+export async function findCertifiedTransaction(
+  client: Pick<GatewayClient, 'gqncCertifiedBlock' | 'gqncTransactionTraces'>,
+  txId: string,
+  heightHint?: number,
+): Promise<CertifiedTransactionView | undefined> {
+  async function readAt(height: number): Promise<CertifiedTransactionView | undefined> {
+    const response = await client.gqncCertifiedBlock(height)
+    const block = normalizeGQNCBlock(response)
+    if (block.height !== height) return
+    const transaction = certifiedGQNCTransactions(response).find(
+      (item) => string(item.TXID ?? item.txID).toLowerCase() === txId,
+    )
+    if (transaction) return { block, construction: readTransactionConstruction(transaction) }
+  }
+
+  let hintError: unknown
+  if (heightHint && heightHint > 0) {
+    try {
+      const found = await readAt(heightHint)
+      if (found) return found
+    } catch (cause) {
+      hintError = cause
+    }
+  }
+
+  const traces = unwrap(await client.gqncTransactionTraces(), ['data', 'result']).traces
+  const match = Array.isArray(traces)
+    ? traces.map(object).find((item) => string(item.txID ?? item.TXID).toLowerCase() === txId)
+    : undefined
+  const height = number(match?.height ?? match?.Height)
+  if (height && height !== heightHint) return readAt(height)
+  if (hintError) throw hintError
 }

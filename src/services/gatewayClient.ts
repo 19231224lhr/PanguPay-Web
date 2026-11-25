@@ -286,6 +286,10 @@ export class GatewayClient {
     return this.request('/api/v1/committee/gqnc/performance', {}, timeout)
   }
 
+  gqncTransactionTraces(): Promise<unknown> {
+    return this.request('/api/v1/committee/gqnc/transaction-traces')
+  }
+
   crossChainTransferStatus(txID: string): Promise<unknown> {
     return this.request(`/api/v1/committee/cross-chain/transfers/${encodeURIComponent(txID)}`)
   }

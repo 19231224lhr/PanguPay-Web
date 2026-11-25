@@ -7,14 +7,25 @@ import {
   PhCaretDown as CaretDown,
   PhCheckCircle as CheckCircle,
   PhCube as Cube,
+  PhMagnifyingGlass as MagnifyingGlass,
   PhShieldCheck as ShieldCheck,
 } from '@phosphor-icons/vue'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { routeLocationKey, routerKey } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletCopyButton from '@/components/WalletCopyButton.vue'
+import WalletTransactionConstruction from '@/components/WalletTransactionConstruction.vue'
 import { useWalletNetwork } from '@/composables/useWalletNetwork'
+import { GatewayClient } from '@/services/gatewayClient'
+import {
+  formatTransactionReference,
+  parseTransactionReference,
+  type TransactionReference,
+} from '@/transfer/construction'
+import { findCertifiedTransaction, type CertifiedTransactionView } from '@/wallet/gqncExplorer'
 
 const {
   chainStatus: status,
@@ -28,9 +39,96 @@ const selectedHeight = ref<number>()
 const pulseHeight = ref<number>()
 let pulseTimer: ReturnType<typeof setTimeout> | undefined
 
-const selected = computed(() =>
-  blocks.value.find((block) => block.height === selectedHeight.value) ?? blocks.value[0],
+const route = inject(routeLocationKey, undefined)
+const router = inject(routerKey, undefined)
+const lookupSection = ref<HTMLElement>()
+const lookupInput = ref('')
+const lookupLoading = ref(false)
+const lookupMessage = ref<'invalid' | 'missing' | 'error'>()
+const lookupResult = shallowRef<CertifiedTransactionView>()
+const lookupReference = shallowRef<TransactionReference>()
+let lookupRequest = 0
+
+const selected = computed(() => {
+  const found = lookupResult.value?.block
+  return blocks.value.find((block) => block.height === selectedHeight.value) ??
+    (found?.height === selectedHeight.value ? found : undefined) ??
+    blocks.value[0]
+})
+const selectedOutput = computed(() => {
+  const outputIndex = lookupReference.value?.outputIndex
+  return lookupResult.value?.construction?.outputs.find(
+    (output, index) => (output.index ?? index) === outputIndex,
+  )
+})
+const lookupStatusKey = {
+  invalid: 'chainLookupInvalid',
+  missing: 'chainLookupMissing',
+  error: 'chainLookupError',
+} as const
+
+async function searchTransaction(heightHint?: number): Promise<void> {
+  const request = ++lookupRequest
+  const reference = parseTransactionReference(lookupInput.value)
+  lookupMessage.value = reference ? undefined : 'invalid'
+  lookupReference.value = reference
+  lookupResult.value = undefined
+  lookupLoading.value = Boolean(reference)
+  if (!reference) return
+
+  const knownHeight = blocks.value.find((block) => block.transactionIds.includes(reference.txId))?.height
+  try {
+    const found = await findCertifiedTransaction(
+      new GatewayClient(),
+      reference.txId,
+      heightHint ?? knownHeight,
+    )
+    if (request !== lookupRequest) return
+    if (found) {
+      lookupResult.value = found
+      selectedHeight.value = found.block.height
+    } else {
+      lookupMessage.value = 'missing'
+    }
+  } catch {
+    if (request === lookupRequest) lookupMessage.value = 'error'
+  } finally {
+    if (request === lookupRequest) lookupLoading.value = false
+  }
+}
+
+function openBlockTransaction(txId: string, height: number) {
+  lookupInput.value = txId
+  lookupSection.value?.scrollIntoView?.({ block: 'nearest' })
+  submitLookup(height)
+}
+
+function submitLookup(height?: number) {
+  const reference = parseTransactionReference(lookupInput.value)
+  if (!reference || !router || !route) {
+    void searchTransaction(height)
+    return
+  }
+  const tx = formatTransactionReference(reference)
+  const heightParam = height == null ? undefined : String(height)
+  if (route.query.tx === tx && route.query.height === heightParam) {
+    void searchTransaction(height)
+    return
+  }
+  void router.replace({ query: { ...route.query, tx, height: heightParam }, hash: route.hash })
+}
+
+watch(
+  [() => route?.query.tx, () => route?.query.height],
+  ([value, rawHeight]) => {
+    if (typeof value !== 'string') return
+    lookupInput.value = value
+    const height = typeof rawHeight === 'string' && /^\d+$/.test(rawHeight) ? Number(rawHeight) : undefined
+    void searchTransaction(Number.isSafeInteger(height) ? height : undefined)
+  },
+  { immediate: true },
 )
+
 const safetyLabel = computed(() => {
   if (error.value) return wt('w315')
   const safety = status.value?.safetyStatus
@@ -59,7 +157,10 @@ function time(timestamp: number): string {
   }).format(milliseconds)
 }
 
-onBeforeUnmount(() => clearTimeout(pulseTimer))
+onBeforeUnmount(() => {
+  clearTimeout(pulseTimer)
+  lookupRequest += 1
+})
 </script>
 
 <template>
@@ -103,6 +204,55 @@ onBeforeUnmount(() => clearTimeout(pulseTimer))
     <p v-if="error" class="wallet-notice wallet-notice--warning" role="status">
       {{ status ? wt('networkCachedData') : wl(error) }}
     </p>
+
+    <section ref="lookupSection" class="chain-lookup" aria-labelledby="chain-lookup-title">
+      <h2 id="chain-lookup-title">{{ wt('chainLookupTitle') }}</h2>
+      <form @submit.prevent="submitLookup()">
+        <label class="sr-only" for="chain-transaction-query">{{ wt('chainLookupPlaceholder') }}</label>
+        <input
+          id="chain-transaction-query"
+          v-model="lookupInput"
+          type="search"
+          :placeholder="wt('chainLookupPlaceholder')"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          :aria-invalid="lookupMessage === 'invalid' || undefined"
+        />
+        <AppButton type="submit" variant="secondary" :disabled="!lookupInput.trim()" :loading="lookupLoading">
+          <MagnifyingGlass :size="17" aria-hidden="true" />
+          {{ wt('chainLookupSubmit') }}
+        </AppButton>
+      </form>
+      <p v-if="lookupMessage" class="chain-load-note" role="status">
+        {{ wt(lookupStatusKey[lookupMessage]) }}
+      </p>
+      <div v-if="lookupResult && lookupReference" class="chain-lookup-result">
+        <div class="wallet-section__heading">
+          <h3>{{ selectedOutput ? 'UTXO' : wt('w234') }}</h3>
+          <StatusLabel tone="success">{{ wt('chainLookupHeight', [lookupResult.block.height]) }}</StatusLabel>
+        </div>
+        <div class="chain-lookup-id">
+          <code>{{ formatTransactionReference(lookupReference) }}</code>
+          <WalletCopyButton
+            class="chain-lookup-copy"
+            :value="formatTransactionReference(lookupReference)"
+            :label="selectedOutput ? 'UTXO' : wt('w234')"
+          />
+        </div>
+        <p v-if="lookupReference.outputIndex != null && !selectedOutput" class="chain-load-note" role="status">
+          {{ wt('chainLookupOutputMissing') }}
+        </p>
+        <WalletTransactionConstruction
+          :key="lookupReference.txId"
+          :tx-id="lookupReference.txId"
+          :observed="lookupResult.construction"
+          :highlighted-output="lookupReference.outputIndex"
+          :active="true"
+          asset="CAL"
+        />
+      </div>
+    </section>
 
     <section class="chain-ledger" aria-labelledby="chain-ledger-title">
       <header class="wallet-section__heading">
@@ -173,7 +323,11 @@ onBeforeUnmount(() => clearTimeout(pulseTimer))
       <div class="block-transactions">
         <h3>{{ wt('w31') }}</h3>
         <ol v-if="selected.transactionIds.length">
-          <li v-for="txID in selected.transactionIds" :key="txID">{{ txID }}</li>
+          <li v-for="txID in selected.transactionIds" :key="txID">
+            <button class="block-transaction-link" type="button" @click="openBlockTransaction(txID, selected.height)">
+              {{ txID }}
+            </button>
+          </li>
         </ol>
         <p v-else>{{ wt(selected.transactionCount ? 'w32' : 'chainBlockNoTransactions') }}</p>
       </div>
@@ -235,9 +389,79 @@ onBeforeUnmount(() => clearTimeout(pulseTimer))
   font-size: 0.75rem;
 }
 .chain-ledger,
-.block-detail {
+.block-detail,
+.chain-lookup {
   display: grid;
   gap: 1rem;
+}
+.chain-lookup h2,
+.chain-lookup h3 {
+  margin: 0;
+}
+.chain-lookup form,
+.chain-lookup-id {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.chain-lookup input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+.chain-lookup input:focus-visible,
+.block-transaction-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.chain-lookup-result {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+.chain-lookup-result h3 {
+  font-size: 0.9rem;
+}
+.chain-lookup-id code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.chain-lookup-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--wallet-selection-ink, var(--accent));
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.chain-lookup-copy:hover {
+  background: var(--surface-hover);
+}
+.block-transaction-link {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--wallet-selection-ink, var(--accent));
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
 }
 .chain-load-note {
   margin: 0;

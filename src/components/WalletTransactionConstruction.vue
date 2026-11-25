@@ -3,7 +3,11 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { activityAssetSymbol } from '@/composables/useWalletActivities'
 import { wt } from '@/i18n/walletText'
 import { GatewayClient } from '@/services/gatewayClient'
-import { readTransactionConstruction, type TransactionConstruction } from '@/transfer/construction'
+import {
+  formatTransactionReference,
+  readTransactionConstruction,
+  type TransactionConstruction,
+} from '@/transfer/construction'
 import type { TransferProgress } from '@/transfer/journal'
 import { certifiedGQNCTransactions } from '@/transfer/workflow'
 
@@ -12,6 +16,7 @@ const props = defineProps<{
   active: boolean
   progress?: TransferProgress
   observed?: TransactionConstruction
+  highlightedOutput?: number
   asset: string
 }>()
 
@@ -48,7 +53,14 @@ function outputLabel(address: string, index: number): string {
   if (props.progress && index > 0 && construction.value?.inputs.some(
     (input) => input.address?.toLowerCase() === address.toLowerCase(),
   )) return wt('w233')
-  return `#${index + 1}`
+  return `#${index}`
+}
+
+function utxoQuery(txId: string, outputIndex?: number, height?: number) {
+  return {
+    tx: formatTransactionReference({ txId, outputIndex }),
+    height: height == null ? undefined : String(height),
+  }
 }
 </script>
 
@@ -66,8 +78,17 @@ function outputLabel(address: string, index: number): string {
             </div>
             <code v-if="input.address">{{ input.address }}</code>
             <small v-if="input.reference">
-              <code>{{ input.reference }}</code>
-              <span v-if="input.outputIndex != null" class="output-index">#{{ input.outputIndex }}</span>
+              <RouterLink
+                v-if="input.kind === 'utxo' && /^[0-9a-f]{64}$/i.test(input.reference)"
+                class="construction-reference"
+                :to="{ path: '/wallet', hash: '#blockchain', query: utxoQuery(input.reference, input.outputIndex, input.sourceHeight) }"
+              >
+                <code>{{ formatTransactionReference({ txId: input.reference, outputIndex: input.outputIndex }) }}</code>
+              </RouterLink>
+              <template v-else>
+                <code>{{ input.reference }}</code>
+                <span v-if="input.outputIndex != null" class="output-index">#{{ input.outputIndex }}</span>
+              </template>
             </small>
           </li>
         </ol>
@@ -75,9 +96,13 @@ function outputLabel(address: string, index: number): string {
       <div>
         <h4>{{ wt('activityOutputs') }} <span>{{ construction.outputs.length }}</span></h4>
         <ol>
-          <li v-for="(output, index) in construction.outputs" :key="index">
+          <li
+            v-for="(output, index) in construction.outputs"
+            :key="output.index ?? index"
+            :data-highlighted-output="highlightedOutput === (output.index ?? index) || undefined"
+          >
             <div class="construction-line">
-              <strong>{{ outputLabel(output.address, index) }}</strong>
+              <strong>{{ outputLabel(output.address, output.index ?? index) }}</strong>
               <span class="tabular">
                 {{ output.amount }} {{ output.coinType == null ? asset : activityAssetSymbol(output.coinType) }}
               </span>
@@ -185,6 +210,22 @@ code {
 
 .output-index {
   margin-inline-start: 6px;
+}
+
+.construction-reference {
+  color: var(--wallet-selection-ink, var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.construction-reference code {
+  user-select: auto;
+}
+
+li[data-highlighted-output] {
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--selection-rail);
 }
 
 .construction-feedback button {
