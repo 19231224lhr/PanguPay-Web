@@ -313,7 +313,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const isOpenResult = () =>
       stage.value === 'result' && currentProgress.value?.draftID === value.draftID
     let progress = value
-    let lastCertifiedHeight = 0
+    const checkedCertifiedBlocks = new Set<number>()
     const monitorStartedAt = Date.now()
     let nextSettlementCheckAt = 0
     let firstPass = true
@@ -510,18 +510,23 @@ export const useTransferStore = defineStore('transfer', () => {
           if (Date.now() < nextSettlementCheckAt) continue
           nextSettlementCheckAt = Date.now() + 2_000
           const certifiedHeight = gqncCertifiedHeight(await gateway.value.gqncStatus())
-          const fromHeight = lastCertifiedHeight
-            ? lastCertifiedHeight + 1
-            : Math.max(1, certifiedHeight - 49)
+          const fromHeight = Math.max(1, certifiedHeight - 49)
+          for (const height of checkedCertifiedBlocks) {
+            if (height < fromHeight) checkedCertifiedBlocks.delete(height)
+          }
           let certifiedBlockHeight = 0
-          for (let height = fromHeight; height <= certifiedHeight; height += 1) {
-            const block = await gateway.value.gqncCertifiedBlock(height)
+          // Check fresh certificates before backfilling history. A stale or
+          // unavailable historical block must not hide a newer confirmation.
+          for (let height = certifiedHeight; height >= fromHeight; height -= 1) {
+            if (checkedCertifiedBlocks.has(height)) continue
+            const block = await gateway.value.gqncCertifiedBlock(height).catch(() => undefined)
             if (!isCurrentSession()) return
+            if (!block) continue
             if (hasObservedGQNCCertification(progress.txID, block)) {
               certifiedBlockHeight = height
               break
             }
-            lastCertifiedHeight = height
+            checkedCertifiedBlocks.add(height)
           }
           if (certifiedBlockHeight) {
             let backendConsensusMillis: number | undefined

@@ -31,13 +31,16 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
   const p = props.progress
   if (!p) return {}
   const received = [{ label: wt('w297'), value: formatTime(p.backendAcceptedAt ?? p.acceptedAt) }]
-  const settlement = { label: wt('w302'), value: formatTime(p.settledAt) }
+  const settlement = [
+    ...(p.certifiedHeight ? [{ label: wt('w16'), value: String(p.certifiedHeight) }] : []),
+    { label: wt('w302'), value: formatTime(p.settledAt) },
+  ]
   if (p.mode === 'cross') {
     return {
       received,
       'target-confirmed': [
         { label: wt('w301'), value: formatTime(p.targetConfirmedAt) },
-        settlement,
+        ...settlement,
       ],
     }
   }
@@ -51,10 +54,10 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
           value: p.spendReadyAt ? formatTime(p.backendSpendReadyAt ?? p.spendReadyAt) : wt('w300'),
         },
       ],
-      settlement: [settlement],
+      settlement,
     }
   }
-  return { received, settlement: [settlement] }
+  return { received, settlement }
 })
 </script>
 
@@ -65,13 +68,19 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
       :key="step.id ?? step.label"
       :data-activity-step="step.id ?? ''"
       :data-state="step.state"
+      :aria-current="step.state === 'active' ? 'step' : undefined"
     >
       <span class="step-marker" aria-hidden="true">
-        <PhCheck v-if="step.state === 'complete'" :size="11" weight="bold" />
+        <Transition name="step-confirmation">
+          <PhCheck v-if="step.state === 'complete'" :size="11" weight="bold" />
+        </Transition>
       </span>
       <div class="step-copy">
         <div class="step-description">
-          <b>{{ step.label }}</b>
+          <div class="step-title">
+            <b>{{ step.label }}</b>
+            <span v-if="step.state === 'active'" class="step-active">{{ wt('motionActive') }}</span>
+          </div>
           <small>{{ step.detail }}</small>
           <small v-if="step.meta">{{ step.meta }}</small>
         </div>
@@ -117,6 +126,7 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
 }
 
 .step-marker {
+  position: relative;
   display: grid;
   place-items: center;
   width: 17px;
@@ -135,7 +145,48 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
 
 .activity-progress li[data-state='active'] .step-marker {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.activity-progress li[data-state='active'] .step-marker::after {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--accent);
+  border-radius: inherit;
+  opacity: 0.35;
+  content: '';
+}
+
+.step-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.step-active {
+  color: var(--wallet-selection-ink, var(--accent));
+  font-size: 0.68rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .activity-progress li[data-state='active'] .step-marker::after {
+    animation: step-pulse 1.8s ease-out infinite;
+  }
+
+  .step-confirmation-enter-active {
+    transition: opacity 160ms var(--ease-standard), transform 160ms var(--ease-standard);
+  }
+
+  .step-confirmation-enter-from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes step-pulse {
+  from { transform: scale(0.85); opacity: 0.55; }
+  to { transform: scale(1.25); opacity: 0; }
 }
 
 .activity-progress li[data-state='error'] .step-marker {

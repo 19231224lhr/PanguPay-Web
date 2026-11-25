@@ -34,17 +34,21 @@ it('advances the open result from Assign confirmation to certified settlement de
   const transfer = useTransferStore()
   const txID = 'a'.repeat(64)
   let certifiedHeight = 0
+  const readCertifiedBlock = vi.fn(async (height: number) => {
+    if (height !== 24) throw new Error('An older block is temporarily unavailable')
+    return {
+      envelope: {
+        QC: { QCID: 'b'.repeat(64), Threshold: 3, Signers: ['1', '2', '3'] },
+        Block: { Body: { Transactions: [{ AggregateTX: { AllTransactions: [{ TXID: txID }] } }] } },
+      },
+    }
+  })
   const gateway = {
     assignTransactionStatus: async () => ({ status: 'success' }),
     txCerSpendReadyStatus: async () => { throw new Error('not available yet') },
     schedulerDAGEvents: async () => { throw new Error('node request failed') },
     gqncStatus: async () => ({ status: { certifiedHeight } }),
-    gqncCertifiedBlock: async () => ({
-      envelope: {
-        QC: { QCID: 'b'.repeat(64), Threshold: 3, Signers: ['1', '2', '3'] },
-        Block: { Body: { Transactions: [{ AggregateTX: { AllTransactions: [{ TXID: txID }] } }] } },
-      },
-    }),
+    gqncCertifiedBlock: readCertifiedBlock,
     gqncPerformance: async () => ({ samples: [] }),
   } as unknown as GatewayClient
   transfer.setGatewayForTests(gateway)
@@ -72,12 +76,13 @@ it('advances the open result from Assign confirmation to certified settlement de
     expect(result.findAll('.timeline__item--complete').map(item => item.get('strong').text())).toContain('组织确认')
     expect(result.get('.timeline__item--unknown').text()).toContain('收款方可用（未确认）')
 
-    certifiedHeight = 1
+    certifiedHeight = 24
     await vi.advanceTimersByTimeAsync(2_500)
     await nextTick()
     expect(result.text()).toContain('快速转账已完成')
     expect(result.findAll('.timeline__item--complete').map(item => item.get('strong').text())).toContain('后台结算')
-    expect(transfer.currentProgress?.certifiedHeight).toBe(1)
+    expect(readCertifiedBlock.mock.calls[0]).toEqual([24])
+    expect(transfer.currentProgress?.certifiedHeight).toBe(24)
   } finally {
     wrapper.unmount()
     vi.useRealTimers()
