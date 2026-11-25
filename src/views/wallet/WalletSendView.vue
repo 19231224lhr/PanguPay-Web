@@ -225,23 +225,29 @@ function startAnother(): void {
             :options="sourceOptions"
             :empty-label="wt('w145')"
           />
-          <FormField
-            id="send-recipient"
-            v-model="recipient"
-            :label="mode === 'cross' ? wt('w216') : wt('w144')"
-            :placeholder="mode === 'cross' ? '0x…' : wt('w217')"
-            :error="recipientError"
-          />
-          <div
-            v-if="recipientLooksCapsule && !recipientError"
-            class="capsule-input-status"
-            :data-busy="transfer.busy || undefined"
-            role="status"
-          >
-            <span class="capsule-input-status__icon" aria-hidden="true">
-              <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
-            </span>
-            {{ mode === 'cross' ? wt('w218') : transfer.busy ? wt('w219') : wt('w220') }}
+          <div class="send-recipient">
+            <FormField
+              id="send-recipient"
+              v-model="recipient"
+              :label="mode === 'cross' ? wt('w216') : wt('w144')"
+              :placeholder="mode === 'cross' ? '0x…' : wt('w217')"
+              :error="recipientError"
+              :spellcheck="false"
+            >
+              <template #feedback>
+                <div
+                  v-if="recipientLooksCapsule && !recipientError"
+                  class="capsule-input-status"
+                  :data-busy="transfer.busy || undefined"
+                  role="status"
+                >
+                  <span class="capsule-input-status__icon" aria-hidden="true">
+                    <ShieldCheck v-if="!transfer.busy" :size="15" weight="fill" />
+                  </span>
+                  {{ mode === 'cross' ? wt('w218') : transfer.busy ? wt('w219') : wt('w220') }}
+                </div>
+              </template>
+            </FormField>
           </div>
         </section>
         <section class="send-panel send-payment" aria-labelledby="send-payment-heading">
@@ -259,8 +265,8 @@ function startAnother(): void {
               :label="wt('w221')"
               :currency="currency"
               placeholder="0.00"
-              :error="amountError"
-              :described-by="balanceIssue ? 'send-amount-balance' : undefined"
+              :invalid="Boolean(amountError)"
+              :described-by="amountError ? 'send-amount-error' : balanceIssue ? 'send-amount-balance' : undefined"
             />
             <div class="send-available">
               <span v-if="balanceIssue" id="send-amount-balance" class="send-balance-shortfall" role="status">
@@ -280,14 +286,6 @@ function startAnother(): void {
               </span>
             </div>
           </div>
-          <InlineNotice
-            v-if="composeIssue"
-            class="transfer-error-notice"
-            :title="composeIssue.title"
-            :tone="composeIssue.tone"
-          >
-            {{ composeIssue.message }}
-          </InlineNotice>
           <AppButton
             class="send-review-button"
             type="submit"
@@ -296,8 +294,19 @@ function startAnother(): void {
           >
             {{ wt('w225') }} <template #icon><ArrowRight :size="16" aria-hidden="true" /></template>
           </AppButton>
+          <p v-if="amountError" id="send-amount-error" class="send-amount-error" role="alert">
+            {{ amountError }}
+          </p>
         </section>
       </div>
+      <InlineNotice
+        v-if="composeIssue"
+        class="transfer-error-notice"
+        :title="composeIssue.title"
+        :tone="composeIssue.tone"
+      >
+        {{ composeIssue.message }}
+      </InlineNotice>
     </form>
 
     <section v-else-if="transfer.stage === 'review' && transfer.review" class="review-plane">
@@ -401,6 +410,7 @@ function startAnother(): void {
   container-type: inline-size;
 }
 .send-form {
+  --send-feedback-height: 2.25rem;
   display: grid;
   border: 1px solid var(--hairline);
   border-radius: 16px;
@@ -416,11 +426,13 @@ function startAnother(): void {
 .send-compose {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto auto auto minmax(var(--send-feedback-height), auto);
+  row-gap: 8px;
 }
 .send-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
   min-width: 0;
   padding: 12px 24px 16px;
 }
@@ -447,6 +459,15 @@ function startAnother(): void {
 .send-panel-heading .wallet-figure {
   width: 80px;
 }
+.send-recipient,
+.send-recipient :deep(.form-field) {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+}
+.send-recipient :deep(label) {
+  align-self: center;
+}
 .send-payment :deep(.form-field__control) {
   min-height: 56px;
 }
@@ -458,18 +479,19 @@ function startAnother(): void {
 }
 .send-amount-group {
   display: grid;
-  gap: 8px;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
 }
 .send-amount-group[data-shortfall] :deep(.form-field__control:not(:focus-within)) {
   border-color: color-mix(in srgb, var(--warning) 55%, var(--border-strong));
 }
 .send-available {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  justify-content: space-between;
-  min-height: 24px;
-  gap: 4px 10px;
+  align-self: center;
+  min-block-size: 24px;
+  gap: 10px;
   font-size: 0.75rem;
   color: var(--text-muted);
 }
@@ -492,6 +514,12 @@ function startAnother(): void {
   gap: 4px 6px;
   margin-inline-start: auto;
 }
+.send-amount-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
 .send-available strong {
   color: var(--text);
   font-weight: 500;
@@ -502,11 +530,9 @@ function startAnother(): void {
   color: var(--text-muted);
   font-size: 0.75rem;
 }
-.send-review-button {
-  margin-block-start: auto;
-}
 #app .send-review-button {
-  align-self: flex-end;
+  align-self: end;
+  justify-self: end;
   min-height: 44px;
   padding: 0.6rem 1.125rem;
   border: 0;
@@ -527,9 +553,25 @@ function startAnother(): void {
     background: var(--action-primary-hover);
   }
 }
+.send-form > .transfer-error-notice {
+  margin: 0 24px 16px;
+}
+@container (641px <= width <= 800px) or (width <= 420px) {
+  .send-form {
+    --send-feedback-height: 3.3rem;
+  }
+  .send-available {
+    min-block-size: 36px;
+  }
+  .send-available-total {
+    gap: 0 6px;
+    max-inline-size: 112px;
+    justify-content: flex-end;
+  }
+}
 @container (max-width: 640px) {
   .send-compose {
-    grid-template-columns: 1fr;
+    display: block;
   }
   .send-panel + .send-panel {
     border-left: 0;
@@ -537,7 +579,15 @@ function startAnother(): void {
   }
   .send-panel {
     padding: 12px 16px 20px;
-    gap: 16px;
+    grid-template-rows: none;
+    row-gap: 12px;
+  }
+  .send-recipient :deep(.form-field) {
+    grid-template-rows: auto auto minmax(var(--send-feedback-height), auto);
+    row-gap: 8px;
+  }
+  .send-payment {
+    grid-template-rows: auto auto auto auto minmax(var(--send-feedback-height), auto);
   }
   .send-panel-heading {
     min-height: 64px;
@@ -545,22 +595,25 @@ function startAnother(): void {
   .send-panel-heading .wallet-figure {
     width: 80px;
   }
-  .send-review-button {
+  #app .send-review-button {
     width: 100%;
+  }
+  .send-form > .transfer-error-notice {
+    margin-inline: 16px;
   }
 }
 .capsule-input-status {
   display: flex;
-  align-items: center;
-  min-height: 24px;
+  align-items: flex-start;
   gap: 0.48rem;
-  margin-top: -0.55rem;
+  overflow-wrap: anywhere;
   color: var(--text-muted);
   font-size: 0.72rem;
   line-height: 1.45;
 }
 .capsule-input-status__icon {
   display: grid;
+  flex: none;
   width: 16px;
   height: 16px;
   color: var(--accent);

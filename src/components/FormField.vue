@@ -60,6 +60,7 @@ defineExpose({ focus })
     </div>
     <p v-if="help" :id="`${id}-help`" class="form-field__help">{{ help }}</p>
     <p v-if="error" :id="`${id}-error`" class="form-field__error" role="alert">{{ wl(error) }}</p>
+    <slot name="feedback" />
   </div>
 </template>
 
