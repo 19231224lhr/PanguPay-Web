@@ -486,4 +486,42 @@ describe('transfer submission workflow', () => {
       isTransferSubmissionRejectedError,
     )
   })
+
+  it.each([408, 500, 502, 503, 504])(
+    'keeps submission outcome open after HTTP %s',
+    async (status) => {
+      const error = new GatewayRequestError(status, 'Relay did not return a receipt')
+      const gateway = {
+        submitNoGroupTransaction: vi.fn(),
+        submitAssignTransaction: vi.fn().mockRejectedValue(error),
+      }
+
+      await expect(submitBuiltTransfer(gateway, built('assign'))).rejects.toBe(error)
+    },
+  )
+
+  it('keeps submission outcome open when the response has no usable receipt', async () => {
+    const gateway = {
+      submitNoGroupTransaction: vi.fn(),
+      submitAssignTransaction: vi.fn().mockResolvedValue('Proxy response without a receipt'),
+    }
+
+    await expect(submitBuiltTransfer(gateway, built('assign'))).rejects.not.toSatisfy(
+      isTransferSubmissionRejectedError,
+    )
+  })
+
+  it('allows a retail retry when address authorization failed before sending', async () => {
+    const gateway = {
+      submitNoGroupTransaction: vi.fn(),
+      submitAssignTransaction: vi.fn(),
+    }
+
+    await expect(
+      submitBuiltTransfer(gateway, built('retail'), {
+        beforeRetailSubmit: async () => { throw new TypeError('network failed before send') },
+      }),
+    ).rejects.toSatisfy(isTransferSubmissionRejectedError)
+    expect(gateway.submitNoGroupTransaction).not.toHaveBeenCalled()
+  })
 })

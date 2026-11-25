@@ -59,7 +59,9 @@ it('advances the open result from Assign confirmation to certified settlement de
     submissionKind: 'assign', groupID: '10000000', coinType: 0, inputIDs: ['source-output'],
     updatedAt: Date.now(),
   })
-  transfer.review = { draftID: txID, mode: 'quick', membership: 'member', built: {} } as TransferReview
+  transfer.review = {
+    draftID: txID, mode: 'quick', membership: 'member', built: { inputIDs: ['source-output'] },
+  } as TransferReview
   transfer.stage = 'review'
 
   await transfer.submit()

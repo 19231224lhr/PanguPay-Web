@@ -431,7 +431,7 @@ function assertSubmissionAccepted(response: unknown): void {
       status,
     )
   )
-    throw new TransferSubmissionRejectedError(wt('w488'))
+    throw new Error(wt('w488'))
 }
 
 export function gqncCertifiedHeight(value: unknown): number {
@@ -495,18 +495,29 @@ export async function submitBuiltTransfer(
   built: BuiltTransferTransaction,
   options: TransferSubmissionOptions = {},
 ): Promise<TransferSubmissionReceipt> {
+  if (built.submission.kind === 'retail' && options.beforeRetailSubmit) {
+    try {
+      await options.beforeRetailSubmit()
+    } catch (cause) {
+      // The transaction has not been sent, so the signed review can be retried.
+      throw new TransferSubmissionRejectedError(cause instanceof Error ? cause.message : wt('w441'))
+    }
+  }
   let response: unknown
   try {
-    if (built.submission.kind === 'retail') await options.beforeRetailSubmit?.()
     response =
       built.submission.kind === 'retail'
         ? await gateway.submitNoGroupTransaction(built.submission.body)
         : await gateway.submitAssignTransaction(built.submission.groupID, built.submission.body)
   } catch (cause) {
-    if (cause instanceof GatewayRequestError)
-      throw new TransferSubmissionRejectedError(
-        submissionError(record(cause.body)) || cause.message,
-      )
+    // A relay can time out or fail after the node has already accepted the transaction.
+    if (
+      cause instanceof GatewayRequestError &&
+      cause.status >= 400 &&
+      cause.status < 500 &&
+      cause.status !== 408
+    )
+      throw new TransferSubmissionRejectedError(submissionError(record(cause.body)))
     throw cause
   }
   assertSubmissionAccepted(response)

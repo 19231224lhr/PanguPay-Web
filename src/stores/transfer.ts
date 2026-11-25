@@ -592,17 +592,32 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   async function submit(): Promise<void> {
-    await synchronizeHistory(true)
+    if (busy.value) return
     const value = review.value
     if (!value || stage.value !== 'review') throw new Error('没有等待审核的交易。')
+    const accountID = wallet.accountId
     busy.value = true
     error.value = ''
-    currentProgress.value = recordTransferProgress(wallet.accountId, {
-      draftID: value.draftID,
-      phase: 'submitting',
-      updatedAt: Date.now(),
-    })
-    refreshHistory()
+    try {
+      await synchronizeHistory(true)
+      if (review.value !== value || stage.value !== 'review' || wallet.accountId !== accountID) {
+        busy.value = false
+        return
+      }
+      // A definitive rejection releases the prior reservation. Reserve again before retrying.
+      reserveTransferInputs(accountID, value.draftID, value.built.inputIDs)
+      currentProgress.value = recordTransferProgress(accountID, {
+        draftID: value.draftID,
+        phase: 'submitting',
+        error: undefined,
+        updatedAt: Date.now(),
+      })
+      refreshHistory()
+    } catch (cause) {
+      error.value = humanize(cause)
+      busy.value = false
+      throw cause
+    }
     try {
       await submitBuiltTransfer(gateway.value, value.built, {
         beforeRetailSubmit:
