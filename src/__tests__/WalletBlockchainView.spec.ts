@@ -112,6 +112,9 @@ it('finds an older certified transaction by UTXO reference and highlights its ex
   const wrapper = mount(WalletBlockchainView, {
     global: { provide: { [walletNetworkKey as symbol]: network } },
   })
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
   try {
     await wrapper.get('#chain-transaction-query').setValue(`${txID} + 6`)
     await wrapper.get('.chain-lookup form').trigger('submit')
@@ -122,7 +125,16 @@ it('finds an older certified transaction by UTXO reference and highlights its ex
     expect(wrapper.get('.chain-lookup .wallet-pagination').text()).toContain('第 2 / 2 页')
     expect(wrapper.get('.chain-lookup').text()).toContain('#5')
     expect(mocks.block).toHaveBeenCalledWith(5)
+    const copy = wrapper.get('button[aria-label="复制 UTXO"]')
+    expect(copy.attributes('title')).toBe('复制 UTXO')
+    expect(copy.text()).toBe('')
+    await copy.trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(`${txID} + 6`)
+    expect(copy.attributes('title')).toBe('已复制')
   } finally {
+    if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard)
+    else Reflect.deleteProperty(navigator, 'clipboard')
     wrapper.unmount()
     network.dispose()
   }

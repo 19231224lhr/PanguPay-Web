@@ -229,14 +229,14 @@ onBeforeUnmount(() => {
         {{ wt(lookupStatusKey[lookupMessage]) }}
       </p>
       <div v-if="lookupResult && lookupReference" class="chain-lookup-result">
-        <div class="wallet-section__heading">
+        <div class="chain-lookup-result-heading">
           <h3>{{ selectedOutput ? 'UTXO' : wt('w234') }}</h3>
           <StatusLabel tone="success">{{ wt('chainLookupHeight', [lookupResult.block.height]) }}</StatusLabel>
         </div>
         <div class="chain-lookup-id">
           <code>{{ formatTransactionReference(lookupReference) }}</code>
           <WalletCopyButton
-            class="chain-lookup-copy"
+            icon-only
             :value="formatTransactionReference(lookupReference)"
             :label="selectedOutput ? 'UTXO' : wt('w234')"
           />
@@ -398,14 +398,20 @@ onBeforeUnmount(() => {
   font-size: 0.75rem;
 }
 .chain-ledger,
-.block-detail,
-.chain-lookup {
+.block-detail {
   display: grid;
   gap: 1rem;
 }
-.chain-lookup h2,
+.chain-lookup {
+  display: grid;
+  gap: 10px;
+}
+.chain-lookup > h2,
 .chain-lookup h3 {
   margin: 0;
+  font-size: 0.9rem;
+  font-weight: 620;
+  line-height: 1.4;
 }
 .chain-lookup form,
 .chain-lookup-id {
@@ -423,6 +429,13 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   background: var(--surface-subtle);
   color: var(--text);
+  font: 0.8rem/1.4 var(--font-mono);
+}
+.chain-lookup input::placeholder {
+  font-family: var(--font-sans);
+}
+.chain-lookup form .app-button {
+  font-size: 0.78rem;
 }
 .chain-lookup input:focus-visible,
 .block-transaction-link:focus-visible {
@@ -436,29 +449,22 @@ onBeforeUnmount(() => {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
 }
-.chain-lookup-result h3 {
-  font-size: 0.9rem;
+.chain-lookup-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chain-lookup-id {
+  padding-inline-start: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--selection-rail);
 }
 .chain-lookup-id code {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   overflow-wrap: anywhere;
-}
-.chain-lookup-copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 36px;
-  padding-inline: 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--wallet-selection-ink, var(--accent));
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.chain-lookup-copy:hover {
-  background: var(--surface-hover);
 }
 .block-transaction-link {
   padding: 4px 0;
