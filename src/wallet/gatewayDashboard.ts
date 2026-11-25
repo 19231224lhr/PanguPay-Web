@@ -5,6 +5,7 @@ import { blockedTXCerSourceOutputs, utxoSourceOutputKey } from '@/wallet/txcerLi
 import type { OrganizationSummary, WalletActivity, WalletCredentialSummary } from '@/wallet/types'
 
 import { certifiedGQNCTransactions } from '@/transfer/workflow'
+import { readTransactionConstruction } from '@/transfer/construction'
 
 type UnknownRecord = Record<string, unknown>
 const chainEpoch = Date.UTC(2020, 0, 1)
@@ -295,6 +296,7 @@ function receiveActivity(
       direction: 'in',
       status: 'settled',
       timestamp: chainEpoch + timestamp * 1_000,
+      construction: readTransactionConstruction(transaction),
     },
   ]
 }
@@ -308,7 +310,11 @@ export function mergeWalletActivities(...feeds: WalletActivity[][]): WalletActiv
     merged.set(
       item.id,
       current?.status === 'spend-ready' || current?.status === 'settled'
-        ? { ...item, timestamp: Math.min(current.timestamp, item.timestamp) }
+        ? {
+            ...item,
+            timestamp: Math.min(current.timestamp, item.timestamp),
+            construction: item.construction ?? current.construction,
+          }
         : item,
     )
   }

@@ -41,6 +41,7 @@ import {
 } from '@/transfer'
 import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
 import { resolveTransferRecipient } from '@/transfer/capsuleRecipient'
+import { readTransactionConstruction } from '@/transfer/construction'
 
 export type TransferStage = 'compose' | 'review' | 'result'
 
@@ -280,6 +281,10 @@ export const useTransferStore = defineStore('transfer', () => {
         amount: form.amount,
         recipient: recipient.address,
         sourceAddress: source,
+        construction: readTransactionConstruction(
+          built.tx,
+          selection.utxos.map((input) => input.amount),
+        ),
         inputIDs: built.inputIDs,
         groupID: snapshot.guarantorGroupID,
         submissionKind: built.submission.kind,

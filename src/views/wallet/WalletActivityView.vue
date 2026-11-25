@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import AnimatedNumber from '@/components/AnimatedNumber.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import { wCount, wt, wl, walletLocale } from '@/i18n/walletText'
@@ -10,6 +10,7 @@ import { PhArrowDownLeft, PhArrowUpRight, PhCaretDown as CaretDown, PhCheck } fr
 import ActivityProgress from '@/components/ActivityProgress.vue'
 import WalletCopyButton from '@/components/WalletCopyButton.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletTransactionConstruction from '@/components/WalletTransactionConstruction.vue'
 import {
   activityAssetSymbol as assetSymbol,
   useWalletActivities,
@@ -18,6 +19,12 @@ import {
 
 const activities = useWalletActivities()
 const phase = ref('all')
+const expanded = reactive(new Set<string>())
+
+function trackDisclosure(event: Event, id: string) {
+  if ((event.currentTarget as HTMLDetailsElement).open) expanded.add(id)
+  else expanded.delete(id)
+}
 function matchesPhase(item: ActivityRow, value: string) {
   if (value === 'all') return true
   if (value === 'failed') return item.phase === 'failed' || !!item.crossChainError
@@ -93,7 +100,7 @@ const statusTone = (item: ActivityRow) =>
         <p v-if="!filteredActivities.length" class="wallet-empty">{{ wt('motionEmpty') }}</p>
         <ol>
           <li v-for="item in filteredActivities" :key="item.id">
-            <details v-smooth-details>
+            <details v-smooth-details @toggle="trackDisclosure($event, item.id)">
               <summary class="activity-row">
                 <span class="wallet-record-icon activity-direction" aria-hidden="true">
                   <component :is="item.direction === 'out' ? PhArrowUpRight : PhArrowDownLeft" :size="19" />
@@ -120,6 +127,14 @@ const statusTone = (item: ActivityRow) =>
                   </dl>
                   <WalletCopyButton class="activity-id__copy" :value="item.txID" :label="wt('w10')" />
                 </div>
+                <WalletTransactionConstruction
+                  v-if="item.progress || item.construction"
+                  :active="expanded.has(item.id)"
+                  :asset="assetSymbol(item.coinType, item.asset)"
+                  :observed="item.construction"
+                  :progress="item.progress"
+                  :tx-id="item.txID"
+                />
                 <div v-if="item.progress" class="activity-timeline">
                   <h3>{{ wt('w303') }}</h3>
                   <ActivityProgress :progress="item.progress" />

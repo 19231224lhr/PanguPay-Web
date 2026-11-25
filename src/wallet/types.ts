@@ -1,3 +1,5 @@
+import type { TransactionConstruction } from '@/transfer/construction'
+
 export type WalletLifecycle = 'absent' | 'locked' | 'unlocked'
 
 export interface WalletAddressRecord {
@@ -90,6 +92,7 @@ export interface WalletActivity {
   direction: 'in' | 'out'
   status: string
   timestamp: number
+  construction?: TransactionConstruction
 }
 
 export interface OrganizationSummary {

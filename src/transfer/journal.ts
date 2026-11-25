@@ -1,4 +1,5 @@
 import type { TransferMode } from './core'
+import type { TransactionConstruction } from './construction'
 
 export type TransferPhase =
   | 'review'
@@ -30,6 +31,7 @@ export interface TransferProgress {
   amount: string
   recipient: string
   sourceAddress?: string
+  construction?: TransactionConstruction
   inputIDs?: string[]
   groupID?: string
   submissionKind?: 'assign' | 'retail'
