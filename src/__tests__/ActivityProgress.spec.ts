@@ -35,7 +35,7 @@ describe('ActivityProgress', () => {
     expect(wrapper.text()).toContain('登记确认耗时 60 ms')
     expect(wrapper.get('[data-activity-step="organization"]').text()).toContain('TXCer 登记时间')
     expect(wrapper.get('[data-activity-step="received"]').text()).toContain('入口接收时间')
-    expect(wrapper.text()).toContain('收款方可用时间未回传')
+    expect(wrapper.find('[data-activity-step="recipient-ready"]').exists()).toBe(false)
     expect(wrapper.findAll('[data-activity-step]')[0]?.attributes('data-state')).toBe('complete')
   })
   it('does not manufacture recipient time from settlement', () => {
@@ -47,11 +47,10 @@ describe('ActivityProgress', () => {
         }),
       },
     })
-    expect(wrapper.text()).toContain('收款方可用时间未回传')
-    expect(wrapper.get('[data-activity-step="settlement"]').text()).toContain('本机观察到结算的时间')
-    expect(wrapper.findAll('[data-activity-step]')[3]?.attributes('data-state')).not.toBe(
-      'complete',
-    )
+    expect(wrapper.find('[data-activity-step="recipient-ready"]').exists()).toBe(false)
+    const settlement = wrapper.get('[data-activity-step="settlement"]')
+    expect(settlement.text()).toContain('本机观察到结算的时间')
+    expect(settlement.attributes('data-state')).toBe('complete')
   })
   it('renders recorded spend-readiness and its elapsed time', () => {
     const wrapper = mount(ActivityProgress, {
@@ -64,7 +63,9 @@ describe('ActivityProgress', () => {
       },
     })
     expect(wrapper.text()).toContain('100 ms')
-    expect(wrapper.text()).not.toContain('收款方可用时间未回传')
+    const ready = wrapper.get('[data-activity-step="recipient-ready"]')
+    expect(ready.attributes('data-state')).toBe('complete')
+    expect(ready.text()).toContain('收款方可用时间')
   })
   it('keeps opaque backend activity opaque', () => {
     const wrapper = mount(ActivityProgress, { props: { status: 'Confirmed' } })
@@ -89,7 +90,7 @@ describe('ActivityProgress', () => {
 })
 
 it.each(['registered', 'settled'] as const)(
-  'shows missing recipient evidence as unknown for %s',
+  'omits the optional recipient milestone when evidence is missing for %s',
   (phase) => {
     const wrapper = mount(ActivityProgress, {
       props: {
@@ -100,9 +101,7 @@ it.each(['registered', 'settled'] as const)(
         }),
       },
     })
-    const recipient = wrapper.findAll('[data-activity-step]')[3]!
-    expect(recipient.attributes('data-state')).toBe('unknown')
-    expect(recipient.text()).toContain('收款方可用（未确认）')
+    expect(wrapper.find('[data-activity-step="recipient-ready"]').exists()).toBe(false)
     expect(wrapper.text().includes('共识阶段耗时 66 ms')).toBe(phase === 'settled')
     expect(wrapper.text()).not.toContain('结算耗时')
   },

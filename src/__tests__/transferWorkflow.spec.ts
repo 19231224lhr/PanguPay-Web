@@ -193,7 +193,7 @@ describe('transfer submission workflow', () => {
     expect(schedulerDAGFailure(receipts)).toBe('normal input UTXO not found')
   })
 
-  it('compresses scheduler receipts into five user-facing milestones', () => {
+  it('shows four quick-transfer milestones when spend-readiness is unknown', () => {
     const timeline = buildTransferTimeline({
       draftID: 'draft-1',
       txID: 'a'.repeat(64),
@@ -249,19 +249,17 @@ describe('transfer submission workflow', () => {
       ],
     })
 
-    expect(timeline).toHaveLength(5)
+    expect(timeline).toHaveLength(4)
     expect(timeline.map((item) => item.label)).toEqual([
       '交易已接收',
       '担保验证',
       '组织确认',
-      '收款方可用（未确认）',
       '后台结算',
     ])
     expect(timeline.map((item) => item.state)).toEqual([
       'complete',
       'complete',
       'active',
-      'unknown',
       'pending',
     ])
   })
@@ -280,11 +278,11 @@ describe('transfer submission workflow', () => {
     }
     const aggregated = buildTransferTimeline(progress)
     expect(aggregated.map(item => item.state)).toEqual([
-      'complete', 'complete', 'complete', 'unknown', 'active',
+      'complete', 'complete', 'complete', 'active',
     ])
     const settled = buildTransferTimeline({ ...progress, phase: 'settled', settledAt: 97_000 })
     expect(settled.find(item => item.id === 'settlement')?.state).toBe('complete')
-    expect(settled.find(item => item.id === 'recipient-ready')?.state).toBe('unknown')
+    expect(settled.find(item => item.id === 'recipient-ready')).toBeUndefined()
   })
 
   it('shows only the authoritative backend spend-ready time', () => {

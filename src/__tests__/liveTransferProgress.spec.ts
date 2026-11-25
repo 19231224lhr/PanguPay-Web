@@ -74,7 +74,7 @@ it('advances the open result from Assign confirmation to certified settlement de
     const result = wrapper.get('.result-plane')
     expect(result.text()).toContain('快速转账处理中')
     expect(result.findAll('.timeline__item--complete').map(item => item.get('strong').text())).toContain('组织确认')
-    expect(result.get('.timeline__item--unknown').text()).toContain('收款方可用（未确认）')
+    expect(result.text()).not.toContain('收款方可用')
 
     certifiedHeight = 24
     await vi.advanceTimersByTimeAsync(2_500)

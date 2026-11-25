@@ -383,34 +383,22 @@ export function buildTransferTimeline(progress?: TransferProgress): TransferTime
             ? 'active'
             : 'pending',
     },
-    {
-      id: 'recipient-ready',
-      label: isQuick ? (spendReady ? wt('w436') : wt('w477')) : wt('w478'),
-      detail: isQuick
-        ? spendReady
-          ? wt('w479')
-          : settled
-            ? wt('w480')
-            : progress?.registeredAt
-              ? wt('w481')
-              : wt('w482')
-        : settled
-          ? wt('w483')
-          : wt('w484'),
-      meta: isQuick && spendReady ? spendReadyTiming : undefined,
-      state:
-        failed && !guaranteeFailed && !organizationFailed
-          ? 'error'
-          : isQuick
-            ? spendReady
-              ? 'complete'
-              : 'unknown'
-            : settled
-              ? 'complete'
-              : organizationComplete
-                ? 'active'
-                : 'pending',
-    },
+    ...(!isQuick || spendReady
+      ? [{
+          id: 'recipient-ready',
+          label: isQuick ? wt('w436') : wt('w478'),
+          detail: isQuick ? wt('w479') : settled ? wt('w483') : wt('w484'),
+          meta: isQuick ? spendReadyTiming : undefined,
+          state:
+            failed && !guaranteeFailed && !organizationFailed
+              ? 'error'
+              : isQuick || settled
+                ? 'complete'
+                : organizationComplete
+                  ? 'active'
+                  : 'pending',
+        } satisfies TransferTimelineItem]
+      : []),
     {
       id: 'settlement',
       label: wt('w485'),

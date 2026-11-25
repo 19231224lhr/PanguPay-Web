@@ -45,15 +45,13 @@ const milestones = computed((): Partial<Record<string, { label: string; value: s
     }
   }
   if (p.mode === 'quick') {
+    const spendReadyAt = p.backendSpendReadyAt ?? p.spendReadyAt
     return {
       received,
       organization: [{ label: wt('w298'), value: formatTime(p.registeredAt) }],
-      'recipient-ready': [
-        {
-          label: wt('w299'),
-          value: p.spendReadyAt ? formatTime(p.backendSpendReadyAt ?? p.spendReadyAt) : wt('w300'),
-        },
-      ],
+      'recipient-ready': spendReadyAt
+        ? [{ label: wt('w299'), value: formatTime(spendReadyAt) }]
+        : undefined,
       settlement,
     }
   }

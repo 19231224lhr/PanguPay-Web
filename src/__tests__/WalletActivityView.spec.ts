@@ -42,7 +42,7 @@ it('passes the full journal milestones from activity rows into the shared timeli
   expect(wrapper.text()).toContain('TXCer 已登记')
   expect(wrapper.text()).toContain('登记确认耗时 60 ms')
   expect(wrapper.text()).toContain('入口接收时间')
-  expect(wrapper.text()).toContain('收款方可用时间未回传')
+  expect(wrapper.text()).not.toContain('收款方可用')
   expect(wrapper.findAll('[data-activity-step]')[0]?.attributes('data-state')).toBe('complete')
 })
 

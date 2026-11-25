@@ -80,8 +80,7 @@ it('switches activity phases and date formats without changing transaction data'
   i18n.global.locale.value = 'en-US'
   await nextTick()
   expect(wrapper.text()).toContain('Registration duration 60 ms')
-  expect(wrapper.text()).toContain('Recipient availability (unconfirmed)')
-  expect(wrapper.text()).toContain('Not reported')
+  expect(wrapper.text()).not.toContain('Recipient availability (unconfirmed)')
   expect(wrapper.text()).not.toMatch(/[\u3400-\u9fff]/u)
   expect(wrapper.text()).toContain('b'.repeat(64))
   wrapper.unmount()

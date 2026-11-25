@@ -26,7 +26,7 @@ it('persists registration, advances organization progress, and resumes settlemen
   const timeline = buildTransferTimeline(progress)
   expect(timeline.find((s) => s.id === 'organization')).toMatchObject({ state: 'complete' })
   expect(timeline.find((s) => s.id === 'organization')?.meta).toContain('60 ms')
-  expect(timeline.find((s) => s.id === 'recipient-ready')?.state).not.toBe('complete')
+  expect(timeline.find((s) => s.id === 'recipient-ready')).toBeUndefined()
   expect(timeline.find((s) => s.id === 'settlement')?.state).toBe('active')
   expect(transferResultTitle('quick', progress.phase)).toContain('TXCer')
   const settled = recordTransferProgress('test', {
