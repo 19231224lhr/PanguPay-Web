@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { wt, wl } from '@/i18n/walletText'
+import { wt } from '@/i18n/walletText'
 
 import {
   PhArrowLeft as ArrowLeft,
@@ -9,7 +9,7 @@ import {
   PhPaperPlaneTilt as PaperPlaneTilt,
   PhShieldCheck as ShieldCheck,
 } from '@phosphor-icons/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import AmountField from '@/components/AmountField.vue'
 import AppButton from '@/components/AppButton.vue'
@@ -21,6 +21,7 @@ import ProgressTimeline from '@/components/ProgressTimeline.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
 import WalletPaymentFigure from '@/components/WalletPaymentFigure.vue'
+import { AMOUNT_SCALE, parseAmount } from '@/protocol-v2/amount'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useTransferStore } from '@/stores/transfer'
 import { useWalletStore } from '@/stores/wallet'
@@ -39,6 +40,8 @@ const mode = ref<TransferMode>('quick')
 const source = ref(wallet.addresses[0]?.address ?? '')
 const recipient = ref('')
 const amount = ref('')
+const composeForm = ref<HTMLFormElement>()
+const validateFields = ref(false)
 
 const sourceRecord = computed(() => wallet.addresses.find((item) => item.address === source.value))
 const coinType = computed(() => Number(sourceRecord.value?.type ?? 0))
@@ -71,11 +74,46 @@ const transferIssue = computed(() =>
   transfer.error ? describeTransferIssue(transfer.error) : undefined,
 )
 const recipientLooksCapsule = computed(() => recipient.value.trim().includes('@'))
+const recipientError = computed(() => {
+  if (validateFields.value) {
+    const value = recipient.value.trim()
+    if (mode.value === 'cross' && !/^0x[0-9a-f]{40}$/i.test(value)) return wt('w402')
+    if (mode.value !== 'cross' && !recipientLooksCapsule.value && !/^[0-9a-f]{40}$/i.test(value))
+      return wt('transferRecipientFormat')
+  }
+  if (transferIssue.value?.code === 'recipient-invalid')
+    return mode.value === 'cross' ? wt('w402') : wt('transferRecipientFormat')
+  return ''
+})
+const amountError = computed(() => {
+  if (validateFields.value) {
+    try {
+      const units = parseAmount(amount.value)
+      if (units <= 0n) return wt('w406')
+      if (mode.value === 'cross' && units % AMOUNT_SCALE !== 0n) return wt('w404')
+    } catch {
+      return wt('w406')
+    }
+  }
+  return transferIssue.value?.code === 'amount-invalid' ? transferIssue.value.message : ''
+})
+const composeIssue = computed(() =>
+  recipientError.value || amountError.value ? undefined : transferIssue.value,
+)
 
 const timeline = computed(() => buildTransferTimeline(transfer.currentProgress))
-const resultTitle = computed(() =>
-  transferResultTitle(transfer.review?.mode ?? mode.value, transfer.currentProgress?.phase),
+const resultFailed = computed(() => {
+  const progress = transfer.currentProgress
+  return progress?.phase === 'failed' || (progress?.phase !== 'settled' && Boolean(progress?.crossChainError))
+})
+const checkingSubmission = computed(() =>
+  transfer.currentProgress?.phase === 'submitting' && Boolean(transfer.currentProgress.error),
 )
+const resultTitle = computed(() => {
+  if (resultFailed.value) return wt(transfer.currentProgress?.crossChainError ? 'w428' : 'w314')
+  if (checkingSubmission.value) return wt('transferCheckingSubmission')
+  return transferResultTitle(transfer.review?.mode ?? mode.value, transfer.currentProgress?.phase)
+})
 
 watch(
   isMember,
@@ -87,7 +125,20 @@ watch(
 
 watch([mode, source, recipient, amount], () => transfer.dismissError())
 
+async function focusInvalidField(): Promise<void> {
+  await nextTick()
+  composeForm.value?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus()
+}
+
 async function prepareReview(): Promise<void> {
+  if (transfer.busy) return
+  transfer.dismissError()
+  validateFields.value = true
+  if (recipientError.value || amountError.value) {
+    await focusInvalidField()
+    return
+  }
+  validateFields.value = false
   try {
     await transfer.prepare({
       mode: mode.value,
@@ -97,7 +148,7 @@ async function prepareReview(): Promise<void> {
       coinType: coinType.value,
     })
   } catch {
-    // The store exposes a stable user-facing message.
+    if (recipientError.value || amountError.value) await focusInvalidField()
   }
 }
 
@@ -111,6 +162,7 @@ async function submit(): Promise<void> {
 
 function startAnother(): void {
   transfer.startAnother()
+  validateFields.value = false
   recipient.value = ''
   amount.value = ''
 }
@@ -129,7 +181,12 @@ function startAnother(): void {
       "
     ><slot name="header-action" /></WalletPageHeader>
 
-    <form v-if="transfer.stage === 'compose'" class="send-form" @submit.prevent="prepareReview">
+    <form
+      v-if="transfer.stage === 'compose'"
+      ref="composeForm"
+      class="send-form"
+      @submit.prevent="prepareReview"
+    >
       <div class="send-compose">
         <section class="send-panel send-addresses" aria-labelledby="send-address-heading">
           <header class="send-panel-heading">
@@ -160,9 +217,10 @@ function startAnother(): void {
             v-model="recipient"
             :label="mode === 'cross' ? wt('w216') : wt('w144')"
             :placeholder="mode === 'cross' ? '0x…' : wt('w217')"
+            :error="recipientError"
           />
           <div
-            v-if="recipientLooksCapsule"
+            v-if="recipientLooksCapsule && !recipientError"
             class="capsule-input-status"
             :data-busy="transfer.busy || undefined"
             role="status"
@@ -187,6 +245,7 @@ function startAnother(): void {
             :label="wt('w221')"
             :currency="asset?.symbol ?? 'CAL'"
             placeholder="0.00"
+            :error="amountError"
           />
           <div class="send-available">
             <span>{{ wt('refinement56') }}</span
@@ -194,25 +253,24 @@ function startAnother(): void {
               >{{ available }} <small>{{ asset?.symbol ?? 'CAL' }}</small></strong
             >
           </div>
+          <InlineNotice
+            v-if="composeIssue"
+            class="transfer-error-notice"
+            :title="composeIssue.title"
+            :tone="composeIssue.tone"
+          >
+            {{ composeIssue.message }}
+          </InlineNotice>
           <AppButton
             class="send-review-button"
             type="submit"
             :title="wt('refinement57')"
             :loading="transfer.busy"
-            :status="transfer.error ? 'error' : 'idle'"
           >
             {{ wt('w225') }} <template #icon><ArrowRight :size="16" aria-hidden="true" /></template>
           </AppButton>
         </section>
       </div>
-      <InlineNotice
-        v-if="transferIssue"
-        class="transfer-error-notice"
-        :title="wl(transferIssue.title)"
-        tone="danger"
-      >
-        {{ wl(transferIssue.message) }}
-      </InlineNotice>
     </form>
 
     <section v-else-if="transfer.stage === 'review' && transfer.review" class="review-plane">
@@ -260,36 +318,38 @@ function startAnother(): void {
           <dd class="mono">{{ transfer.review.built.txID }}</dd>
         </div>
       </dl>
+      <InlineNotice
+        v-if="transferIssue"
+        class="transfer-error-notice"
+        :title="transferIssue.code === 'unknown' ? wt('w418') : transferIssue.title"
+        :tone="transferIssue.tone"
+      >
+        {{ transferIssue.message }}
+      </InlineNotice>
       <div class="review-actions">
         <AppButton variant="secondary" :disabled="transfer.busy" @click="transfer.cancelReview">
           <ArrowLeft :size="18" /> {{ wt('w235') }}
         </AppButton>
         <AppButton
           :loading="transfer.busy"
-          :status="transfer.error ? 'error' : 'idle'"
           @click="submit"
         >
           <PaperPlaneTilt :size="18" /> {{ wt('w236') }}
         </AppButton>
       </div>
-      <InlineNotice
-        v-if="transferIssue"
-        class="transfer-error-notice"
-        :title="wl(transferIssue.title)"
-        tone="danger"
-      >
-        {{ wl(transferIssue.message) }}
-      </InlineNotice>
     </section>
 
     <section v-else-if="transfer.stage === 'result' && transfer.review" class="result-plane">
       <header class="result-heading">
         <CheckCircle v-if="transfer.currentProgress?.phase === 'settled'" class="result-success" :size="30" weight="fill" aria-hidden="true" />
-        <WarningCircle v-else-if="transfer.currentProgress?.phase === 'failed'" class="result-error" :size="30" aria-hidden="true" />
+        <span v-else-if="resultFailed" class="result-error" aria-hidden="true">
+          <WarningCircle :size="20" />
+        </span>
         <CurveMark v-else class="result-wait" variant="link" :size="30" />
         <div role="status">
           <h2>{{ resultTitle }}</h2>
           <p class="mono">{{ transfer.review.built.txID }}</p>
+          <p v-if="checkingSubmission" class="result-status-detail">{{ wt('w515') }}</p>
         </div>
       </header>
       <div class="result-body">
@@ -387,7 +447,6 @@ function startAnother(): void {
   color: var(--text-muted);
   font-size: 0.75rem;
 }
-.send-addresses > .form-field,
 .send-review-button {
   margin-block-start: auto;
 }
@@ -412,9 +471,6 @@ function startAnother(): void {
   #app .send-review-button:hover:not(:disabled) {
     background: var(--action-primary-hover);
   }
-}
-.send-form > .transfer-error-notice {
-  margin: 0 24px 20px;
 }
 @container (max-width: 640px) {
   .send-compose {
@@ -464,25 +520,29 @@ function startAnother(): void {
 .send-page :deep(.transfer-error-notice.inline-notice) {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
+  gap: 10px;
   min-height: auto;
-  padding: 0.95rem 1rem;
-  border-color: color-mix(in srgb, var(--danger) 18%, transparent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--danger) 11%, var(--surface-raised)) 0%,
-    color-mix(in srgb, var(--danger) 5%, var(--surface)) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
-    0 18px 42px -34px color-mix(in srgb, var(--danger) 46%, transparent);
-  backdrop-filter: blur(18px) saturate(112%);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--notice-color) 5%, var(--send-surface));
 }
 .send-page :deep(.transfer-error-notice .inline-notice__icon) {
-  padding: 0.34rem;
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  width: 16px;
+  height: 16px;
+  padding: 4px;
 }
-.send-page :deep(.transfer-error-notice .inline-notice__title) {
-  color: color-mix(in srgb, var(--danger) 70%, var(--text));
+.send-page :deep(.transfer-error-notice .inline-notice__body) {
+  overflow-wrap: anywhere;
+}
+.send-page :deep(.form-field--error .form-field__control) {
+  box-shadow: none;
+  animation: none;
+}
+.send-page :deep(.form-field--error .form-field__control:focus-within) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.send-page :deep(.form-field__error) {
+  padding-inline: 2px;
 }
 .review-plane,
 .result-plane {
@@ -564,6 +624,10 @@ function startAnother(): void {
   gap: 0.7rem;
 }
 .review-actions { justify-content: flex-end; }
+.review-plane > .transfer-error-notice {
+  width: min(100%, 38rem);
+  justify-self: end;
+}
 .result-actions { justify-content: flex-start; }
 .result-body {
   display: grid;
@@ -590,7 +654,16 @@ function startAnother(): void {
 .result-heading > svg { flex: none; color: var(--accent); }
 .result-heading > .result-wait { color: var(--text); }
 .result-heading > .result-success { color: var(--success); }
-.result-heading > .result-error { color: var(--danger); }
+.result-error {
+  display: inline-grid;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
 .result-heading h2 {
   margin: 0;
   font-size: 1.35rem;
@@ -601,6 +674,14 @@ function startAnother(): void {
   color: var(--text-muted);
   font-size: 0.72rem;
   overflow-wrap: anywhere;
+}
+.result-heading .result-status-detail {
+  max-width: 55ch;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.result-body :deep(.timeline__item--error strong) {
+  color: var(--danger);
 }
 @keyframes capsule-spin {
   to {

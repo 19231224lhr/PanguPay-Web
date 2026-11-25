@@ -83,7 +83,7 @@ const rules: TransferIssueRule[] = [
   },
   {
     pattern:
-      /invalid light-compute address|recipient is required|收款地址.*(无效|需要)|请输入有效的 0x/i,
+      /invalid light-compute address|recipient is required|收款地址.*(无效|需要)|请输入有效的\s*(0x|40\s*位地址)|胶囊地址(?:格式|校验和|载荷长度)无效|胶囊地址(?:签名验证|还原)失败/i,
     issue: {
       code: 'recipient-invalid',
       get message() {

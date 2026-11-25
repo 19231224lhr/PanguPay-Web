@@ -314,7 +314,6 @@
 @container (min-width: 641px) {
   #overview-send .send-panel { padding-block: 0; }
 }
-#overview-send .transfer-error-notice { margin: 16px 0 0; }
 .overview .overview-detail .wallet-refined > .wallet-section {
   background: transparent;
   border: 0;

@@ -412,6 +412,8 @@ export const walletText = {
   w215: 'Adresse source',
   w216: 'Adresse du destinataire sur le réseau de calcul léger',
   w217: 'Adresse brute de 40 caractères ou adresse capsule',
+  transferRecipientFormat: 'Saisissez une adresse brute valide de 40 caractères ou une adresse capsule.',
+  transferCheckingSubmission: 'Vérification de l’envoi en cours',
   w218: 'Utilisez une adresse brute pour les transferts interchaînes. Les adresses capsules ne sont pas prises en charge.',
   w219: 'Récupération des clés de signature et vérification de l’adresse capsule…',
   w220: 'La signature sera vérifiée et l’adresse sur la chaîne sera identifiée avant la vérification de la transaction.',

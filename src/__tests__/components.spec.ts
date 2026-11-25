@@ -15,6 +15,7 @@ import WalletAccessFrame from '@/components/WalletAccessFrame.vue'
 import WalletBalanceField from '@/components/WalletBalanceField.vue'
 import WalletReceiveView from '@/views/wallet/WalletReceiveView.vue'
 import WalletSendView from '@/views/wallet/WalletSendView.vue'
+import { useTransferStore } from '@/stores/transfer'
 
 describe('foundation components', () => {
   it('renders the original PanguPay silhouette as a current-color mask', () => {
@@ -200,6 +201,33 @@ describe('foundation components', () => {
 
     expect(wrapper.findComponent(AppSelect).exists()).toBe(true)
     expect(wrapper.find('.select-field').exists()).toBe(false)
+  })
+
+  it('places input errors next to their fields and reserves the warning card for service errors', async () => {
+    setActivePinia(createPinia())
+    const transfer = useTransferStore()
+    const prepare = vi.spyOn(transfer, 'prepare')
+    const wrapper = mount(WalletSendView, { global: { stubs: { WalletFigure: true, WalletPaymentFigure: true } } })
+    try {
+      await wrapper.get('form.send-form').trigger('submit')
+      expect(prepare).not.toHaveBeenCalled()
+      for (const field of ['send-recipient', 'send-amount']) {
+        const input = wrapper.get(`#${field}`)
+        expect(input.attributes('aria-invalid')).toBe('true')
+        expect(input.attributes('aria-describedby')).toBe(`${field}-error`)
+      }
+      expect(wrapper.find('.transfer-error-notice').exists()).toBe(false)
+      await wrapper.get('#send-recipient').setValue('a'.repeat(40))
+      await wrapper.get('#send-amount').setValue('1')
+      expect(wrapper.find('.form-field__error').exists()).toBe(false)
+
+      transfer.error = 'Failed to fetch'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.get('.transfer-error-notice').classes()).toContain('inline-notice--warning')
+      expect(wrapper.get('button[type="submit"]').attributes('data-state')).toBe('idle')
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('uses the shared select for receive addresses on the receive page', () => {

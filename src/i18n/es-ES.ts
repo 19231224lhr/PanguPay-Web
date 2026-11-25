@@ -401,6 +401,8 @@ export const walletText = {
   w215: 'Dirección de origen',
   w216: 'Dirección de destino en la red de cómputo ligero',
   w217: 'Dirección original de 40 caracteres o dirección cápsula',
+  transferRecipientFormat: 'Introduce una dirección original válida de 40 caracteres o una dirección cápsula.',
+  transferCheckingSubmission: 'Comprobando el estado del envío',
   w218: 'Las transferencias entre cadenas requieren una dirección original. Introduce una en lugar de la dirección cápsula.',
   w219: 'Obteniendo la clave pública de firma y verificando la dirección cápsula…',
   w220: 'Antes de la revisión se verificará la firma y se obtendrá la dirección de destino en la cadena.',

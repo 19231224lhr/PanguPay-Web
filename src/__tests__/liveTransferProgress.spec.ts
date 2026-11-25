@@ -83,6 +83,16 @@ it('advances the open result from Assign confirmation to certified settlement de
     expect(result.findAll('.timeline__item--complete').map(item => item.get('strong').text())).toContain('后台结算')
     expect(readCertifiedBlock.mock.calls[0]).toEqual([24])
     expect(transfer.currentProgress?.certifiedHeight).toBe(24)
+
+    const settledProgress = transfer.currentProgress!
+    transfer.currentProgress = { ...settledProgress, phase: 'submitting', error: 'outcome unknown' }
+    await nextTick()
+    expect(result.get('h2').text()).toBe('正在核对提交结果')
+    expect(result.get('.result-status-detail').text()).toContain('提交结果暂时未知')
+    transfer.currentProgress = { ...settledProgress, phase: 'failed' }
+    await nextTick()
+    expect(result.get('h2').text()).toBe('失败')
+    expect(result.find('.result-error').exists()).toBe(true)
   } finally {
     wrapper.unmount()
     vi.useRealTimers()
