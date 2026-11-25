@@ -8,7 +8,10 @@ import CredentialTrustPath from '@/components/CredentialTrustPath.vue'
 import ExposureShareBar from '@/components/ExposureShareBar.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletPagedRows from '@/components/WalletPagedRows.vue'
+import WalletPagination from '@/components/WalletPagination.vue'
 import WalletFigure from '@/components/WalletFigure.vue'
+import { useWalletPagination } from '@/composables/useWalletPagination'
 import { useDashboardStore } from '@/stores/dashboard'
 import { isActiveCredentialFailure } from '@/wallet/credentials'
 
@@ -34,6 +37,11 @@ const visibleCredentials = computed(() =>
     (item) => !selectedState.value || item.lifecycle === selectedState.value,
   ),
 )
+const { page: credentialPage, pageCount: credentialPages, items: credentialRows } =
+  useWalletPagination(visibleCredentials)
+const { page: addressPage, pageCount: addressPages, offset: addressOffset, items: addressRows } =
+  useWalletPagination(() => dashboard.current.addresses)
+watch(selectedState, () => (credentialPage.value = 1))
 </script>
 
 <template>
@@ -102,7 +110,7 @@ const visibleCredentials = computed(() =>
         <p>{{ wt('refinement50') }}</p>
       </div>
       <details
-        v-for="credential in visibleCredentials"
+        v-for="credential in credentialRows"
         v-else
         :key="credential.recordId || credential.txCerId"
         class="credential"
@@ -185,14 +193,24 @@ const visibleCredentials = computed(() =>
                 <dt>RecordID</dt>
                 <dd>{{ credential.recordId }}</dd>
               </div>
-              <div v-for="share in credential.exposureShares" :key="share.leafId">
-                <dt>{{ share.rootId }}</dt>
-                <dd>{{ share.amount }} CAL · {{ share.leafId }}</dd>
-              </div>
             </dl>
+            <WalletPagedRows
+              v-if="credential.exposureShares.length"
+              v-slot="{ rows }"
+              :items="credential.exposureShares"
+              :label="wt('w318')"
+            >
+              <dl class="wallet-detail-list">
+                <div v-for="share in rows" :key="share.leafId">
+                  <dt>{{ share.rootId }}</dt>
+                  <dd>{{ share.amount }} CAL · {{ share.leafId }}</dd>
+                </div>
+              </dl>
+            </WalletPagedRows>
           </details>
         </div>
       </details>
+      <WalletPagination v-model="credentialPage" :page-count="credentialPages" :label="wt('w194')" />
     </section>
     <section class="wallet-section security-addresses" aria-labelledby="security-addresses-heading">
       <div class="wallet-section__heading">
@@ -201,13 +219,13 @@ const visibleCredentials = computed(() =>
           >{{ dashboard.current.addresses.length }} {{ wCount('refinement2', dashboard.current.addresses.length) }}</span
         >
       </div>
-      <details v-for="(address, index) in dashboard.current.addresses" :key="address.address">
+      <details v-for="(address, index) in addressRows" :key="address.address">
         <summary class="security-record address-summary">
           <span class="wallet-record-icon" aria-hidden="true">
             <PhWallet :size="20" weight="duotone" />
           </span>
           <span class="security-record__identity">
-            <strong>{{ wt('w516', [index + 1]) }}</strong>
+            <strong>{{ wt('w516', [addressOffset + index + 1]) }}</strong>
             <code>{{
               address.address.length > 20
                 ? address.address.slice(0, 9) + '…' + address.address.slice(-7)
@@ -239,6 +257,7 @@ const visibleCredentials = computed(() =>
           </div>
         </dl>
       </details>
+      <WalletPagination v-model="addressPage" :page-count="addressPages" :label="wt('w203')" />
     </section>
     <details class="protocol-summary">
       <summary>{{ wt('w190') }} <PhCaretDown :size="12" aria-hidden="true" /></summary>

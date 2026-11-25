@@ -3,6 +3,7 @@ import { wt } from '@/i18n/walletText'
 
 import { computed } from 'vue'
 
+import WalletPagedRows from '@/components/WalletPagedRows.vue'
 import { parseAmount } from '@/protocol-v2'
 import type { WalletExposureShareSummary } from '@/wallet/types'
 
@@ -37,14 +38,16 @@ const short = (value: string) =>
         :style="`--share-weight: ${share.weight}`"
       />
     </div>
-    <ul>
-      <li v-for="share in normalized" :key="share.leafId">
-        <span v-if="normalized.length > 1" aria-hidden="true" />
-        <small v-else>{{ wt('w318') }}</small>
-        <b>{{ share.amount }} CAL</b>
-        <small :title="share.rootId">Root {{ short(share.rootId) }}</small>
-      </li>
-    </ul>
+    <WalletPagedRows v-slot="{ rows, offset }" :items="normalized" :label="wt('w318')">
+      <ul>
+        <li v-for="(share, index) in rows" :key="share.leafId" :data-share-tone="(offset + index) % 3">
+          <span v-if="normalized.length > 1" aria-hidden="true" />
+          <small v-else>{{ wt('w318') }}</small>
+          <b>{{ share.amount }} CAL</b>
+          <small :title="share.rootId">Root {{ short(share.rootId) }}</small>
+        </li>
+      </ul>
+    </WalletPagedRows>
   </section>
 </template>
 
@@ -100,11 +103,11 @@ const short = (value: string) =>
   background: var(--accent);
 }
 
-.exposure li:nth-child(3n + 2) > span {
+.exposure li[data-share-tone='1'] > span {
   background: color-mix(in srgb, var(--accent) 58%, var(--text));
 }
 
-.exposure li:nth-child(3n) > span {
+.exposure li[data-share-tone='2'] > span {
   background: color-mix(in srgb, var(--accent) 35%, var(--text-muted));
 }
 

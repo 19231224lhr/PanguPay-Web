@@ -16,6 +16,7 @@ import { routeLocationKey, routerKey } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import StatusLabel from '@/components/StatusLabel.vue'
 import WalletPageHeader from '@/components/WalletPageHeader.vue'
+import WalletPagedRows from '@/components/WalletPagedRows.vue'
 import WalletCopyButton from '@/components/WalletCopyButton.vue'
 import WalletTransactionConstruction from '@/components/WalletTransactionConstruction.vue'
 import { useWalletNetwork } from '@/composables/useWalletNetwork'
@@ -322,13 +323,21 @@ onBeforeUnmount(() => {
       </dl>
       <div class="block-transactions">
         <h3>{{ wt('w31') }}</h3>
-        <ol v-if="selected.transactionIds.length">
-          <li v-for="txID in selected.transactionIds" :key="txID">
-            <button class="block-transaction-link" type="button" @click="openBlockTransaction(txID, selected.height)">
-              {{ txID }}
-            </button>
-          </li>
-        </ol>
+        <WalletPagedRows
+          v-if="selected.transactionIds.length"
+          :key="selected.height"
+          v-slot="{ rows, offset }"
+          :items="selected.transactionIds"
+          :label="wt('w31')"
+        >
+          <ol :start="offset + 1">
+            <li v-for="txID in rows" :key="txID">
+              <button class="block-transaction-link" type="button" @click="openBlockTransaction(txID, selected.height)">
+                {{ txID }}
+              </button>
+            </li>
+          </ol>
+        </WalletPagedRows>
         <p v-else>{{ wt(selected.transactionCount ? 'w32' : 'chainBlockNoTransactions') }}</p>
       </div>
       <details v-if="selected.qcSigners.length" :key="selected.height" v-smooth-details>

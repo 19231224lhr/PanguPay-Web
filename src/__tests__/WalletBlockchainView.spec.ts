@@ -97,6 +97,7 @@ it('finds an older certified transaction by UTXO reference and highlights its ex
                 TXID: txID,
                 TXOutputs: [
                   { ToAddress: 'b'.repeat(40), ToValue: '1', Type: 0 },
+                  ...Array.from({ length: 5 }, () => ({ ToAddress: 'b'.repeat(40), ToValue: '2', Type: 0 })),
                   { ToAddress: address, ToValue: '99', Type: 0 },
                 ],
               }],
@@ -112,12 +113,13 @@ it('finds an older certified transaction by UTXO reference and highlights its ex
     global: { provide: { [walletNetworkKey as symbol]: network } },
   })
   try {
-    await wrapper.get('#chain-transaction-query').setValue(`${txID} + 1`)
+    await wrapper.get('#chain-transaction-query').setValue(`${txID} + 6`)
     await wrapper.get('.chain-lookup form').trigger('submit')
     await flushPromises()
     const output = wrapper.get('[data-highlighted-output]')
     expect(output.text()).toContain('99 CAL')
     expect(output.text()).toContain(address)
+    expect(wrapper.get('.chain-lookup .wallet-pagination').text()).toContain('第 2 / 2 页')
     expect(wrapper.get('.chain-lookup').text()).toContain('#5')
     expect(mocks.block).toHaveBeenCalledWith(5)
   } finally {

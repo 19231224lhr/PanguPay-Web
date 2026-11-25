@@ -27,6 +27,32 @@ describe('WalletAddressLedger', () => {
 
   afterEach(() => configureWalletEntryService(undefined))
 
+  it('opens a linked address on its own page without dropping the earlier addresses', async () => {
+    const addresses = Array.from({ length: 8 }, (_, index) => ({
+      address: String(index + 1).repeat(40),
+      type: '0',
+      root_seed: 'test-seed',
+    }))
+    useWalletStore().unlockedRecord = {
+      account_id: '12345678',
+      account_private_scalar: '01'.repeat(32),
+      addresses,
+    }
+    const wrapper = mount(WalletAddressLedger, {
+      props: { initialAddress: addresses[7]!.address },
+    })
+    try {
+      expect(wrapper.findAll('details.ledger-record')).toHaveLength(3)
+      expect(wrapper.get('details.ledger-record[open] summary').attributes('id')).toBe(
+        `receive-address-${addresses[7]!.address}`,
+      )
+      await wrapper.get('button[aria-label="上一页"]').trigger('click')
+      expect(wrapper.findAll('details.ledger-record')).toHaveLength(5)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('generates and registers an address without asking again for the wallet password', async () => {
     let resolveAddress!: (value: { address: string; type: string; root_seed: string }) => void
     const pendingAddress = new Promise<{ address: string; type: string; root_seed: string }>(

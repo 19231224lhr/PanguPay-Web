@@ -7,9 +7,10 @@ import {
   PhX as Close,
   PhWallet as Wallet,
 } from '@phosphor-icons/vue'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
+import { useWalletPagination } from '@/composables/useWalletPagination'
 import { addAmounts } from '@/protocol-v2/amount'
 import { GatewayClient } from '@/services/gatewayClient'
 import { buildWalletReOnlineMessage } from '@/services/walletEntryGateway'
@@ -23,8 +24,9 @@ import { getWalletEntryService } from '@/wallet/entryService'
 import { loadWalletSpendableSnapshot } from '@/wallet/spendable'
 import AppButton from './AppButton.vue'
 import WalletCopyButton from './WalletCopyButton.vue'
+import WalletPagination from './WalletPagination.vue'
 
-defineProps<{ initialAddress?: string }>()
+const props = defineProps<{ initialAddress?: string }>()
 
 const wallet = useWalletStore()
 const dashboard = useDashboardStore()
@@ -71,6 +73,12 @@ const rows = computed(() =>
 )
 
 const activeCount = computed(() => rows.value.filter((item) => !item.archived).length)
+const { page, pageCount, items: addressRows, goToIndex } = useWalletPagination(rows)
+watch(
+  () => rows.value.findIndex((row) => row.address === props.initialAddress),
+  goToIndex,
+  { immediate: true },
+)
 const selectedArchive = computed(() =>
   rows.value.find((item) => item.address === archiveAddress.value),
 )
@@ -151,6 +159,7 @@ async function createAddress(): Promise<void> {
     } finally {
       createdAddress.value = address.address
       creating.value = false
+      goToIndex(rows.value.findIndex((row) => row.address === address.address))
       await nextTick()
       ledger.value?.querySelector<HTMLElement>(`#receive-address-${address.address}`)?.focus()
     }
@@ -237,7 +246,7 @@ async function confirmArchive(): Promise<void> {
     <p v-if="!rows.length" class="ledger-empty">{{ wt('refinement3') }}</p>
     <div v-else class="address-table">
       <details
-        v-for="row in rows"
+        v-for="row in addressRows"
         :key="row.address"
         v-smooth-details
         class="ledger-record"
@@ -348,6 +357,7 @@ async function confirmArchive(): Promise<void> {
           </Transition>
         </div>
       </details>
+      <WalletPagination v-model="page" :page-count="pageCount" :label="wt('refinement1')" />
     </div>
 
     <p v-if="error" class="address-error" role="alert">{{ wl(error) }}</p>

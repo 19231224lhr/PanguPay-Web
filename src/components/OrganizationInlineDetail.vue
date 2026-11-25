@@ -3,6 +3,7 @@ import { groupedPledgeAmount } from '@/i18n/pledgeAmount'
 import { computed } from 'vue'
 
 import AppButton from '@/components/AppButton.vue'
+import WalletPagedRows from '@/components/WalletPagedRows.vue'
 import { wCount, wt } from '@/i18n/walletText'
 import type { WalletEntryOrganizationDetail } from '@/wallet/entryService'
 
@@ -80,16 +81,18 @@ function nodeStatus(status?: string): string {
             }}</small>
           </summary>
           <p>{{ group.description }}</p>
-          <ul v-if="group.nodes.length">
-            <li v-for="node in group.nodes" :key="node.id || node.peerId || node.endpoint">
-              <div class="node-identity">
-                <strong>{{ node.id || group.title }}</strong
-                ><small>{{ nodeStatus(node.status) }}</small>
-              </div>
-              <small v-if="node.peerId" class="mono">Peer · {{ node.peerId }}</small>
-              <small v-if="node.endpoint" class="mono">API · {{ node.endpoint }}</small>
-            </li>
-          </ul>
+          <WalletPagedRows v-if="group.nodes.length" v-slot="{ rows }" :items="group.nodes" :label="group.title">
+            <ul>
+              <li v-for="node in rows" :key="node.id || node.peerId || node.endpoint">
+                <div class="node-identity">
+                  <strong>{{ node.id || group.title }}</strong>
+                  <small>{{ nodeStatus(node.status) }}</small>
+                </div>
+                <small v-if="node.peerId" class="mono">Peer · {{ node.peerId }}</small>
+                <small v-if="node.endpoint" class="mono">API · {{ node.endpoint }}</small>
+              </li>
+            </ul>
+          </WalletPagedRows>
           <p v-else>{{ wt('w100') }}</p>
         </details>
       </div>

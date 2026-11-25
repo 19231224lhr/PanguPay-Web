@@ -4,6 +4,8 @@ import { computed, inject, onBeforeUnmount, ref, useId, watch } from 'vue'
 
 import FormField from '@/components/FormField.vue'
 import OrganizationInlineDetail from '@/components/OrganizationInlineDetail.vue'
+import WalletPagination from '@/components/WalletPagination.vue'
+import { useWalletPagination } from '@/composables/useWalletPagination'
 import {
   createWalletNetwork,
   organizationRefreshInterval,
@@ -26,6 +28,12 @@ onBeforeUnmount(() => {
 const matches = computed(() => {
   const needle = search.value.trim().toLowerCase()
   return props.organizations.filter((item) => item.id.toLowerCase().includes(needle))
+})
+const { page, pageCount, items: listed } = useWalletPagination(matches)
+watch(search, () => (page.value = 1))
+watch(page, () => {
+  expanded.value = ''
+  if (!props.disabled && !listed.value.some((item) => item.id === selected.value)) selected.value = ''
 })
 const detailQuery = computed(() => {
   const item = matches.value.find((candidate) => candidate.id === expanded.value)
@@ -65,7 +73,7 @@ function toggle(item: WalletEntryOrganization): void {
         {{ wt('orgSearchEmpty') }}
       </p>
       <article
-        v-for="(item, index) in matches"
+        v-for="(item, index) in listed"
         :key="item.id"
         class="organization-choice"
         :data-selected="selected === item.id || undefined"
@@ -116,6 +124,7 @@ function toggle(item: WalletEntryOrganization): void {
           </div>
         </Transition>
       </article>
+      <WalletPagination v-model="page" :page-count="pageCount" :label="wt('w46')" :disabled="disabled" />
     </div>
   </div>
 </template>

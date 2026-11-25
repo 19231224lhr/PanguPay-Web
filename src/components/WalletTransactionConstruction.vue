@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
+import WalletPagedRows from '@/components/WalletPagedRows.vue'
 import { activityAssetSymbol } from '@/composables/useWalletActivities'
 import { wt } from '@/i18n/walletText'
 import { GatewayClient } from '@/services/gatewayClient'
@@ -22,6 +23,9 @@ const props = defineProps<{
 
 const certified = shallowRef<TransactionConstruction>()
 const construction = computed(() => props.progress?.construction ?? certified.value ?? props.observed)
+const highlightedRow = computed(() => construction.value?.outputs.findIndex(
+  (output, index) => (output.index ?? index) === props.highlightedOutput,
+))
 const loading = ref(false)
 const attempted = ref(false)
 
@@ -70,46 +74,55 @@ function utxoQuery(txId: string, outputIndex?: number, height?: number) {
     <div v-if="construction" class="construction-grid">
       <div>
         <h4>{{ wt('activityInputs') }} <span>{{ construction.inputs.length }}</span></h4>
-        <ol>
-          <li v-for="(input, index) in construction.inputs" :key="index">
-            <div class="construction-line">
-              <strong>{{ input.kind === 'utxo' ? 'UTXO' : 'TXCer' }}</strong>
-              <span v-if="input.amount != null" class="tabular">{{ input.amount }} {{ asset }}</span>
-            </div>
-            <code v-if="input.address">{{ input.address }}</code>
-            <small v-if="input.reference">
-              <RouterLink
-                v-if="input.kind === 'utxo' && /^[0-9a-f]{64}$/i.test(input.reference)"
-                class="construction-reference"
-                :to="{ path: '/wallet', hash: '#blockchain', query: utxoQuery(input.reference, input.outputIndex, input.sourceHeight) }"
-              >
-                <code>{{ formatTransactionReference({ txId: input.reference, outputIndex: input.outputIndex }) }}</code>
-              </RouterLink>
-              <template v-else>
-                <code>{{ input.reference }}</code>
-                <span v-if="input.outputIndex != null" class="output-index">#{{ input.outputIndex }}</span>
-              </template>
-            </small>
-          </li>
-        </ol>
+        <WalletPagedRows v-slot="{ rows, offset }" :items="construction.inputs" :label="wt('activityInputs')">
+          <ol :start="offset + 1">
+            <li v-for="(input, index) in rows" :key="offset + index">
+              <div class="construction-line">
+                <strong>{{ input.kind === 'utxo' ? 'UTXO' : 'TXCer' }}</strong>
+                <span v-if="input.amount != null" class="tabular">{{ input.amount }} {{ asset }}</span>
+              </div>
+              <code v-if="input.address">{{ input.address }}</code>
+              <small v-if="input.reference">
+                <RouterLink
+                  v-if="input.kind === 'utxo' && /^[0-9a-f]{64}$/i.test(input.reference)"
+                  class="construction-reference"
+                  :to="{ path: '/wallet', hash: '#blockchain', query: utxoQuery(input.reference, input.outputIndex, input.sourceHeight) }"
+                >
+                  <code>{{ formatTransactionReference({ txId: input.reference, outputIndex: input.outputIndex }) }}</code>
+                </RouterLink>
+                <template v-else>
+                  <code>{{ input.reference }}</code>
+                  <span v-if="input.outputIndex != null" class="output-index">#{{ input.outputIndex }}</span>
+                </template>
+              </small>
+            </li>
+          </ol>
+        </WalletPagedRows>
       </div>
       <div>
         <h4>{{ wt('activityOutputs') }} <span>{{ construction.outputs.length }}</span></h4>
-        <ol>
-          <li
-            v-for="(output, index) in construction.outputs"
-            :key="output.index ?? index"
-            :data-highlighted-output="highlightedOutput === (output.index ?? index) || undefined"
-          >
-            <div class="construction-line">
-              <strong>{{ outputLabel(output.address, output.index ?? index) }}</strong>
-              <span class="tabular">
-                {{ output.amount }} {{ output.coinType == null ? asset : activityAssetSymbol(output.coinType) }}
-              </span>
-            </div>
-            <code>{{ output.address }}</code>
-          </li>
-        </ol>
+        <WalletPagedRows
+          v-slot="{ rows, offset }"
+          :items="construction.outputs"
+          :label="wt('activityOutputs')"
+          :focus-index="highlightedRow"
+        >
+          <ol :start="offset + 1">
+            <li
+              v-for="(output, index) in rows"
+              :key="output.index ?? offset + index"
+              :data-highlighted-output="highlightedOutput === (output.index ?? offset + index) || undefined"
+            >
+              <div class="construction-line">
+                <strong>{{ outputLabel(output.address, output.index ?? offset + index) }}</strong>
+                <span class="tabular">
+                  {{ output.amount }} {{ output.coinType == null ? asset : activityAssetSymbol(output.coinType) }}
+                </span>
+              </div>
+              <code>{{ output.address }}</code>
+            </li>
+          </ol>
+        </WalletPagedRows>
       </div>
     </div>
     <template v-else>

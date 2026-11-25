@@ -20,6 +20,7 @@ import type {
 import CurveMark from './CurveMark.vue'
 import AppButton from './AppButton.vue'
 import IconButton from './IconButton.vue'
+import WalletPagedRows from './WalletPagedRows.vue'
 
 const props = defineProps<{
   open: boolean
@@ -201,18 +202,20 @@ onBeforeUnmount(() => {
                 </div>
                 <span>{{ group.nodes.length }}</span>
               </div>
-              <ul v-if="group.nodes.length">
-                <li v-for="node in group.nodes" :key="`${group.role}-${node.id || node.peerId}`">
-                  <div>
-                    <strong>{{ nodeName(node, group.title) }}</strong>
-                    <small v-if="node.peerId">Peer · {{ node.peerId }}</small>
-                    <small v-if="node.endpoint">API · {{ node.endpoint }}</small>
-                  </div>
-                  <b :data-status="node.status?.toLowerCase() || 'registered'">
-                    {{ nodeStatus(node.status) }}
-                  </b>
-                </li>
-              </ul>
+              <WalletPagedRows v-if="group.nodes.length" v-slot="{ rows }" :items="group.nodes" :label="group.title">
+                <ul>
+                  <li v-for="node in rows" :key="`${group.role}-${node.id || node.peerId}`">
+                    <div>
+                      <strong>{{ nodeName(node, group.title) }}</strong>
+                      <small v-if="node.peerId">Peer · {{ node.peerId }}</small>
+                      <small v-if="node.endpoint">API · {{ node.endpoint }}</small>
+                    </div>
+                    <b :data-status="node.status?.toLowerCase() || 'registered'">
+                      {{ nodeStatus(node.status) }}
+                    </b>
+                  </li>
+                </ul>
+              </WalletPagedRows>
               <p v-else class="organization-node-group__empty">{{ wt('w100') }}</p>
             </section>
           </div>
