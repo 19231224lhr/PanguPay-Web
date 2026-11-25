@@ -2,12 +2,17 @@ vi.mock('@/components/WalletFigure.vue', () => ({ default: { template: '<div />'
 import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import WalletActivityView from '@/views/wallet/WalletActivityView.vue'
+import type { WalletActivity } from '@/wallet/types'
 
 const incomingId = 'b'.repeat(64)
+const extraIncoming: WalletActivity[] = []
 vi.mock('@/stores/dashboard', () => ({
   useDashboardStore: () => ({
     current: {
-      activities: [{ id: incomingId, title: '转入', status: 'settled', direction: 'in', amount: '1', timestamp: 1 }],
+      activities: [
+        { id: incomingId, title: '转入', status: 'settled', direction: 'in', amount: '1', timestamp: 1 },
+        ...extraIncoming,
+      ],
     },
   }),
 }))
@@ -44,6 +49,35 @@ it('passes the full journal milestones from activity rows into the shared timeli
   expect(wrapper.text()).toContain('入口接收时间')
   expect(wrapper.text()).not.toContain('收款方可用')
   expect(wrapper.findAll('[data-activity-step]')[0]?.attributes('data-state')).toBe('complete')
+})
+
+it('paginates the filtered activities and starts over when the filter changes', async () => {
+  extraIncoming.push(...Array.from({ length: 6 }, (_, index): WalletActivity => ({
+    id: String(index + 1).repeat(64),
+    title: '转入',
+    status: 'settled',
+    direction: 'in',
+    amount: '1',
+    timestamp: index + 2,
+  })))
+  const wrapper = mount(WalletActivityView, { global: { stubs: { WalletPageHeader: true } } })
+  try {
+    const rows = () => wrapper.findAll('.activity-ledger summary')
+    expect(rows()).toHaveLength(5)
+    expect(wrapper.get('button[aria-label="上一页"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('button[aria-label="下一页"]').trigger('click')
+    expect(rows()).toHaveLength(3)
+    expect(wrapper.get('button[aria-label="下一页"]').attributes('disabled')).toBeDefined()
+
+    const settled = wrapper.findAll('button').find((button) => button.text().startsWith('已结算'))
+    expect(settled).toBeDefined()
+    await settled!.trigger('click')
+    expect(rows()).toHaveLength(5)
+    expect(wrapper.get('button[aria-label="上一页"]').attributes('disabled')).toBeDefined()
+  } finally {
+    wrapper.unmount()
+    extraIncoming.length = 0
+  }
 })
 
 it('shows a compact incoming record and copies its complete transaction ID', async () => {

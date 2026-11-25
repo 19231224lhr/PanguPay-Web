@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { smoothDetails as vSmoothDetails } from '@/directives/smoothDetails'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AnimatedNumber from '@/components/AnimatedNumber.vue'
+import AppButton from '@/components/AppButton.vue'
 import SegmentedControl from '@/components/SegmentedControl.vue'
 import { wCount, wt, wl, walletLocale } from '@/i18n/walletText'
 
-import { PhArrowDownLeft, PhArrowUpRight, PhCaretDown as CaretDown, PhCheck } from '@phosphor-icons/vue'
+import {
+  PhArrowDownLeft,
+  PhArrowUpRight,
+  PhCaretDown as CaretDown,
+  PhCaretLeft,
+  PhCaretRight,
+  PhCheck,
+} from '@phosphor-icons/vue'
 
 import ActivityProgress from '@/components/ActivityProgress.vue'
 import WalletCopyButton from '@/components/WalletCopyButton.vue'
@@ -19,6 +27,8 @@ import {
 
 const activities = useWalletActivities()
 const phase = ref('all')
+const page = ref(1)
+const pageSize = 5
 const expanded = reactive(new Set<string>())
 
 function trackDisclosure(event: Event, id: string) {
@@ -46,6 +56,15 @@ const phases = computed(() =>
 const filteredActivities = computed(() =>
   activities.value.filter((item) => matchesPhase(item, phase.value)),
 )
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredActivities.value.length / pageSize)))
+const pageOffset = computed(() => (page.value - 1) * pageSize)
+const pagedActivities = computed(() =>
+  filteredActivities.value.slice(pageOffset.value, pageOffset.value + pageSize),
+)
+
+watch(phase, () => (page.value = 1))
+watch(pageCount, (count) => (page.value = Math.min(page.value, count)))
+watch([phase, page], () => expanded.clear())
 
 const formatTime = (value: number) =>
   value
@@ -98,8 +117,8 @@ const statusTone = (item: ActivityRow) =>
       </div>
       <template v-else>
         <p v-if="!filteredActivities.length" class="wallet-empty">{{ wt('motionEmpty') }}</p>
-        <ol>
-          <li v-for="item in filteredActivities" :key="item.id">
+        <ol v-else :key="`${phase}-${page}`" :start="pageOffset + 1">
+          <li v-for="item in pagedActivities" :key="item.id">
             <details v-smooth-details @toggle="trackDisclosure($event, item.id)">
               <summary class="activity-row">
                 <span class="wallet-record-icon activity-direction" aria-hidden="true">
@@ -143,6 +162,25 @@ const statusTone = (item: ActivityRow) =>
             </details>
           </li>
         </ol>
+        <nav v-if="pageCount > 1" class="activity-pagination" :aria-label="wt('activityPagination')">
+          <AppButton
+            variant="ghost"
+            :aria-label="wt('activityPreviousPage')"
+            :disabled="page <= 1"
+            @click="page -= 1"
+          >
+            <PhCaretLeft :size="16" aria-hidden="true" />
+          </AppButton>
+          <span class="tabular" role="status">{{ wt('activityPageStatus', [page, pageCount]) }}</span>
+          <AppButton
+            variant="ghost"
+            :aria-label="wt('activityNextPage')"
+            :disabled="page >= pageCount"
+            @click="page += 1"
+          >
+            <PhCaretRight :size="16" aria-hidden="true" />
+          </AppButton>
+        </nav>
       </template>
     </section>
   </div>
@@ -167,6 +205,24 @@ li {
 
 li:last-child {
   border-bottom: 0;
+}
+
+.activity-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.activity-pagination > button {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  padding-inline: 8px;
 }
 
 .activity-row {
