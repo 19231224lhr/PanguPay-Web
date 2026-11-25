@@ -225,7 +225,8 @@ describe('WalletOrganizationView', () => {
     const check = wrapper.findAll('button').find((button) => button.text().includes('检查退出条件'))
     expect(check).toBeTruthy()
     await check!.trigger('click')
-    expect(wrapper.text()).toContain('再次确认')
+    expect(wrapper.get('.organization-exit [role="status"]').text()).toContain('再次确认')
+    expect(wrapper.get('.organization-exit__actions').text()).not.toContain('再次确认')
     expect(service.leave).not.toHaveBeenCalled()
 
     const confirm = wrapper

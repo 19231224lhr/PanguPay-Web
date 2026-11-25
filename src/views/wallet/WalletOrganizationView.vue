@@ -306,32 +306,32 @@ async function leaveOrganization(): Promise<void> {
       </template>
 
       <section class="organization-exit" aria-labelledby="organization-exit-title">
-        <div>
+        <div class="organization-exit__copy">
           <h2 id="organization-exit-title">{{ wt('w104') }}</h2>
-          <p>{{ wt('w105') }}</p>
+          <div role="status">
+            <p v-if="exitStage === 'idle'">{{ wt('w105') }}</p>
+            <p v-else-if="pendingExit">{{ wt('organizationExitPending') }}</p>
+            <ul v-else-if="exitDecision.reasons.length">
+              <li v-for="reason in exitDecision.reasons" :key="reason">{{ reason }}</li>
+            </ul>
+            <p v-else>{{ wt('w107') }}</p>
+          </div>
         </div>
         <AppButton v-if="exitStage === 'idle'" variant="danger" @click="inspectExit">
           {{ wt('w106') }}
         </AppButton>
-        <div v-else class="organization-exit__confirmation">
-          <p v-if="pendingExit" role="status">{{ wt('organizationExitPending') }}</p>
-          <ul v-else-if="exitDecision.reasons.length">
-            <li v-for="reason in exitDecision.reasons" :key="reason">{{ reason }}</li>
-          </ul>
-          <p v-else>{{ wt('w107') }}</p>
-          <div>
-            <AppButton variant="ghost" :disabled="exitBusy" @click="exitStage = 'idle'">
-              {{ wt('w108') }}
-            </AppButton>
-            <AppButton
-              :variant="pendingExit ? 'secondary' : 'danger'"
-              :disabled="!pendingExit && !exitDecision.allowed"
-              :loading="exitBusy"
-              @click="leaveOrganization"
-            >
-              {{ wt(pendingExit ? 'organizationExitCheck' : 'w109') }}
-            </AppButton>
-          </div>
+        <div v-else class="organization-exit__actions">
+          <AppButton variant="ghost" :disabled="exitBusy" @click="exitStage = 'idle'">
+            {{ wt('w108') }}
+          </AppButton>
+          <AppButton
+            :variant="pendingExit ? 'secondary' : 'danger'"
+            :disabled="!pendingExit && !exitDecision.allowed"
+            :loading="exitBusy"
+            @click="leaveOrganization"
+          >
+            {{ wt(pendingExit ? 'organizationExitCheck' : 'w109') }}
+          </AppButton>
         </div>
         <InlineNotice v-if="exitError" :title="wt('w110')" tone="danger">{{
           wl(exitError)
@@ -567,21 +567,16 @@ details[open] > .organization-disclosure .organization-disclosure__caret {
 .organization-exit {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: 1rem;
   padding-top: 1.2rem;
   border-top: 1px solid var(--hairline);
 }
-.organization-exit > div:first-child {
+.organization-exit__copy {
   display: grid;
   gap: 0.3rem;
 }
-.organization-exit__confirmation {
-  display: grid;
-  max-width: 520px;
-  gap: 0.8rem;
-}
-.organization-exit__confirmation ul {
+.organization-exit__copy ul {
   display: grid;
   gap: 0.3rem;
   margin: 0;
@@ -589,8 +584,9 @@ details[open] > .organization-disclosure .organization-disclosure__caret {
   color: var(--danger);
   font-size: 0.76rem;
 }
-.organization-exit__confirmation > div {
+.organization-exit__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }
@@ -629,9 +625,6 @@ details[open] > .organization-disclosure .organization-disclosure__caret {
   }
   .organization-roster__detail {
     padding-inline-start: 0;
-  }
-  .organization-exit__confirmation > div {
-    display: grid;
   }
 }
 @media (prefers-reduced-motion: reduce) {
